@@ -10,33 +10,11 @@ print("[Runner] Running Jerry Bot")
 # Load the environment variables
 print("[Runner] Loading environment variables")
 load_dotenv()
-token = os.getenv("BOT_TOKEN")
-db_creds = [
-    # {
-    #     "name": "Dev Database (Docker)",
-    #     "host": "mysql",
-    #     "user": os.getenv("MYSQL_USER"),
-    #     "password": os.getenv("MYSQL_PASSWORD"),
-    #     "db": os.getenv("MYSQL_DATABASE"),
-    # },
-    {
-        "name": "Dev Database (localhost)",
-        "host": "localhost",
-        "user": os.getenv("MYSQL_USER"),
-        "password": os.getenv("MYSQL_PASSWORD"),
-        "db": os.getenv("MYSQL_DATABASE"),
-    },
-    {
-        "name": "Dev Database (127.0.0.1)",
-        "host": "127.0.0.1",
-        "user": os.getenv("MYSQL_USER"),
-        "password": os.getenv("MYSQL_PASSWORD"),
-        "db": os.getenv("MYSQL_DATABASE"),
-    },
-]
-channel = int(os.getenv("BOT_SHELL"))
 
-jerry = Jerry(token=token, db_creds=db_creds, shell=channel, gemini_token=os.getenv("GEMINI_TOKEN"))
+channel = int(os.getenv("BOT_SHELL"))
+token = os.getenv("BOT_TOKEN")
+
+jerry = Jerry(discord_token=token, gemini_token=os.getenv("GEMINI_TOKEN"), shell_channel=channel)
 
 # Start the Jerry bot
 print("[Runner] Running Jerry Bot")
