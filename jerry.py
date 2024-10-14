@@ -397,6 +397,7 @@ To execute multiple commands, separate them with %^%"""
         self,
         message: discord.Message = None,
     ):
+        """Play hide and seek with the user; place a reaction on a random message in the server"""
         print("[Gemini] Playing hide and seek")
         guild = message.guild
         # Get all channels
@@ -440,6 +441,7 @@ To execute multiple commands, separate them with %^%"""
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle the hide and seek reaction"""
         if not hasattr(self, "hide_seek_message"):
             return
         if payload.user_id == self.bot.user.id:
@@ -452,7 +454,10 @@ To execute multiple commands, separate them with %^%"""
             if hasattr(self, "hide_seek_from_gemini"):
                 # Tell jerry to congratulate the user
                 message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ~send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
+                
+                
                 print(f"[Gemini] Sending message to gemini: {message_send}")
+                
                 response = await self.chat.send_message_async(
                     message_send,
                 )
@@ -506,6 +511,39 @@ To execute multiple commands, separate them with %^%"""
                     "Hide and Seek initiated", "Hide-Seek", msg_type="success"
                 )
                 return
+            
+    async def cog_status(self):
+        try:
+            print("[Gemini] Checking model status")
+            # Check if the model is ready by sending a test message
+            promt = "Answer the following question with either 'y' or 'n'; only state 'y' or 'n' in your response: Is 23 + 19 equal to 42?"
+            answer = ""
+            try:
+                response = await self.model.generate_content_async(
+                    promt,
+                )
+                answer = response.text.strip().lower()
+            except Exception as e:
+                print(f"[Gemini] Error testing model: {e}")
+                return f"Not ready; model is throwing error:\n{e}"
+            if answer == "y":
+                print("[Gemini] Model is ready, got expected response")
+                return "Ready; model is responding"
+            elif answer == "n":
+                print("[Gemini] Model is ready, got incorrect response")
+                return "Ready; model is responding but its math is not mathing"
+            elif len(answer) > 1:
+                print(f"[Gemini] Model is ready, got arbitrary response: {response.text}")
+                return "Ready; model is responding with an arbitrary response"
+            else:
+                print("[Gemini] Model is not ready, got no response")
+                return "Failed; model said nothing upon request"
+                
+        except Exception as e:
+            print(f"[Gemini] Error testing model: {e}")
+            return f"Status check failed: {e}"
+        
+    
 
 
 class AutoReply(commands.Cog):
@@ -550,3 +588,8 @@ class AutoReply(commands.Cog):
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "response" in response:
                     await message.reply(response["response"])
+
+
+    # Cog status
+    async def cog_status(self):
+        return f"Ready with {len(self.auto_reply)} replies"
