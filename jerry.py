@@ -49,17 +49,23 @@ import re
 # Core bot
 import core
 
+
 class Jerry(core.Bot):
-    def __init__(self, discord_token: str, gemini_token: str, shell_channel: int, **kwargs):
-        super().__init__(token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs)
+    def __init__(
+        self, discord_token: str, gemini_token: str, shell_channel: int, **kwargs
+    ):
+        super().__init__(
+            token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
+        )
         self.gemini_token = gemini_token
-        
+
         asyncio.run(self.load_cogs())
 
     # Load cogs
     async def load_cogs(self):
         await self.add_cog(JerryGemini(self))
         await self.add_cog(AutoReply(self))
+
 
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
@@ -130,7 +136,9 @@ class JerryGemini(commands.Cog):
                 f"{message_prompt}\n\nIncoming Message:\n```\n{message.content}\n```"
             )
             if message_embeds:
-                message_send += f"\n\nIncoming Message has embeds:\n```\n{message_embeds}\n```"
+                message_send += (
+                    f"\n\nIncoming Message has embeds:\n```\n{message_embeds}\n```"
+                )
 
             # Check for replies
             if message.reference:
@@ -139,7 +147,7 @@ class JerryGemini(commands.Cog):
                 )
                 print(f"[Gemini] Reply detected: {message.reference.resolved.content}")
                 message_send = f"{message_prompt}\n\nIncoming Reply Message:\n```\n{message.content}\n```\nReplying to {reply.author.display_name}:\n```\n{reply.content}\n```"
-                
+
             # Read memory
             try:
                 with open("store/memory.txt", "r") as f:
@@ -183,7 +191,7 @@ class JerryGemini(commands.Cog):
 
         # Process the response
         await self._process_response(response.text, message)
-        
+
     async def _process_response(self, response: str, message: discord.Message):
         print(f"[Gemini] Response received: {response}")
         commands = response.split("%^%")
@@ -191,7 +199,7 @@ class JerryGemini(commands.Cog):
         for command in commands:
             # Remove leading/trailing whitespace
             command = command.strip()
-            
+
             # Check for actions
             action = command.split(" ")[0]
             if action.startswith("~send"):
@@ -199,7 +207,7 @@ class JerryGemini(commands.Cog):
                 message_text = command.split(" ", 1)[1]
                 await message.channel.send(message_text)
                 continue
-            
+
             if action.startswith("~reset"):
                 print("[Gemini] Resetting chat")
                 await self._new_chat()
@@ -214,16 +222,16 @@ class JerryGemini(commands.Cog):
                 )
                 await message.channel.send(embed=embed)
                 continue
-            
+
             if action.startswith("~save"):
                 print(f"[Gemini] Saving text: {command}")
                 text = command.split(" ", 1)[1]
                 await self._add_memory(text)
                 continue
-            
+
     async def _new_chat(self):
         self.chat = self.model.start_chat()
-        return    
+        return
 
     async def _create_prompt(self, message: discord.Message):
         message_prompt = f"""You are Jerry, a discord AI chatbot.
@@ -237,7 +245,7 @@ You are here to be helpful as well as just an AI friend. You are currently in a 
 To interact with the chat, use the following commands:
 ~send <message> - Respond with a message
 ~reset - Reset the chat
-~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future
+~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
 To execute multiple commands, separate them with %^%"""
 
         return message_prompt
@@ -275,8 +283,8 @@ To execute multiple commands, separate them with %^%"""
         except Exception as e:
             print(f"[Gemini] Error processing attachment: {e}")
             return None
-        
-    async def _handle_embed(self, message: discord.Message)->str:
+
+    async def _handle_embed(self, message: discord.Message) -> str:
         if not message.embeds:
             return None
         print(f"[Gemini] {len(message.embeds)} embeds found")
@@ -288,25 +296,27 @@ To execute multiple commands, separate them with %^%"""
             embeds_str += f"Embed Footer: {embed.footer.text}\nEmbed Author: {embed.author.name}\n"
         print(f"[Gemini] Processed embeds: \n{embeds_str}")
         return embeds_str
-        
 
     async def shell_callback(
         self, command: str, query: list, shell_command: core.ShellCommand
     ):
         if command == "gemini":
             await shell_command.log(
-                "Now entering Gemini mode.", title="Entering Gemini Mode", msg_type="info"
+                "Now entering Gemini mode.",
+                title="Entering Gemini Mode",
+                msg_type="info",
             )
             self.bot.shell.interactive_mode = "gemini"
-            
+
     async def _add_memory(self, text: str):
         with open("store/memory.txt", "a") as f:
             f.write(f"{text}\n\n")
             return True
-            
+
     async def _load_memory(self):
         with open("store/memory.txt", "r") as f:
             return f.readlines()
+
 
 class AutoReply(commands.Cog):
     """
@@ -323,25 +333,17 @@ class AutoReply(commands.Cog):
             Event listener that triggers on every new message. Checks the message content against predefined patterns
             and replies accordingly if a match is found.
     """
-    
+
     def __init__(self, bot: Jerry):
         self.bot = bot
-        
+
         self.auto_reply = {
-            "nuh+[\W_]*h?uh" : {
-                "response":"Yuh-uh ✅"
-            },
-            "yuh+[\W_]*h?uh":{
-                "response":"Nuh-uh ❌"
-            },
-            "womp":{
-                "response":"Womp womp"
-            },
-            "^shut+[\W_]*up":{
-                "response":"No u"
-            }
+            "nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
+            "yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
+            "womp": {"response": "Womp womp"},
+            "^shut+[\W_]*up": {"response": "No u"},
         }
-        
+
     @commands.Cog.listener()
     async def on_ready(self):
         print(f"[AutoReply] Ready with {len(self.auto_reply)} replies")
@@ -351,10 +353,9 @@ class AutoReply(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        if (
-            message.channel.id == 1293430080328171530):
+        if message.channel.id == 1293430080328171530:
             return
-    
+
         for pattern, response in self.auto_reply.items():
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "response" in response:
