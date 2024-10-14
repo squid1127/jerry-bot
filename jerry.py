@@ -66,7 +66,6 @@ class Jerry(core.Bot):
         await self.add_cog(JerryGemini(self))
         await self.add_cog(AutoReply(self))
 
-
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
         self.bot = bot
@@ -106,11 +105,14 @@ class JerryGemini(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author == self.bot.user:
-            return
-
         if message.channel.id != self.channel_id:  # TODO: Make this a config variable
             return
+        
+        if message.author == self.bot.user:
+            # Comment out to allow Jerry to talk to himself
+            return
+            
+            # await asyncio.sleep(5) # Prevent rate limiting during self-chat
 
         # Typing indicator
         await message.channel.typing()
@@ -221,7 +223,7 @@ class JerryGemini(commands.Cog):
             r_split = response.rsplit("```")
             response = r_split[len(r_split) - 2]
             
-        commands = response.split("%^%")
+        commands = response.split("^*&")
         print(f"[Gemini] Commands: {commands}")
         for command in commands:
             # Remove leading/trailing whitespace
@@ -229,13 +231,13 @@ class JerryGemini(commands.Cog):
 
             # Check for actions
             action = command.split(" ")[0]
-            if action.startswith("~send"):
+            if action.startswith("send"):
                 print(f"[Gemini] Sending message: {command}")
                 message_text = command.split(" ", 1)[1]
                 await channel.send(message_text)
                 continue
 
-            if action.startswith("~reset"):
+            if action.startswith("reset"):
                 print("[Gemini] Resetting chat")
                 await self._new_chat()
                 embed = discord.Embed(
@@ -250,32 +252,38 @@ class JerryGemini(commands.Cog):
                 await channel.send(embed=embed)
                 continue
 
-            if action.startswith("~save"):
+            if action.startswith("save"):
                 print(f"[Gemini] Saving text: {command}")
                 text = command.split(" ", 1)[1]
                 # await self._add_memory(text)
                 await self._optimize_memory(f"Add the following to its respective category or header: '{text}'")
                 continue
 
-            if action.startswith("~forget"):
+            if action.startswith("forget"):
                 print(f"[Gemini] Forgetting text: {command}")
                 text_to_forget = command.split(" ", 1)[1]
                 prompt = f"remove the following from memory: '{text_to_forget}'"
                 await self._optimize_memory(prompt)
                 continue
 
-            if action.startswith("~hide-seek"):
+            if action.startswith("hide-seek"):
                 print(f"[Gemini] Playing hide and seek")
                 await self._hide_seek(message)
                 self.hide_seek_from_gemini = True
 
                 # Tell the user to find the message via jerry
-                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ~send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you. The hidden reaction is in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
+                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ^*&send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you. The hidden reaction is in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
                 response = await self.chat.send_message_async(
                     message_send,
                 )
 
                 await self._process_response(response.text, message)
+                continue
+            
+            # If no action is found, send the message
+            if command != "":
+                print(f"[Gemini] Sending message: {command}")
+                await channel.send(command)
 
     async def _new_chat(self):
         self.chat = self.model.start_chat()
@@ -291,12 +299,12 @@ The user id of the member who sent the message is included in the request, feel 
 You are here to be helpful as well as entertain others with you intellegence. You are currently in a discord channel. You are talking to a user. They are called {message.author.display_name} and can be mentioned as {message.author.mention}. 
 
 To interact with the chat, use the following commands:
-~send <message> - Respond with a message
-~reset - Reset the chat
-~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
-~forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
-~hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same moji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
-To execute multiple commands, separate them with %^%"""
+^*&send <message> - Respond with a message
+^*&reset - Reset the chat
+^*&save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
+^*&forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
+^*&hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same moji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
+You may execute multiple commands."""
 
         return message_prompt
 
@@ -374,7 +382,7 @@ To execute multiple commands, separate them with %^%"""
         memory = await self._load_memory()
 
         prompt = (
-            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format.If an item begins with ~send, remove it. You may merge entries, but be very careful to not merge unrelated entries. If you are unsure, leave it as is. You may add categories or headers to the data, but do not remove any data. When working with user ids (<@user id>), you may merge data with the same user id, but be careful to not merge unrelated data. If you are unsure, leave it as is. If you are unable to optimize the data, leave it as is. "
+            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format.If an item begins with ^*&send, remove it. You may merge entries, but be very careful to not merge unrelated entries. If you are unsure, leave it as is. You may add categories or headers to the data, but do not remove any data. When working with user ids (<@user id>), you may merge data with the same user id, but be careful to not merge unrelated data. If you are unsure, leave it as is. If you are unable to optimize the data, leave it as is. "
             + (
                 f"In addition, you must {additional_prompt}."
                 if additional_prompt
@@ -453,7 +461,7 @@ To execute multiple commands, separate them with %^%"""
 
             if hasattr(self, "hide_seek_from_gemini"):
                 # Tell jerry to congratulate the user
-                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ~send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
+                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ^*&send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
                 
                 
                 print(f"[Gemini] Sending message to gemini: {message_send}")
@@ -542,9 +550,6 @@ To execute multiple commands, separate them with %^%"""
         except Exception as e:
             print(f"[Gemini] Error testing model: {e}")
             return f"Status check failed: {e}"
-        
-    
-
 
 class AutoReply(commands.Cog):
     """
@@ -579,6 +584,9 @@ class AutoReply(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author == self.bot.user:
+            return
+        
+        if message.author.bot:
             return
 
         if message.channel.id == 1293430080328171530:
