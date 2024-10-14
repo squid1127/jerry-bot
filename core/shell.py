@@ -265,7 +265,7 @@ class ShellHandler(commands.Cog):
             name=commandEntry.command,
             cog=commandEntry.cog,
             shell=self.core,
-            query=message.content.split(" ")[2:],
+            query=" ".join(message.content.split(" ")[2:]),
         )
 
         # Execute the command
