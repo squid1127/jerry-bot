@@ -229,6 +229,14 @@ class JerryGemini(commands.Cog):
                 print(f"[Gemini] Saving text: {command}")
                 text = command.split(" ", 1)[1]
                 await self._add_memory(text)
+                await self._optimize_memory()
+                continue
+            
+            if action.startswith("~forget"):
+                print(f"[Gemini] Forgetting text: {command}")
+                text_to_forget = command.split(" ", 1)[1]
+                prompt = f"remove the following from memory: '{text_to_forget}'"
+                await self._optimize_memory(prompt)
                 continue
 
     async def _new_chat(self):
@@ -249,6 +257,7 @@ To interact with the chat, use the following commands:
 ~send <message> - Respond with a message
 ~reset - Reset the chat
 ~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
+~forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
 To execute multiple commands, separate them with %^%"""
 
         return message_prompt
@@ -315,10 +324,10 @@ To execute multiple commands, separate them with %^%"""
         with open("store/memory.txt", "r") as f:
             return f.read()
         
-    async def _optimize_memory(self):
+    async def _optimize_memory(self, additional_prompt:str= None):
         memory = await self._load_memory()
         
-        prompt = "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines:\n```\n" + memory + "\n```"
+        prompt = "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format." + (f"In addition, you must {additional_prompt}." if additional_prompt else '') + "\n```\n" + memory + "\n```"
         
         response = await self.model.generate_content_async(
             prompt,
