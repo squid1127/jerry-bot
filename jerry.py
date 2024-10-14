@@ -163,6 +163,7 @@ class JerryGemini(commands.Cog):
 
             if message.attachments:
                 # Check if the attachment is an image
+                message_send += f"\n\nIncoming Message has Attachment: {message.attachments[0].filename}"
                 image = await self._handle_attachment(message)
                 if image:
                     print(f"[Gemini] Image processed: {image}")
