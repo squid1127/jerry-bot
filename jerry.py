@@ -139,6 +139,19 @@ class JerryGemini(commands.Cog):
                 )
                 print(f"[Gemini] Reply detected: {message.reference.resolved.content}")
                 message_send = f"{message_prompt}\n\nIncoming Reply Message:\n```\n{message.content}\n```\nReplying to {reply.author.display_name}:\n```\n{reply.content}\n```"
+                
+            # Read memory
+            try:
+                with open("store/memory.txt", "r") as f:
+                    memory = f.readlines()
+                    if memory:
+                        message_send += f"\n\nMemory:\n```\n{memory}\n```"
+            except FileNotFoundError:
+                print("[Gemini] Memory file not found")
+                pass
+            except Exception as e:
+                print(f"[Gemini] Error reading memory: {e}")
+                pass
 
             if message.attachments:
                 # Check if the attachment is an image
@@ -202,10 +215,15 @@ class JerryGemini(commands.Cog):
                 await message.channel.send(embed=embed)
                 continue
             
+            if action.startswith("~save"):
+                print(f"[Gemini] Saving text: {command}")
+                text = command.split(" ", 1)[1]
+                await self._add_memory(text)
+                continue
+            
     async def _new_chat(self):
         self.chat = self.model.start_chat()
-        return
-        
+        return    
 
     async def _create_prompt(self, message: discord.Message):
         message_prompt = f"""You are Jerry, a discord AI chatbot.
@@ -219,7 +237,7 @@ You are here to be helpful as well as just an AI friend. You are currently in a 
 To interact with the chat, use the following commands:
 ~send <message> - Respond with a message
 ~reset - Reset the chat
-~save <text> - Store text in permanent memory
+~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future
 To execute multiple commands, separate them with %^%"""
 
         return message_prompt
@@ -238,7 +256,7 @@ To execute multiple commands, separate them with %^%"""
             ):
                 # Download the image
                 print(f"[Gemini] Downloading image: {message.attachments[0].filename}")
-                fileName = f"./images/{message.attachments[0].filename}"
+                fileName = f"./store/images/{message.attachments[0].filename}"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(message.attachments[0].url) as resp:
                         # Save the image
@@ -280,6 +298,15 @@ To execute multiple commands, separate them with %^%"""
                 "Now entering Gemini mode.", title="Entering Gemini Mode", msg_type="info"
             )
             self.bot.shell.interactive_mode = "gemini"
+            
+    async def _add_memory(self, text: str):
+        with open("store/memory.txt", "a") as f:
+            f.write(f"{text}\n\n")
+            return True
+            
+    async def _load_memory(self):
+        with open("store/memory.txt", "r") as f:
+            return f.readlines()
 
 class AutoReply(commands.Cog):
     """
