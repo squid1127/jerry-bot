@@ -85,6 +85,7 @@ class JerryGemini(commands.Cog):
                 "DANGEROUS": "BLOCK_NONE",
             },
         )
+        self.bot.shell.add_command("gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -299,27 +300,56 @@ To execute multiple commands, separate them with %^%"""
         print(f"[Gemini] Processed embeds: \n{embeds_str}")
         return embeds_str
 
-    async def shell_callback(
-        self, command: str, query: list, shell_command: core.ShellCommand
-    ):
-        if command == "gemini":
-            await shell_command.log(
-                "Now entering Gemini mode.",
-                title="Entering Gemini Mode",
-                msg_type="info",
-            )
-            self.bot.shell.interactive_mode = "gemini"
-
     async def _add_memory(self, text: str):
         with open("store/memory.txt", "a") as f:
             f.write(f"{text}\n\n")
             return True
+    
+    async def _overwrite_memory(self, text: str):
+        
+        with open("store/memory.txt", "w") as f:
+            f.write(f"{text}")
+            return True
 
     async def _load_memory(self):
         with open("store/memory.txt", "r") as f:
-            return f.readlines()
+            return f.read()
+        
+    async def _optimize_memory(self):
+        memory = await self._load_memory()
+        
+        prompt = "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines:\n```\n" + memory + "\n```"
+        
+        response = await self.model.generate_content_async(
+            prompt,
+        )
+        
+        new_memory = response.text
+        await self._overwrite_memory(new_memory)
+        return True
 
+    async def shell_callback(
+        self, command: core.ShellCommand
+    ):
+        if command.name == "gemini":
+            sub_command = command.query.split(" ")[0]
 
+            if sub_command == "memory":
+                try:
+                    if command.query.split(" ")[1] == "optimize":
+                        await self._optimize_memory()
+                        memory = await self._load_memory()
+                        await command.log(f"Memory optimized:\n```\n{memory}```", "Memory", msg_type="success")
+                        return
+                except IndexError:
+                    pass
+                except Exception as e:
+                    await command.log(f"Error optimizing memory: {e}", "Memory", msg_type="error")
+                    return
+                memory = await self._load_memory()
+                await command.log(f"```\n{memory}```", "Memory")
+                return
+            
 class AutoReply(commands.Cog):
     """
     A Discord bot cog for automatically replying to specific messages.
@@ -362,3 +392,5 @@ class AutoReply(commands.Cog):
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "response" in response:
                     await message.reply(response["response"])
+
+
