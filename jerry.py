@@ -232,6 +232,7 @@ class JerryGemini(commands.Cog):
     async def _new_chat(self):
         self.chat = self.model.start_chat()
         return
+    
 
     async def _create_prompt(self, message: discord.Message):
         message_prompt = f"""You are Jerry, a discord AI chatbot.
