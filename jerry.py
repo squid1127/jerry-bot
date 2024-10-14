@@ -43,6 +43,9 @@ import google.generativeai as gemini
 import google.api_core.exceptions as gemini_selling
 from PIL import Image
 
+# Auto-reply
+import re
+
 # Core bot
 import core
 
@@ -55,7 +58,8 @@ class Jerry(core.Bot):
 
     # Load cogs
     async def load_cogs(self):
-        self.add_cog(JerryGemini(self))
+        await self.add_cog(JerryGemini(self))
+        await self.add_cog(AutoReply(self))
 
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
@@ -97,9 +101,19 @@ class JerryGemini(commands.Cog):
 
         if not hasattr(self, "chat") or message.content.lower() == "~reset":
             print("[Gemini] Chat not initialized, initializing...")
-            self.chat = self.model.start_chat()
+            await self._new_chat()
             if message.content.lower() == "~reset":
-                await message.channel.send("Chat reset.")
+                await self._new_chat()
+                embed = discord.Embed(
+                    title="Chat Reset",
+                    description="The chat has been reset; Jerry has forgotten everything :(",
+                    color=discord.Color.green(),
+                )
+                embed.set_footer(text="Powered by Jerry Bot")
+                embed.set_author(
+                    name="Conversation Agent",
+                )
+                await message.channel.send(embed=embed)
                 return
 
         if message.content.lower().startswith("~prompt "):
@@ -111,9 +125,12 @@ class JerryGemini(commands.Cog):
         # Send the message to the model
         try:
             message_prompt = await self._create_prompt(message)
+            message_embeds = await self._handle_embed(message)
             message_send = (
                 f"{message_prompt}\n\nIncoming Message:\n```\n{message.content}\n```"
             )
+            if message_embeds:
+                message_send += f"\n\nIncoming Message has embeds:\n```\n{message_embeds}\n```"
 
             # Check for replies
             if message.reference:
@@ -128,6 +145,7 @@ class JerryGemini(commands.Cog):
                 image = await self._handle_attachment(message)
                 if image:
                     print(f"[Gemini] Image processed: {image}")
+                    print(f"[Gemini] Sending message to gemini: {message_send}")
                     response = await self.chat.send_message_async(
                         [image, message_send],
                     )
@@ -136,7 +154,7 @@ class JerryGemini(commands.Cog):
                     await message.channel.send(f"## Prompt\n{message_send}")
                     return
 
-                print(f"[Gemini] Sending message: {message.content}")
+                print(f"[Gemini] Sending message to gemini: {message_send}")
                 response = await self.chat.send_message_async(
                     message_send,
                 )
@@ -150,23 +168,44 @@ class JerryGemini(commands.Cog):
             print("[Gemini] Resource exhausted")
             return
 
-        # Internal command
-        if response.text.startswith("~internal"):
-            print("[Gemini] Internal command detected")
-            command = " ".join(response.text.split(" ")[1:])
-            commandResult = await self._internal_command(command)
-            # Send back to the ai
-            message_send = f"{message_prompt}\n\nExecuted Internal Command: {command}\nResult:\n```\n{commandResult}\n``` You will now respond to the user."
-            response = await self.chat.send_message_async(message_send)
-
-        # Send the response
-        await message.channel.send(response.text)
-
-    async def _internal_command(self, command: str):
-        if command == "reset":
-            self.chat = self.model.start_chat()
-            print("[Gemini] Internal command: Chat reset.")
-            return "Chat reset."
+        # Process the response
+        await self._process_response(response.text, message)
+        
+    async def _process_response(self, response: str, message: discord.Message):
+        print(f"[Gemini] Response received: {response}")
+        commands = response.split("%^%")
+        print(f"[Gemini] Commands: {commands}")
+        for command in commands:
+            # Remove leading/trailing whitespace
+            command = command.strip()
+            
+            # Check for actions
+            action = command.split(" ")[0]
+            if action.startswith("~send"):
+                print(f"[Gemini] Sending message: {command}")
+                message_text = command.split(" ", 1)[1]
+                await message.channel.send(message_text)
+                continue
+            
+            if action.startswith("~reset"):
+                print("[Gemini] Resetting chat")
+                await self._new_chat()
+                embed = discord.Embed(
+                    title="Chat Reset",
+                    description="The chat has been reset; Jerry has forgotten everything :(",
+                    color=discord.Color.green(),
+                )
+                embed.set_footer(text="Powered by Jerry Bot")
+                embed.set_author(
+                    name="Conversation Agent",
+                )
+                await message.channel.send(embed=embed)
+                continue
+            
+    async def _new_chat(self):
+        self.chat = self.model.start_chat()
+        return
+        
 
     async def _create_prompt(self, message: discord.Message):
         message_prompt = f"""You are Jerry, a discord AI chatbot.
@@ -175,7 +214,13 @@ Your name is Jerry, your AI's character is displayed and characterized as a red 
 
 The user id of the member who sent the message is included in the request, feel free to use an @mention in place of their name. Mentions are formed like this: <@user id>. 
 
-You are here to be helpful as well as just an AI friend. You are currently in a discord channel. You are talking to a user. They are called {message.author.display_name} and can be mentioned as {message.author.mention}. To send a message/reply use ~send <message>. To reset the chat use ~internal reset. If a command is not specified, an error will be thrown."""
+You are here to be helpful as well as just an AI friend. You are currently in a discord channel. You are talking to a user. They are called {message.author.display_name} and can be mentioned as {message.author.mention}. 
+
+To interact with the chat, use the following commands:
+~send <message> - Respond with a message
+~reset - Reset the chat
+~save <text> - Store text in permanent memory
+To execute multiple commands, separate them with %^%"""
 
         return message_prompt
 
@@ -212,12 +257,78 @@ You are here to be helpful as well as just an AI friend. You are currently in a 
         except Exception as e:
             print(f"[Gemini] Error processing attachment: {e}")
             return None
+        
+    async def _handle_embed(self, message: discord.Message)->str:
+        if not message.embeds:
+            return None
+        print(f"[Gemini] {len(message.embeds)} embeds found")
+        embeds_str = ""
+        for embed in message.embeds:
+            embeds_str += f"Embed Title: {embed.title}\nEmbed Description: {embed.description}\nEmbed Fields:\n"
+            for field in embed.fields:
+                embeds_str += f"Field Name: {field.name}\nField Value: {field.value}\n"
+            embeds_str += f"Embed Footer: {embed.footer.text}\nEmbed Author: {embed.author.name}\n"
+        print(f"[Gemini] Processed embeds: \n{embeds_str}")
+        return embeds_str
+        
 
     async def shell_callback(
         self, command: str, query: list, shell_command: core.ShellCommand
     ):
         if command == "gemini":
-            await shell_command.info(
-                "Now entering Gemini mode.", title="Entering Gemini Mode"
+            await shell_command.log(
+                "Now entering Gemini mode.", title="Entering Gemini Mode", msg_type="info"
             )
             self.bot.shell.interactive_mode = "gemini"
+
+class AutoReply(commands.Cog):
+    """
+    A Discord bot cog for automatically replying to specific messages.
+    Attributes:
+        bot (Jerry): The instance of the bot.
+        auto_reply (dict): A dictionary containing regex patterns as keys and their corresponding responses.
+    Methods:
+        __init__(bot: Jerry):
+            Initializes the AutoReply cog with the bot instance and predefined auto-reply patterns.
+        on_ready():
+            Event listener that triggers when the bot is ready. Prints the number of auto-reply patterns loaded.
+        on_message(message: discord.Message):
+            Event listener that triggers on every new message. Checks the message content against predefined patterns
+            and replies accordingly if a match is found.
+    """
+    
+    def __init__(self, bot: Jerry):
+        self.bot = bot
+        
+        self.auto_reply = {
+            "nuh+[\W_]*h?uh" : {
+                "response":"Yuh-uh ✅"
+            },
+            "yuh+[\W_]*h?uh":{
+                "response":"Nuh-uh ❌"
+            },
+            "womp":{
+                "response":"Womp womp"
+            },
+            "^shut+[\W_]*up":{
+                "response":"No u"
+            }
+        }
+        
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f"[AutoReply] Ready with {len(self.auto_reply)} replies")
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author == self.bot.user:
+            return
+
+        if (
+            message.channel.id == 1293430080328171530):
+            return
+    
+        for pattern, response in self.auto_reply.items():
+            if re.search(pattern, message.content, re.IGNORECASE):
+                if "response" in response:
+                    await message.reply(response["response"])
