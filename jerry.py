@@ -43,12 +43,12 @@ import google.generativeai as gemini
 import google.api_core.exceptions as gemini_selling
 from PIL import Image
 
-# Auto-reply
-import re
+# FIle management
+import hashlib
+import os
 
 # Core bot
 import core
-
 
 class Jerry(core.Bot):
     def __init__(
@@ -90,10 +90,19 @@ class JerryGemini(commands.Cog):
         )
 
         self.channel_id = 1293430080328171530
+        
+        self.hide_seek_jobs = []
+        
+        self.gemini_channels = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
         print("[Gemini] Ready")
+        
+        # Remove cached files from /store/images
+        print("[Gemini] Removing cached files")
+        os.system("rm -rf ./store/images/*")
+        print("[Gemini] Cache cleared")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -153,10 +162,8 @@ class JerryGemini(commands.Cog):
 
             # Read memory
             try:
-                with open("store/memory.txt", "r") as f:
-                    memory = f.readlines()
-                    if memory:
-                        message_send += f"\n\nMemory:\n```\n{memory}\n```"
+                memory = await self._load_memory()
+                message_send += f"\n\nMemory:\n```\n{memory}\n```"
             except FileNotFoundError:
                 print("[Gemini] Memory file not found")
                 pass
@@ -170,7 +177,7 @@ class JerryGemini(commands.Cog):
                 image = await self._handle_attachment(message)
                 if image:
                     print(f"[Gemini] Image processed: {image}")
-                    print(f"[Gemini] Sending message to gemini: {message_send}")
+                    print(f"[Gemini] Sending message to gemini: {message.content}")
                     response = await self.chat.send_message_async(
                         [image, message_send],
                     )
@@ -179,7 +186,7 @@ class JerryGemini(commands.Cog):
                     await message.channel.send(f"## Prompt\n{message_send}")
                     return
 
-                print(f"[Gemini] Sending message to gemini: {message_send}")
+                print(f"[Gemini] Sending message to gemini: {message.content}")
                 response = await self.chat.send_message_async(
                     message_send,
                 )
@@ -205,6 +212,15 @@ class JerryGemini(commands.Cog):
         print(f"[Gemini] Response received: {response}")
         if channel is None:
             channel = message.channel
+        
+        # BUg: remove tool_code from beginning of response
+        response = response.replace("tool_code", "")
+        if response.startswith("```"):
+            response = response.split("```")[1]
+        if response.endswith("```"):
+            r_split = response.rsplit("```")
+            response = r_split[len(r_split) - 2]
+            
         commands = response.split("%^%")
         print(f"[Gemini] Commands: {commands}")
         for command in commands:
@@ -237,8 +253,8 @@ class JerryGemini(commands.Cog):
             if action.startswith("~save"):
                 print(f"[Gemini] Saving text: {command}")
                 text = command.split(" ", 1)[1]
-                await self._add_memory(text)
-                await self._optimize_memory()
+                # await self._add_memory(text)
+                await self._optimize_memory(f"Add the following to its respective category or header: '{text}'")
                 continue
 
             if action.startswith("~forget"):
@@ -254,7 +270,7 @@ class JerryGemini(commands.Cog):
                 self.hide_seek_from_gemini = True
 
                 # Tell the user to find the message via jerry
-                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ~send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you."
+                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ~send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you. The hidden reaction is in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
                 response = await self.chat.send_message_async(
                     message_send,
                 )
@@ -337,7 +353,15 @@ To execute multiple commands, separate them with %^%"""
             return True
 
     async def _overwrite_memory(self, text: str):
+        # Backup the memory
+        with open("store/memory.txt", "r") as f:
+            memory = f.read()
+            memory_hash = hashlib.md5(memory.encode()).hexdigest()
+            print(f"[Gemini] Memory hash: {memory_hash}")
+            with open(f"store/memory_backup/{memory_hash}.txt", "w") as f:
+                f.write(memory)
 
+        # Overwrite the memory
         with open("store/memory.txt", "w") as f:
             f.write(f"{text}")
             return True
@@ -350,7 +374,7 @@ To execute multiple commands, separate them with %^%"""
         memory = await self._load_memory()
 
         prompt = (
-            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format."
+            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format.If an item begins with ~send, remove it. You may merge entries, but be very careful to not merge unrelated entries. If you are unsure, leave it as is. You may add categories or headers to the data, but do not remove any data. When working with user ids (<@user id>), you may merge data with the same user id, but be careful to not merge unrelated data. If you are unsure, leave it as is. If you are unable to optimize the data, leave it as is. "
             + (
                 f"In addition, you must {additional_prompt}."
                 if additional_prompt
@@ -427,7 +451,7 @@ To execute multiple commands, separate them with %^%"""
 
             if hasattr(self, "hide_seek_from_gemini"):
                 # Tell jerry to congratulate the user
-                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ~send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content}\n```."
+                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ~send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
                 print(f"[Gemini] Sending message to gemini: {message_send}")
                 response = await self.chat.send_message_async(
                     message_send,
