@@ -132,11 +132,13 @@ class ShellCommand:
         shell: ShellCore,
         channel: discord.TextChannel = None,
         query: str = None,
+        message: discord.Message = None
     ):
         self.name = name
         self.cog = cog
         self.core = shell
         self.query = query
+        self.message = message
         if channel:
             self.channel = channel
         else:
@@ -266,6 +268,7 @@ class ShellHandler(commands.Cog):
             cog=commandEntry.cog,
             shell=self.core,
             query=" ".join(message.content.split(" ")[2:]),
+            message=message,
         )
 
         # Execute the command
