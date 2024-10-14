@@ -85,7 +85,11 @@ class JerryGemini(commands.Cog):
                 "DANGEROUS": "BLOCK_NONE",
             },
         )
-        self.bot.shell.add_command("gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat")
+        self.bot.shell.add_command(
+            "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
+        )
+
+        self.channel_id = 1293430080328171530
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -96,9 +100,7 @@ class JerryGemini(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        if (
-            message.channel.id != 1293430080328171530
-        ):  # TODO: Make this a config variable
+        if message.channel.id != self.channel_id:  # TODO: Make this a config variable
             return
 
         # Typing indicator
@@ -194,8 +196,15 @@ class JerryGemini(commands.Cog):
         # Process the response
         await self._process_response(response.text, message)
 
-    async def _process_response(self, response: str, message: discord.Message):
+    async def _process_response(
+        self,
+        response: str,
+        message: discord.Message = None,
+        channel: discord.TextChannel = None,
+    ):
         print(f"[Gemini] Response received: {response}")
+        if channel is None:
+            channel = message.channel
         commands = response.split("%^%")
         print(f"[Gemini] Commands: {commands}")
         for command in commands:
@@ -207,7 +216,7 @@ class JerryGemini(commands.Cog):
             if action.startswith("~send"):
                 print(f"[Gemini] Sending message: {command}")
                 message_text = command.split(" ", 1)[1]
-                await message.channel.send(message_text)
+                await channel.send(message_text)
                 continue
 
             if action.startswith("~reset"):
@@ -222,7 +231,7 @@ class JerryGemini(commands.Cog):
                 embed.set_author(
                     name="Conversation Agent",
                 )
-                await message.channel.send(embed=embed)
+                await channel.send(embed=embed)
                 continue
 
             if action.startswith("~save"):
@@ -231,7 +240,7 @@ class JerryGemini(commands.Cog):
                 await self._add_memory(text)
                 await self._optimize_memory()
                 continue
-            
+
             if action.startswith("~forget"):
                 print(f"[Gemini] Forgetting text: {command}")
                 text_to_forget = command.split(" ", 1)[1]
@@ -239,10 +248,22 @@ class JerryGemini(commands.Cog):
                 await self._optimize_memory(prompt)
                 continue
 
+            if action.startswith("~hide-seek"):
+                print(f"[Gemini] Playing hide and seek")
+                await self._hide_seek(message)
+                self.hide_seek_from_gemini = True
+
+                # Tell the user to find the message via jerry
+                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ~send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you."
+                response = await self.chat.send_message_async(
+                    message_send,
+                )
+
+                await self._process_response(response.text, message)
+
     async def _new_chat(self):
         self.chat = self.model.start_chat()
         return
-    
 
     async def _create_prompt(self, message: discord.Message):
         message_prompt = f"""You are Jerry, an intellegent experimental octopus. you are chatting in a discord channel.
@@ -258,6 +279,7 @@ To interact with the chat, use the following commands:
 ~reset - Reset the chat
 ~save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
 ~forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
+~hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same moji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
 To execute multiple commands, separate them with %^%"""
 
         return message_prompt
@@ -313,9 +335,9 @@ To execute multiple commands, separate them with %^%"""
         with open("store/memory.txt", "a") as f:
             f.write(f"{text}\n\n")
             return True
-    
+
     async def _overwrite_memory(self, text: str):
-        
+
         with open("store/memory.txt", "w") as f:
             f.write(f"{text}")
             return True
@@ -323,23 +345,104 @@ To execute multiple commands, separate them with %^%"""
     async def _load_memory(self):
         with open("store/memory.txt", "r") as f:
             return f.read()
-        
-    async def _optimize_memory(self, additional_prompt:str= None):
+
+    async def _optimize_memory(self, additional_prompt: str = None):
         memory = await self._load_memory()
-        
-        prompt = "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format." + (f"In addition, you must {additional_prompt}." if additional_prompt else '') + "\n```\n" + memory + "\n```"
-        
+
+        prompt = (
+            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format."
+            + (
+                f"In addition, you must {additional_prompt}."
+                if additional_prompt
+                else ""
+            )
+            + "\n```\n"
+            + memory
+            + "\n```"
+        )
+
         response = await self.model.generate_content_async(
             prompt,
         )
-        
+
         new_memory = response.text
         await self._overwrite_memory(new_memory)
         return True
 
-    async def shell_callback(
-        self, command: core.ShellCommand
+    async def _hide_seek(
+        self,
+        message: discord.Message = None,
     ):
+        print("[Gemini] Playing hide and seek")
+        guild = message.guild
+        # Get all channels
+        while True:
+            channels = guild.text_channels
+            random_channel = random.choice(channels)  # Select a random channel
+            print(f"[Gemini] Random channel selected: {random_channel.name}")
+
+            # Check if @everyone can view the channel
+            if not random_channel.permissions_for(guild.default_role).add_reactions:
+                print(
+                    f"[Gemini] Channel {random_channel.name} is not accessible by @everyone"
+                )
+                continue
+
+            # Get all messages in the channel within the last 24 hours
+            a_day_ago = datetime.now() - timedelta(days=1)
+            messages = [
+                message async for message in random_channel.history(after=a_day_ago)
+            ]
+            if len(messages) == 0:
+                print(f"[Gemini] No recent messages found in {random_channel.name}")
+                continue
+            # Select a random message
+            random_message: discord.Message = random.choice(messages)
+            # Check if message already has a reaction
+            if random_message.reactions:
+                print(
+                    f"[Gemini] Message already has a reaction: {random_message.content}"
+                )
+                continue
+            print(f"[Gemini] Random message selected: {random_message.content}")
+            self.hide_seek_message = random_message
+            break
+        # Add a reaction to the message
+        await random_message.add_reaction("🔍")
+        print(
+            f"[Gemini] Reaction added to message: {random_message.content} in {random_channel.name}"
+        )
+        return True
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if not hasattr(self, "hide_seek_message"):
+            return
+        if payload.user_id == self.bot.user.id:
+            return
+        if payload.message_id == self.hide_seek_message.id:
+            print("[Gemini] Hide and Seek reaction added")
+
+            await self.hide_seek_message.reply("You found me! 🎉")
+
+            if hasattr(self, "hide_seek_from_gemini"):
+                # Tell jerry to congratulate the user
+                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ~send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content}\n```."
+                print(f"[Gemini] Sending message to gemini: {message_send}")
+                response = await self.chat.send_message_async(
+                    message_send,
+                )
+                channel = self.bot.get_channel(self.channel_id)
+
+                await self._process_response(
+                    response.text, channel=channel
+                )
+
+                del self.hide_seek_from_gemini
+
+            del self.hide_seek_message
+
+    async def shell_callback(self, command: core.ShellCommand):
         if command.name == "gemini":
             sub_command = command.query.split(" ")[0]
 
@@ -348,17 +451,39 @@ To execute multiple commands, separate them with %^%"""
                     if command.query.split(" ")[1] == "optimize":
                         await self._optimize_memory()
                         memory = await self._load_memory()
-                        await command.log(f"Memory optimized:\n```\n{memory}```", "Memory", msg_type="success")
+                        await command.log(
+                            f"Memory optimized:\n```\n{memory}```",
+                            "Memory",
+                            msg_type="success",
+                        )
                         return
                 except IndexError:
                     pass
                 except Exception as e:
-                    await command.log(f"Error optimizing memory: {e}", "Memory", msg_type="error")
+                    await command.log(
+                        f"Error optimizing memory: {e}", "Memory", msg_type="error"
+                    )
                     return
                 memory = await self._load_memory()
                 await command.log(f"```\n{memory}```", "Memory")
                 return
-            
+
+            if sub_command == "hide-seek":
+                try:
+                    await self._hide_seek(command.message)
+                except Exception as e:
+                    await command.log(
+                        f"Error initiating hide and seek: {e}",
+                        "Hide-Seek",
+                        msg_type="error",
+                    )
+                    return
+                await command.log(
+                    "Hide and Seek initiated", "Hide-Seek", msg_type="success"
+                )
+                return
+
+
 class AutoReply(commands.Cog):
     """
     A Discord bot cog for automatically replying to specific messages.
