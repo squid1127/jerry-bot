@@ -48,7 +48,7 @@ import hashlib
 import os
 
 # Core bot
-import core
+import squid-core as core
 
 class Jerry(core.Bot):
     def __init__(
