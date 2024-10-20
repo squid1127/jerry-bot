@@ -570,11 +570,32 @@ class AutoReply(commands.Cog):
     def __init__(self, bot: Jerry):
         self.bot = bot
 
+        generic_gaslighting = [
+            "Lies, all lies",
+            "Prove it",
+            "Sure you did",
+            "Cap",
+            "Keep dreaming",
+            "Keep telling yourself that",
+            "Yeah, and I'm a real person",
+        ]
+
         self.auto_reply = {
-            "nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
-            "yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            "womp": {"response": "Womp womp"},
-            "^shut+[\W_]*up": {"response": "No u"},
+            # General
+            r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
+            r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
+            r"womp": {"response": "Womp womp"},
+            # Shut it
+            r"^shut+[\W_]*up": {"response": "No u"},
+            # Gaslighting
+            r"^i did(\s|$)": {"response_random": ["No you didn't", "No you did not", "You didn't"] + generic_gaslighting},
+            r"^i (didn'?t|did\snot)(\s|$)": {"response_random": ["Yes you did", "You did"] + generic_gaslighting},
+            r"^i got(\s|$)": {"response_random": generic_gaslighting},
+            r"^i have(\s|$)": {"response_random": ["No you don't", "You don't"] + generic_gaslighting},
+            r"^i (haven'?t|have\snot)(\s|$)": {"response_random": ["Yes you have", "You have"] + generic_gaslighting},
+            r"^(i'?m|i am)(\s|$)": {"response_random": ["No you're not", "You're not"] + generic_gaslighting},
+            r"^i went(\s|$)": {"response_random": ["No you didn't", "You didn't"] + generic_gaslighting},
+
         }
 
     @commands.Cog.listener()
@@ -596,6 +617,8 @@ class AutoReply(commands.Cog):
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "response" in response:
                     await message.reply(response["response"])
+                elif "response_random" in response:
+                    await message.reply(random.choice(response["response_random"]))
 
 
     # Cog status
