@@ -163,3 +163,7 @@ cython_debug/
 
 # Cached files
 store/
+
+# Database files
+db/
+msar/
