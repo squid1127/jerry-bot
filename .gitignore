@@ -167,3 +167,6 @@ store/
 # Database files
 db/
 msar/
+
+# Compose file for now
+compose.yml
