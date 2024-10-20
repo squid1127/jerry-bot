@@ -31,7 +31,8 @@ channel = int(os.getenv("BOT_SHELL"))
 token = os.getenv("BOT_TOKEN")
 
 jerry = Jerry(discord_token=token, gemini_token=os.getenv("GEMINI_TOKEN"), shell_channel=channel)
-jerry.add_db(os.getenv("POSTGRES_CONNECTION"), os.getenv("POSTGRES_PASSWORD"), int(os.getenv("POSTGRES_POOL")))
+postgres_pool = os.getenv("POSTGRES_POOL") if os.getenv("POSTGRES_POOL") else 20
+jerry.add_db(os.getenv("POSTGRES_CONNECTION"), os.getenv("POSTGRES_PASSWORD"), int(postgres_pool))
 
 # Start the Jerry bot
 print("[Runner] Running Jerry Bot")
