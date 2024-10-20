@@ -25,9 +25,9 @@ import tabulate  # For tabular data
 import cryptography  # For database encryption
 
 # For web frontend
-from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
+# from fastapi import FastAPI
+# from pydantic import BaseModel
+# import uvicorn
 
 # For random status
 import random

@@ -1,0 +1,9 @@
+discord.py
+python-dotenv
+aiohttp
+aiomysql
+google-api-core
+google-generativeai
+Pillow
+tabulate
+cryptography
