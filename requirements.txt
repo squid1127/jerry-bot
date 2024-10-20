@@ -2,6 +2,7 @@ discord.py
 python-dotenv
 aiohttp
 aiomysql
+asyncpg
 google-api-core
 google-generativeai
 Pillow
