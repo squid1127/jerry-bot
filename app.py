@@ -1,3 +1,19 @@
+"""
+Jerry Application Runner
+=========================
+This script is the main entry point for the Jerry bot. It loads the environment variables and starts the bot.
+
+Environment Variables
+---------------------
+- BOT_TOKEN: Discord bot token
+- BOT_SHELL: Discord channel ID for the bot shell
+- GEMINI_TOKEN: Gemini API token
+- POSTGRES_CONNECTION: Postgres connection string
+- POSTGRES_PASSWORD: Postgres password
+- POSTGRES_POOL: Postgres pool size
+
+"""
+
 from jerry import Jerry # Jerry bot
 from downreport import DownReport # DownReport bot
 
