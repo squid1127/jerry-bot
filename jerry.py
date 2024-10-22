@@ -560,10 +560,9 @@ You may execute multiple commands."""
             except gemini_selling.ResourceExhausted:
                 print("[Gemini] Model is not ready; resource exhausted")
                 return "Not ready; rate limited"
-            # Api key is invalid
             except gemini_selling.PermissionDenied:
                 print("[Gemini] Model is not ready; permission denied")
-                return "Not ready; permission denied, possibly invalid API key"
+                return "Not ready; permission denied"
             except Exception as e:
                 print(f"[Gemini] Error testing model: {e}")
                 return f"Not ready; model is throwing error:\n{e}"
