@@ -31,8 +31,12 @@ load_dotenv()
 channel = int(os.getenv("JERRY_SHELL"))
 token = os.getenv("JERRY_TOKEN")
 
-gemini_token = os.getenv("JERRY_GEMINI_TOKEN")
-gemini_channel = int(os.getenv("JERRY_GEMINI_CHANNEL"))
+try:
+    gemini_token = os.getenv("JERRY_GEMINI_TOKEN")
+    gemini_channel = int(os.getenv("JERRY_GEMINI_CHANNEL"))
+except TypeError:
+    gemini_channel = None
+    print("[Runner] Warning: Gemini channel not set")
 
 jerry = Jerry(discord_token=token, gemini_token=gemini_token, gemini_channel=gemini_channel, shell_channel=channel)
 postgres_pool = os.getenv("POSTGRES_POOL") if os.getenv("POSTGRES_POOL") else 20
