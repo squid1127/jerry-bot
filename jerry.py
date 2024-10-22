@@ -52,12 +52,13 @@ import core.squidcore as core
 
 class Jerry(core.Bot):
     def __init__(
-        self, discord_token: str, gemini_token: str, shell_channel: int, **kwargs
+        self, discord_token: str, gemini_token: str, shell_channel: int, gemini_channel: int, **kwargs
     ):
         super().__init__(
             token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
         )
         self.gemini_token = gemini_token
+        self.gemini_channel = gemini_channel
 
         asyncio.run(self.load_cogs())
 
@@ -69,6 +70,8 @@ class Jerry(core.Bot):
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
         self.bot = bot
+        print("[Gemini] Initializing")
+        print(f"[Gemini] Channel ID: {self.bot.gemini_channel} | Token: {self.bot.gemini_token}")
         gemini.configure(api_key=self.bot.gemini_token)
         self.model = gemini.GenerativeModel(
             "gemini-1.5-flash",
@@ -88,7 +91,7 @@ class JerryGemini(commands.Cog):
             "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
         )
 
-        self.channel_id = 1293430080328171530
+        self.channel_id = self.bot.gemini_channel
         
         self.hide_seek_jobs = []
         

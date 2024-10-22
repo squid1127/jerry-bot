@@ -5,12 +5,13 @@ This script is the main entry point for the Jerry bot. It loads the environment 
 
 Environment Variables
 ---------------------
-- BOT_TOKEN: Discord bot token
-- BOT_SHELL: Discord channel ID for the bot shell
-- GEMINI_TOKEN: Gemini API token
-- POSTGRES_CONNECTION: Postgres connection string
-- POSTGRES_PASSWORD: Postgres password
-- POSTGRES_POOL: Postgres pool size
+- JERRY_TOKEN: The Discord bot token for Jerry
+- JERRY_GEMINI_TOKEN: The Gemini API token for Jerry
+- JERRY_GEMINI_CHANNEL: The channel ID for the Gemini channel
+- JERRY_SHELL: The channel ID for the shell channel
+- POSTGRES_CONNECTION: The PostgreSQL connection string for the database
+- POSTGRES_PASSWORD: The PostgreSQL password for the database
+- POSTGRES_POOL: The PostgreSQL pool size for the database
 
 """
 
@@ -27,10 +28,13 @@ print("[Runner] Running Jerry Bot")
 print("[Runner] Loading environment variables")
 load_dotenv()
 
-channel = int(os.getenv("BOT_SHELL"))
-token = os.getenv("BOT_TOKEN")
+channel = int(os.getenv("JERRY_SHELL"))
+token = os.getenv("JERRY_TOKEN")
 
-jerry = Jerry(discord_token=token, gemini_token=os.getenv("GEMINI_TOKEN"), shell_channel=channel)
+gemini_token = os.getenv("JERRY_GEMINI_TOKEN")
+gemini_channel = int(os.getenv("JERRY_GEMINI_CHANNEL"))
+
+jerry = Jerry(discord_token=token, gemini_token=gemini_token, gemini_channel=gemini_channel, shell_channel=channel)
 postgres_pool = os.getenv("POSTGRES_POOL") if os.getenv("POSTGRES_POOL") else 20
 jerry.add_db(os.getenv("POSTGRES_CONNECTION"), os.getenv("POSTGRES_PASSWORD"), int(postgres_pool))
 
