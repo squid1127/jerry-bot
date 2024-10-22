@@ -75,6 +75,7 @@ class Jerry(core.Bot):
     async def load_cogs(self):
         await self.add_cog(JerryGemini(self))
         await self.add_cog(AutoReply(self))
+        await self.add_cog(GuildStuff(self))
 
 
 class JerryGemini(commands.Cog):
@@ -671,3 +672,97 @@ class AutoReply(commands.Cog):
     # Cog status
     async def cog_status(self):
         return f"Ready with {len(self.auto_reply)} replies"
+
+
+class GuildStuff(commands.Cog):
+    """A experimental cog for finding guild stats and other stuff"""
+
+    def __init__(self, bot: Jerry):
+        self.bot = bot
+
+    @app_commands.command(
+        name="guild",
+        description="Get information about the guild",
+    )
+    async def guild_info(self, interaction: discord.Interaction):
+        print(f"[GuildStuff] Guild info requested for {interaction.guild.name}")
+        guild = interaction.guild
+
+        # Guild status
+        guild_id = guild.id
+        guild_name = guild.name
+        guild_owner = guild.owner
+        guild_members = guild.member_count
+        print(
+            f"[GuildStuff] Guild {guild_name} ({guild_id}) has {guild_members} members and is owned by {guild_owner}"
+        )
+
+        embed = discord.Embed(
+            title="Guild Information",
+            description=f"Here is some information about the guild {guild_name} ({guild_id})\n\nAnalyzing...",
+            color=discord.Color.yellow(),
+        )
+        embed.add_field(name="Owner", value=guild_owner.mention, inline=False)
+        embed.add_field(name="Members", value=guild_members, inline=False)
+        embed.set_footer(text="Powered by Jerry Bot")
+        try:
+            if guild.icon.url is None:
+                raise AttributeError
+            embed.set_author(
+                name=guild.name,
+                icon_url=guild.icon.url
+            )
+        except AttributeError:
+            embed.set_author(
+                name=guild.name
+            )
+        await interaction.response.send_message(embed=embed)
+
+        # Advanced status
+        # Count messages :)
+        print(f"[GuildStuff] Listing members...")
+        members_messages = {}
+        total_messages = 0
+        for member in guild.members:
+            members_messages[member] = 0
+            print(f"[GuildStuff] Found member {member.name}")
+
+        print(f"[GuildStuff] Counting messages...")
+
+        for channel in guild.text_channels:
+            print(f"[GuildStuff] Counting messages in {channel.name}")
+            async for message in channel.history(limit=None):
+                if message.author not in members_messages:
+                    print(
+                        f"[GuildStuff] Skipping message from {message.author.name}; not in member list"
+                    )
+                    continue
+                members_messages[message.author] += 1
+                total_messages += 1
+                print(
+                    f"[GuildStuff] Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
+                )
+
+        print(f"[GuildStuff] Counted {total_messages} messages")
+
+        # Top 10 members
+        top_members = sorted(members_messages, key=members_messages.get, reverse=True)[
+            :10
+        ]
+        top_members_str = ""
+        for member in top_members:
+            top_members_str += (
+                f"1. {member.name}: {members_messages[member]} messages\n"
+            )
+
+        print(f"[GuildStuff] Top 10 members: \n{top_members_str}")
+
+        # Send the message
+        embed.description = (
+            f"Here is some information about the guild {guild_name} ({guild_id})"
+        )
+        embed.add_field(name="Total Messages", value=total_messages, inline=False)
+        embed.add_field(name="Top 10 Members", value=top_members_str, inline=False)
+        embed.color = discord.Color.green()
+
+        await interaction.edit_original_response(embed=embed)
