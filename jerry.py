@@ -52,6 +52,8 @@ import core.squidcore as core
 
 # For timing out
 import time, timedelta
+
+
 class Jerry(core.Bot):
     def __init__(
         self,
@@ -622,7 +624,7 @@ class AutoReply(commands.Cog):
                 "response_random": ["No you didn't", "You didn't"] + generic_gaslighting
             },
             r"(^|\s)die($|\s)": {"response": "But why? 😢"},
-            r"(^|\s)kys($|\s)": {"response": "That's not very nice 😢", "bad":True}
+            r"kys": {"response": "That's not very nice 😢", "bad": True},
         }
 
     @commands.Cog.listener()
@@ -648,7 +650,9 @@ class AutoReply(commands.Cog):
                             return
                 if response.get("bad", False):
                     try:
-                        await message.channel.send(f'{message.author.mention} {response.get("response", "That is not very nice")}')
+                        await message.channel.send(
+                            f'{message.author.mention} {response.get("response", "That is not very nice")}'
+                        )
                         await message.delete()
                     except discord.Forbidden:
                         print("[AutoReply] Missing permissions to timeout")
