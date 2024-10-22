@@ -737,16 +737,21 @@ class GuildStuff(commands.Cog):
 
         for channel in guild.text_channels:
             print(f"[GuildStuff] Counting messages in {channel.name}")
-            async for message in channel.history(limit=None):
-                if message.author not in members_messages:
+            try:
+                async for message in channel.history(limit=None):
+                    if message.author not in members_messages:
+                        print(
+                            f"[GuildStuff] Skipping message from {message.author.name}; not in member list"
+                        )
+                        continue
+                    members_messages[message.author] += 1
+                    total_messages += 1
                     print(
-                        f"[GuildStuff] Skipping message from {message.author.name}; not in member list"
+                        f"[GuildStuff] Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
                     )
-                    continue
-                members_messages[message.author] += 1
-                total_messages += 1
+            except discord.Forbidden:
                 print(
-                    f"[GuildStuff] Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
+                    f"[GuildStuff] Skipping channel {channel.name}; missing permissions"
                 )
 
         print(f"[GuildStuff] Counted {total_messages} messages")
@@ -772,3 +777,6 @@ class GuildStuff(commands.Cog):
         embed.color = discord.Color.green()
 
         await interaction.edit_original_response(embed=embed)
+
+    async def cog_status(self) -> str:
+        return "Ready"
