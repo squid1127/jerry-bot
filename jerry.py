@@ -545,6 +545,13 @@ You may execute multiple commands."""
                     promt,
                 )
                 answer = response.text.strip().lower()
+            except gemini_selling.ResourceExhausted:
+                print("[Gemini] Model is not ready; resource exhausted")
+                return "Not ready; rate limited"
+            # Api key is invalid
+            except gemini_selling.PermissionDenied:
+                print("[Gemini] Model is not ready; permission denied")
+                return "Not ready; permission denied, possibly invalid API key"
             except Exception as e:
                 print(f"[Gemini] Error testing model: {e}")
                 return f"Not ready; model is throwing error:\n{e}"
@@ -639,7 +646,7 @@ class AutoReply(commands.Cog):
         if message.author.bot:
             return
 
-        if message.channel.id == 1293430080328171530:
+        if message.channel.id == self.bot.cogs["JerryGemini"].channel_id:
             return
 
         for pattern, response in self.auto_reply.items():
