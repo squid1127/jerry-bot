@@ -332,7 +332,7 @@ To interact with the chat, use the following commands:
 ^*&reset - Reset the chat
 ^*&save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
 ^*&forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
-^*&hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same moji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
+^*&hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same emoji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
 You may execute multiple commands."""
 
         return message_prompt
@@ -550,11 +550,11 @@ You may execute multiple commands."""
         try:
             print("[Gemini] Checking model status")
             # Check if the model is ready by sending a test message
-            promt = "Answer the following question with either 'y' or 'n'; only state 'y' or 'n' in your response: Is 23 + 19 equal to 42?"
+            prompt = "Answer the following question with either 'y' or 'n'; only state 'y' or 'n' in your response: Is 23 + 19 equal to 42?"
             answer = ""
             try:
                 response = await self.model.generate_content_async(
-                    promt,
+                    prompt,
                 )
                 answer = response.text.strip().lower()
             except gemini_selling.ResourceExhausted:
