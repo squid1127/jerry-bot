@@ -596,9 +596,10 @@ class AutoReply(commands.Cog):
             r"^i got(\s|$)": {"response_random": generic_gaslighting},
             r"^i have(\s|$)": {"response_random": ["No you don't", "You don't"] + generic_gaslighting},
             r"^i (haven'?t|have\snot)(\s|$)": {"response_random": ["Yes you have", "You have"] + generic_gaslighting},
-            r"^(i'?m|i am)(\s|$)": {"response_random": ["No you're not", "You're not"] + generic_gaslighting},
+            # r"^(i'?m|i am)(\s|$)": {"response_random": ["No you're not", "You're not"] + generic_gaslighting}, <- triggered too often, plus generally disliked by users
             r"^i went(\s|$)": {"response_random": ["No you didn't", "You didn't"] + generic_gaslighting},
-
+            r"(^|\s)die($|\s)": {"response": "But why? 😢"},
+            r"(^|\s)kys($|\s)": {"conditions": {"and": [r"^(?!.*kys)"]}, "response": "No u"},
         }
 
     @commands.Cog.listener()
@@ -618,6 +619,10 @@ class AutoReply(commands.Cog):
 
         for pattern, response in self.auto_reply.items():
             if re.search(pattern, message.content, re.IGNORECASE):
+                if "and" in response:
+                    for pattern_and in response["and"]:
+                        if not re.search(pattern_and, message.content, re.IGNORECASE):
+                            return
                 if "response" in response:
                     await message.reply(response["response"])
                 elif "response_random" in response:
