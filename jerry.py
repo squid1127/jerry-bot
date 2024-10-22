@@ -63,13 +63,24 @@ class Jerry(core.Bot):
         gemini_channel: int,
         **kwargs,
     ):
+        # Initialize the bot
         super().__init__(
             token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
         )
+        
+        # Set the gemini token
         self.gemini_token = gemini_token
         self.gemini_channel = gemini_channel
 
+        # Load cogs
         asyncio.run(self.load_cogs())
+        
+        # Confgure random status
+        statuses = [
+            core.Status("custom", "Nuh-uh"),
+            core.Status("custom", "Yuh-uh"),                        
+        ]
+        self.set_status(random_status=statuses)
 
     # Load cogs
     async def load_cogs(self):
