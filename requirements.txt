@@ -8,3 +8,4 @@ google-generativeai
 Pillow
 tabulate
 cryptography
+timedelta
