@@ -4,6 +4,6 @@ Jerry-bot -- The bot designed specifically for LBUSD Drone Soccer Discord and ot
 
 ## Features
 
-- AutoReply: Automaticly respond to predetermined responses with corrisponding arguements suchas "Nuh uh" -> "Yuh uh"
-- JerryGemini: Google Gemini AI Chatbot, in a specifc channel
-- Bot Shell: Mangage the bot with a CLI in a deticated channel
+- AutoReply: Automatically respond to predetermined responses with corresponding arguments such as "Nuh uh" → "Yuh uh"
+- JerryGemini: Google Gemini AI Chatbot, in a specific channel
+- Bot Shell: Manage the bot with a CLI in a dedicated channel
