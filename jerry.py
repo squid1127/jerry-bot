@@ -67,18 +67,18 @@ class Jerry(core.Bot):
         super().__init__(
             token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
         )
-        
+
         # Set the gemini token
         self.gemini_token = gemini_token
         self.gemini_channel = gemini_channel
 
         # Load cogs
         asyncio.run(self.load_cogs())
-        
+
         # Confgure random status
         statuses = [
             core.Status("custom", "Nuh-uh"),
-            core.Status("custom", "Yuh-uh"),                        
+            core.Status("custom", "Yuh-uh"),
         ]
         self.set_status(random_status=statuses)
 
@@ -719,14 +719,9 @@ class GuildStuff(commands.Cog):
         try:
             if guild.icon.url is None:
                 raise AttributeError
-            embed.set_author(
-                name=guild.name,
-                icon_url=guild.icon.url
-            )
+            embed.set_author(name=guild.name, icon_url=guild.icon.url)
         except AttributeError:
-            embed.set_author(
-                name=guild.name
-            )
+            embed.set_author(name=guild.name)
         await interaction.response.send_message(embed=embed)
 
         # Advanced status
