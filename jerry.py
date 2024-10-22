@@ -50,9 +50,16 @@ import os
 # Core bot
 import core.squidcore as core
 
+# For timing out
+import time, timedelta
 class Jerry(core.Bot):
     def __init__(
-        self, discord_token: str, gemini_token: str, shell_channel: int, gemini_channel: int, **kwargs
+        self,
+        discord_token: str,
+        gemini_token: str,
+        shell_channel: int,
+        gemini_channel: int,
+        **kwargs,
     ):
         super().__init__(
             token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
@@ -67,11 +74,14 @@ class Jerry(core.Bot):
         await self.add_cog(JerryGemini(self))
         await self.add_cog(AutoReply(self))
 
+
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
         self.bot = bot
         print("[Gemini] Initializing")
-        print(f"[Gemini] Channel ID: {self.bot.gemini_channel} | Token: {self.bot.gemini_token}")
+        print(
+            f"[Gemini] Channel ID: {self.bot.gemini_channel} | Token: {self.bot.gemini_token}"
+        )
         gemini.configure(api_key=self.bot.gemini_token)
         self.model = gemini.GenerativeModel(
             "gemini-1.5-flash",
@@ -92,15 +102,15 @@ class JerryGemini(commands.Cog):
         )
 
         self.channel_id = self.bot.gemini_channel
-        
+
         self.hide_seek_jobs = []
-        
+
         self.gemini_channels = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
         print("[Gemini] Ready")
-        
+
         # Remove cached files from /store/images
         print("[Gemini] Removing cached files")
         os.system("rm -rf ./store/images/*")
@@ -110,11 +120,11 @@ class JerryGemini(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.channel.id != self.channel_id:  # TODO: Make this a config variable
             return
-        
+
         if message.author == self.bot.user:
             # Comment out to allow Jerry to talk to himself
             return
-            
+
             # await asyncio.sleep(5) # Prevent rate limiting during self-chat
 
         # Typing indicator
@@ -217,7 +227,7 @@ class JerryGemini(commands.Cog):
         print(f"[Gemini] Response received: {response}")
         if channel is None:
             channel = message.channel
-        
+
         # BUg: remove tool_code from beginning of response
         response = response.replace("tool_code", "")
         if response.startswith("```"):
@@ -225,7 +235,7 @@ class JerryGemini(commands.Cog):
         if response.endswith("```"):
             r_split = response.rsplit("```")
             response = r_split[len(r_split) - 2]
-            
+
         commands = response.split("^*&")
         print(f"[Gemini] Commands: {commands}")
         for command in commands:
@@ -259,7 +269,9 @@ class JerryGemini(commands.Cog):
                 print(f"[Gemini] Saving text: {command}")
                 text = command.split(" ", 1)[1]
                 # await self._add_memory(text)
-                await self._optimize_memory(f"Add the following to its respective category or header: '{text}'")
+                await self._optimize_memory(
+                    f"Add the following to its respective category or header: '{text}'"
+                )
                 continue
 
             if action.startswith("forget"):
@@ -282,7 +294,7 @@ class JerryGemini(commands.Cog):
 
                 await self._process_response(response.text, message)
                 continue
-            
+
             # If no action is found, send the message
             if command != "":
                 print(f"[Gemini] Sending message: {command}")
@@ -465,18 +477,15 @@ You may execute multiple commands."""
             if hasattr(self, "hide_seek_from_gemini"):
                 # Tell jerry to congratulate the user
                 message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ^*&send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
-                
-                
+
                 print(f"[Gemini] Sending message to gemini: {message_send}")
-                
+
                 response = await self.chat.send_message_async(
                     message_send,
                 )
                 channel = self.bot.get_channel(self.channel_id)
 
-                await self._process_response(
-                    response.text, channel=channel
-                )
+                await self._process_response(response.text, channel=channel)
 
                 del self.hide_seek_from_gemini
 
@@ -522,7 +531,7 @@ You may execute multiple commands."""
                     "Hide and Seek initiated", "Hide-Seek", msg_type="success"
                 )
                 return
-            
+
     async def cog_status(self):
         try:
             print("[Gemini] Checking model status")
@@ -544,15 +553,18 @@ You may execute multiple commands."""
                 print("[Gemini] Model is ready, got incorrect response")
                 return "Ready; model is responding but its math is not mathing"
             elif len(answer) > 1:
-                print(f"[Gemini] Model is ready, got arbitrary response: {response.text}")
+                print(
+                    f"[Gemini] Model is ready, got arbitrary response: {response.text}"
+                )
                 return "Ready; model is responding with an arbitrary response"
             else:
                 print("[Gemini] Model is not ready, got no response")
                 return "Failed; model said nothing upon request"
-                
+
         except Exception as e:
             print(f"[Gemini] Error testing model: {e}")
             return f"Status check failed: {e}"
+
 
 class AutoReply(commands.Cog):
     """
@@ -591,15 +603,26 @@ class AutoReply(commands.Cog):
             # Shut it
             r"^shut+[\W_]*up": {"response": "No u"},
             # Gaslighting
-            r"^i did(\s|$)": {"response_random": ["No you didn't", "No you did not", "You didn't"] + generic_gaslighting},
-            r"^i (didn'?t|did\snot)(\s|$)": {"response_random": ["Yes you did", "You did"] + generic_gaslighting},
+            r"^i did(\s|$)": {
+                "response_random": ["No you didn't", "No you did not", "You didn't"]
+                + generic_gaslighting
+            },
+            r"^i (didn'?t|did\snot)(\s|$)": {
+                "response_random": ["Yes you did", "You did"] + generic_gaslighting
+            },
             r"^i got(\s|$)": {"response_random": generic_gaslighting},
-            r"^i have(\s|$)": {"response_random": ["No you don't", "You don't"] + generic_gaslighting},
-            r"^i (haven'?t|have\snot)(\s|$)": {"response_random": ["Yes you have", "You have"] + generic_gaslighting},
+            r"^i have(\s|$)": {
+                "response_random": ["No you don't", "You don't"] + generic_gaslighting
+            },
+            r"^i (haven'?t|have\snot)(\s|$)": {
+                "response_random": ["Yes you have", "You have"] + generic_gaslighting
+            },
             # r"^(i'?m|i am)(\s|$)": {"response_random": ["No you're not", "You're not"] + generic_gaslighting}, <- triggered too often, plus generally disliked by users
-            r"^i went(\s|$)": {"response_random": ["No you didn't", "You didn't"] + generic_gaslighting},
+            r"^i went(\s|$)": {
+                "response_random": ["No you didn't", "You didn't"] + generic_gaslighting
+            },
             r"(^|\s)die($|\s)": {"response": "But why? 😢"},
-            r"(^|\s)kys($|\s)": {"conditions": {"and": [r"^(?!.*kys)"]}, "response": "No u"},
+            r"(^|\s)kys($|\s)": {"response": "That's not very nice 😢", "bad":True}
         }
 
     @commands.Cog.listener()
@@ -610,7 +633,7 @@ class AutoReply(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author == self.bot.user:
             return
-        
+
         if message.author.bot:
             return
 
@@ -623,11 +646,16 @@ class AutoReply(commands.Cog):
                     for pattern_and in response["and"]:
                         if not re.search(pattern_and, message.content, re.IGNORECASE):
                             return
-                if "response" in response:
+                if response.get("bad", False):
+                    try:
+                        await message.channel.send(f'{message.author.mention} {response.get("response", "That is not very nice")}')
+                        await message.delete()
+                    except discord.Forbidden:
+                        print("[AutoReply] Missing permissions to timeout")
+                elif "response" in response:
                     await message.reply(response["response"])
                 elif "response_random" in response:
                     await message.reply(random.choice(response["response_random"]))
-
 
     # Cog status
     async def cog_status(self):
