@@ -1,11 +1,7 @@
-discord.py
-python-dotenv
 aiohttp
-aiomysql
 asyncpg
-google-api-core
-google-generativeai
+discord.py
+dotenv
 Pillow
-tabulate
-cryptography
-timedelta
+watchdog
+pyyaml
