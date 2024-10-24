@@ -51,7 +51,7 @@ import os
 import core.squidcore as core
 
 # For timing out
-import time, timedelta
+import time, timedelta, datetime
 
 
 class Jerry(core.Bot):
@@ -652,6 +652,40 @@ class AutoReply(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        await self.process_message(message)
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        await self.process_message(after)
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        print(f"[AutoReply] Message deleted: {message.content}")
+        results = await self.process_message(message, send=False)
+        print(f"[AutoReply] Results from deleted message: {results}")
+        if results:
+            print("[AutoReply] Message triggered auto-reply, sending alert")
+            # Check for bad flag (meaning the message was deleted by bot)
+            if any(result[1].get("bad", False) for result in results):
+                print("[AutoReply] Message was deleted by bot due to bad content")
+                return
+            
+            msg_embed = discord.Embed(
+                title="Deleted Message",
+                description=message.content,
+                color=discord.Color.red(),
+            )
+            msg_embed.set_author(
+                name=message.author.display_name,
+                icon_url=message.author.avatar.url,
+            )
+
+            await message.channel.send(
+                f'Hey I saw that! {message.author.mention} 🤨, you said:',
+                embed=msg_embed,
+            )
+
+    async def process_message(self, message: discord.Message, send: bool = True):
         if message.author == self.bot.user:
             return
 
@@ -661,24 +695,34 @@ class AutoReply(commands.Cog):
         if message.channel.id == self.bot.cogs["JerryGemini"].channel_id:
             return
 
+        results = []
+
         for pattern, response in self.auto_reply.items():
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "and" in response:
                     for pattern_and in response["and"]:
                         if not re.search(pattern_and, message.content, re.IGNORECASE):
-                            return
+                            continue
                 if response.get("bad", False):
                     try:
-                        await message.channel.send(
-                            f'{message.author.mention} {response.get("response", "That is not very nice")}'
-                        )
+                        results.append(response)
+                        if send:
+                            await message.channel.send(
+                                f'{message.author.mention} {response.get("response", "That is not very nice")}'
+                            )
                         await message.delete()
                     except discord.Forbidden:
                         print("[AutoReply] Missing permissions to timeout")
                 elif "response" in response:
-                    await message.reply(response["response"])
+                    if send:
+                        await message.reply(response["response"])
+                    results.append((pattern, response))
                 elif "response_random" in response:
-                    await message.reply(random.choice(response["response_random"]))
+                    if send:
+                        await message.reply(random.choice(response["response_random"]))
+                    results.append((pattern, response))
+
+        return results
 
     # Cog status
     async def cog_status(self):
@@ -798,6 +842,8 @@ class InformationChannels(commands.Cog):
             description="Manage information channels (alias for infochannels)",
         )
 
+        self.update_task.start()
+
     async def check_file(self):
         print("[InformationChannels] Checking file")
         if not os.path.exists(self.file.path):
@@ -838,7 +884,7 @@ class InformationChannels(commands.Cog):
         contents = self.file.read()
         guilds = contents["guilds"]
         for guild in guilds:
-            guild['name'] = self.bot.get_guild(guild['id']).name
+            guild["name"] = self.bot.get_guild(guild["id"]).name
             print(
                 f"[InformationChannels] Checking guild {guild.get('name', guild.get('id', 'Unknown'))}"
             )
@@ -855,16 +901,19 @@ class InformationChannels(commands.Cog):
                         msg_type="error",
                     )
                     continue
-                
+
                 # Optimize message entry
-                print(f"[InformationChannels] Optimizing messages for {dc_channel.name}")
+                print(
+                    f"[InformationChannels] Optimizing messages for {dc_channel.name}"
+                )
                 for message in channel["messages"]:
                     if message.get("content", None) == None:
                         message["content"] = ""
-                        
-                
+
                 channel["name"] = dc_channel.name
-                print(f"[InformationChannels] Found channel {dc_channel.name}, reading messages...")
+                print(
+                    f"[InformationChannels] Found channel {dc_channel.name}, reading messages..."
+                )
                 dc_channel_as_dict = await self._channel_to_dict(dc_channel)
 
                 print(f"[InformationChannels] Current messages:\n{dc_channel_as_dict}")
@@ -885,7 +934,7 @@ class InformationChannels(commands.Cog):
                         else:
                             await dc_channel.send(content=message.get("content", None))
                     print("[InformationChannels] Messages updated")
-                    self.bot.shell.log(
+                    await self.bot.shell.log(
                         f"Messages in channel {dc_channel.mention} updated",
                         "InformationChannels",
                         msg_type="success",
@@ -963,7 +1012,6 @@ class InformationChannels(commands.Cog):
                     # Keys in alphabetical order
                     embeds.sort(key=lambda x: x["name"])
                     embeds.append(embed_dict)
-    
 
                 messages.append({"content": message.content, "embeds": embeds})
 
@@ -981,8 +1029,10 @@ class InformationChannels(commands.Cog):
         if data.get("footer", None):
             embed.set_footer(text=data["footer"])
         if data.get("author", None):
-            if data['author'].get("icon_url", None):
-                embed.set_author(name=data["author"]["name"], icon_url=data["author"]["icon_url"])
+            if data["author"].get("icon_url", None):
+                embed.set_author(
+                    name=data["author"]["name"], icon_url=data["author"]["icon_url"]
+                )
             else:
                 embed.set_author(name=data["author"]["name"])
         if data.get("fields", None):
@@ -994,3 +1044,18 @@ class InformationChannels(commands.Cog):
                 )
 
         return embed
+
+    @tasks.loop(time=datetime.time(hour=0, minute=0, second=0))
+    async def update_task(self):
+        print("[InformationChannels] Checking for updates (Periodic)")
+        try:
+            await self.check_then_update()
+        except Exception as e:
+            print(f"[InformationChannels] Error updating channels: {e}")
+            await self.bot.shell.log(
+                f"Error updating channels during periodic check: {e}",
+                "InformationChannels",
+                msg_type="error",
+            )
+        else:
+            print("[InformationChannels] Update complete")
