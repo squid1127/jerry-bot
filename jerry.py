@@ -232,6 +232,35 @@ class JerryGemini(commands.Cog):
 
         # Process the response
         await self._process_response(response.text, message)
+        
+    def _split_message(self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]):
+        """Split a message into chunks of a maximum length by words, newlines, etc."""
+        if len(text) <= max_length:
+            return [text]
+
+        print(f"[Gemini] Splitting message of length {len(text)}")
+
+        for split in split_by:
+            print(f"[Gemini] Splitting by {split}")
+            unprocessed_chunks = text.split(split)
+            processed_chunks = []
+            if not len(unprocessed_chunks) > 1:
+                print(f"[Gemini] Splitting by {split} failed; trying next split")
+                continue
+            current_text = ""
+            for chunk in unprocessed_chunks:
+                if len(chunk) + len(current_text) >= max_length:
+                    print(f"[Gemini] Adding chunk with length {len(current_text)}")
+                    processed_chunks.append(current_text)
+                    current_text = ""
+                current_text += chunk + split
+                print(f"[Gemini] Current text length: {len(current_text)}")
+            if current_text:
+                print(f"[Gemini] Adding final chunk with length {len(current_text)}")
+                processed_chunks.append(current_text)
+            
+            return processed_chunks
+        
 
     async def _process_response(
         self,
@@ -260,8 +289,20 @@ class JerryGemini(commands.Cog):
             # Check for actions
             action = command.split(" ")[0]
             if action.startswith("send"):
-                print(f"[Gemini] Sending message: {command}")
                 message_text = command.split(" ", 1)[1]
+                print(f"[Gemini] Sending message: {message_text}")
+
+                # Message length check
+                if len(message_text) > 2000:
+                    # Split the message into words
+                    chunks = self._split_message(message_text)
+                    for chunk in chunks:
+                        await channel.send(chunk)
+                        
+                    continue
+    
+
+                # Send Messsage
                 await channel.send(message_text)
                 continue
 
@@ -313,7 +354,17 @@ class JerryGemini(commands.Cog):
             # If no action is found, send the message
             if command != "":
                 print(f"[Gemini] Sending message: {command}")
-                await channel.send(command)
+                # Message length check
+                
+                if len(message_text) > 2000:
+                    # Split the message into words
+                    chunks = self._split_message(message_text)
+                    for chunk in chunks:
+                        await channel.send(chunk)
+
+                # Send Messsage
+                await channel.send(message_text)
+                continue
 
     async def _new_chat(self):
         self.chat = self.model.start_chat()
@@ -669,7 +720,7 @@ class AutoReply(commands.Cog):
             if any(result[1].get("bad", False) for result in results):
                 print("[AutoReply] Message was deleted by bot due to bad content")
                 return
-            
+
             msg_embed = discord.Embed(
                 title="Deleted Message",
                 description=message.content,
@@ -681,7 +732,7 @@ class AutoReply(commands.Cog):
             )
 
             await message.channel.send(
-                f'Hey I saw that! {message.author.mention} 🤨, you said:',
+                f"Hey I saw that! {message.author.mention} 🤨, you said:",
                 embed=msg_embed,
             )
 
