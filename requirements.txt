@@ -11,3 +11,4 @@ cryptography
 timedelta
 watchdog
 PyYAML
+fuzzywuzzy
