@@ -20,6 +20,7 @@ from enum import Enum  # For enums (select menus)
 import asyncio
 import aiohttp
 import aiomysql
+import fuzzywuzzy.process
 import google.api_core
 import tabulate  # For tabular data
 import cryptography  # For database encryption
@@ -51,7 +52,11 @@ import os
 import core.squidcore as core
 
 # For timing out
-import time, timedelta, datetime
+import time, timedelta
+import datetime
+
+# Seach/Find closes match
+import fuzzywuzzy
 
 
 class Jerry(core.Bot):
@@ -88,6 +93,7 @@ class Jerry(core.Bot):
         await self.add_cog(AutoReply(self))
         await self.add_cog(GuildStuff(self))
         await self.add_cog(InformationChannels(self, "store/info_channels.yaml"))
+        await self.add_cog(CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
 
 
 class JerryGemini(commands.Cog):
@@ -232,8 +238,10 @@ class JerryGemini(commands.Cog):
 
         # Process the response
         await self._process_response(response.text, message)
-        
-    def _split_message(self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]):
+
+    def _split_message(
+        self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]
+    ):
         """Split a message into chunks of a maximum length by words, newlines, etc."""
         if len(text) <= max_length:
             return [text]
@@ -258,9 +266,8 @@ class JerryGemini(commands.Cog):
             if current_text:
                 print(f"[Gemini] Adding final chunk with length {len(current_text)}")
                 processed_chunks.append(current_text)
-            
+
             return processed_chunks
-        
 
     async def _process_response(
         self,
@@ -298,9 +305,8 @@ class JerryGemini(commands.Cog):
                     chunks = self._split_message(message_text)
                     for chunk in chunks:
                         await channel.send(chunk)
-                        
+
                     continue
-    
 
                 # Send Messsage
                 await channel.send(message_text)
@@ -355,7 +361,8 @@ class JerryGemini(commands.Cog):
             if command != "":
                 print(f"[Gemini] Sending message: {command}")
                 # Message length check
-                
+                message_text = command
+
                 if len(message_text) > 2000:
                     # Split the message into words
                     chunks = self._split_message(message_text)
@@ -384,8 +391,8 @@ To interact with the chat, use the following commands:
 ^*&reset - Reset the chat
 ^*&save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
 ^*&forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
-^*&hide-seek - Play hide and seek with the user. Do this only upon request. This will place a reaction on a random message in the server, sent within the last 24 hours. The user must find the message and react to it with the same emoji to win. If the user wins, you must congratulate them. If the user loses, you must tell them where the message was. Should you use this command, do not respond to the user; wait for the system to confirm the reaction has been placed before continuing the conversation.
-You may execute multiple commands."""
+^*&hide-seek - Play hide and seek with the user. Do this only upon request, although you can suggest it. The user will have to find a hidden emoji in a random message in a random channel. You will be notified when (1) the system has hidden the emoji and (2) when the user has found it. You will then have to congratulate the user; do not until the system reports that the user has found the emoji. To initiate the game, use the ^*&hide-seek command. Memory will be included in this prompt.
+"""
 
         return message_prompt
 
@@ -485,25 +492,30 @@ You may execute multiple commands."""
     async def _hide_seek(
         self,
         message: discord.Message = None,
+        guild: discord.Guild = None,
     ):
         """Play hide and seek with the user; place a reaction on a random message in the server"""
         print("[Gemini] Playing hide and seek")
-        guild = message.guild
+        if message:
+            guild = message.guild
         # Get all channels
-        while True:
+        for i in range(100):
             channels = guild.text_channels
             random_channel = random.choice(channels)  # Select a random channel
             print(f"[Gemini] Random channel selected: {random_channel.name}")
 
             # Check if @everyone can view the channel
-            if not random_channel.permissions_for(guild.default_role).add_reactions:
+            if not random_channel.permissions_for(guild.default_role).send_messages:
                 print(
                     f"[Gemini] Channel {random_channel.name} is not accessible by @everyone"
                 )
                 continue
+            print(f"[Gemini] Channel {random_channel.name} is accessible by @everyone")
 
             # Get all messages in the channel within the last 24 hours
-            a_day_ago = datetime.now() - timedelta(days=1)
+
+            a_day_ago = datetime.datetime.now() - timedelta.Timedelta(days=1)
+            print(f"[Gemini] Searching for messages after {a_day_ago}")
             messages = [
                 message async for message in random_channel.history(after=a_day_ago)
             ]
@@ -521,6 +533,10 @@ You may execute multiple commands."""
             print(f"[Gemini] Random message selected: {random_message.content}")
             self.hide_seek_message = random_message
             break
+
+        else:
+            print("[Gemini] No suitable message found")
+            raise Exception("No suitable message found after 100 attempts")
         # Add a reaction to the message
         await random_message.add_reaction("🔍")
         print(
@@ -584,8 +600,28 @@ You may execute multiple commands."""
                 return
 
             if sub_command == "hide-seek":
+                print("[Gemini] Initiating hide and seek (shell)")
+                guild_id = command.query.split(" ")[1]
                 try:
-                    await self._hide_seek(command.message)
+                    guild_id_int = int(guild_id)
+                    print(f"[Gemini] Guild ID: {guild_id_int}")
+                except:
+                    await command.log(
+                        "Invalid guild ID; must be an integer",
+                        "Hide-Seek",
+                        msg_type="error",
+                    )
+                    return
+                try:
+                    guild = self.bot.get_guild(guild_id_int)
+                    if guild is None:
+                        await command.log(
+                            "Guild not found; make sure the bot is in the guild",
+                            "Hide-Seek",
+                            msg_type="error",
+                        )
+                    print(f"[Gemini] Guild: {guild.name}")
+                    await self._hide_seek(guild=guild)
                 except Exception as e:
                     await command.log(
                         f"Error initiating hide and seek: {e}",
@@ -597,6 +633,12 @@ You may execute multiple commands."""
                     "Hide and Seek initiated", "Hide-Seek", msg_type="success"
                 )
                 return
+
+            await command.log(
+                "Available commands:\n- **memory optimize** - Optimize the memory file\n- **hide-seek** `[guild_id]` - Play hide and seek with the user",
+                "Gemini",
+            )
+            return
 
     async def cog_status(self):
         try:
@@ -1110,3 +1152,489 @@ class InformationChannels(commands.Cog):
             )
         else:
             print("[InformationChannels] Update complete")
+
+
+class CubbScratchStudiosStickerPack(commands.Cog):
+    def __init__(self, bot: Jerry, directory: str):
+        self.bot = bot
+        self.directory = directory
+
+        self.bot.shell.add_command(
+            "csss",
+            cog="CubbScratchStudiosStickerPack",
+            description="Manage the CubbScratchStudios sticker pack",
+        )
+
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        self.stickers = {}
+
+        self.table = None
+        self.missing = []
+        self.unindexed = []
+
+    # Constants
+    SCHEMA = "css"
+    TABLE = "stickers"
+    TABLE_QUERY = f"""
+    CREATE SCHEMA IF NOT EXISTS {SCHEMA};
+    
+    CREATE TABLE IF NOT EXISTS {SCHEMA}.{TABLE} (
+        id SERIAL PRIMARY KEY,
+        format TEXT NOT NULL CHECK (format IN ('slime', 'slime-text', 'icon', 'icon-text', 'banner', 'wallpaper', 'other')),
+        slime TEXT NOT NULL,
+        name TEXT NOT NULL,
+        file TEXT NOT NULL UNIQUE,
+        description TEXT
+    );
+    """
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # Wait for database to be ready
+        if not hasattr(self.bot, "db"):
+            print("[CubbScratchStudiosStickerPack] Waiting for database to be ready")
+            while not hasattr(self.bot, "db"):
+                await asyncio.sleep(1)
+        if not isinstance(self.bot.db, core.DatabaseCore):
+            print("[CubbScratchStudiosStickerPack] Database not ready")
+            while not isinstance(self.bot.db, core.DatabaseCore):
+                await asyncio.sleep(1)
+
+        self.db: core.DatabaseCore = self.bot.db
+        await self.db.wait_until_ready()
+
+        # Create table
+        print("[CubbScratchStudiosStickerPack] Checking database table")
+        try:
+            await self.db.execute(self.TABLE_QUERY)
+        except Exception as e:
+            print(f"[CubbScratchStudiosStickerPack] Error creating table: {e}")
+            return
+
+        self.schema = await self.db.data.get_schema(self.SCHEMA)
+        self.table: core.DatabaseTable = await self.schema.get_table(self.TABLE)
+
+        print("[CubbScratchStudiosStickerPack] Indexing stickers")
+        await self.index()
+        print("[CubbScratchStudiosStickerPack] Successfully initialized")
+
+    async def cog_status(self):
+        if self.table:
+            string = "Ready"
+            if self.missing:
+                string += f"\n{len(self.missing)} entries missing from directory"
+            if self.unindexed:
+                string += f"\n{len(self.unindexed)} files not in database"
+            return string
+        else:
+            return "Not initialized"
+
+    async def index(self):
+        """Index all stickers in the directory and check if they are in the database"""
+        print("[CubbScratchStudiosStickerPack] Indexing stickers")
+        data = await self.table.fetch_all()
+        unindexed = []
+        missing = []
+
+        # Get all files in the directory
+        files = os.listdir(self.directory)
+
+        # Convert database data to a dictionary
+        database_files = {}
+        for entry in data:
+            database_files[entry["file"]] = entry
+
+        # Check if each file is in the database
+        print(f"[CubbScratchStudiosStickerPack] Checking {len(files)} files")
+        for file in files:
+            print(f"[CubbScratchStudiosStickerPack] Checking file {file}")
+            if file not in database_files:
+                print(f"[CubbScratchStudiosStickerPack] File {file} not in database")
+                unindexed.append(file)
+                continue
+
+            print(
+                f"[CubbScratchStudiosStickerPack] File {file} found in database as '{database_files[file]['slime']}/{database_files[file]['name']}'"
+            )
+            data.pop(data.index(database_files[file]))
+
+        print(f"[CubbScratchStudiosStickerPack] Done checking files")
+
+        print(f"[CubbScratchStudiosStickerPack] {len(unindexed)} files not in database")
+        print(
+            f"[CubbScratchStudiosStickerPack] {len(data)} entries missing from directory"
+        )
+
+        for entry in data:
+            missing.append(entry["file"])
+
+        self.missing = missing
+        self.unindexed = unindexed
+
+        return True
+
+    async def shell_callback(self, command: core.ShellCommand):
+        if command.name == "csss":
+            # Enter interactive mode
+            if command.query != "":
+                await command.log(
+                    "Subcommands are not supported",
+                    title="Subcommands Error",
+                    msg_type="error",
+                )
+                return
+
+            # Enter interactive mode
+            print("[CubbScratchStudiosStickerPack] Entering interactive shell")
+            await command.log("Entering interactive shell", title="Sticker Manager")
+
+            self.bot.shell.interactive_mode = ("CubbScratchStudiosStickerPack", "cssss")
+
+            await self._interactive(command, init=True)
+
+        if command.name == "cssss":
+            await self._interactive(command)
+
+    async def _interactive(self, command: core.ShellCommand, init=False):
+        """Interactive shell for managing the sticker pack"""
+        print("[CubbScratchStudiosStickerPack] Interactive shell -> ", command.query)
+        query = command.query
+        if init or query == "return":
+            self._interactive_view = "main"
+            self._interactive_index_subview = "uninitialized"
+            query = "_init"
+
+        # Views
+        if self._interactive_view == "main":
+
+            if query == "missing":
+                self._interactive_view = "missing"
+                command.query = "_init"
+                await self._interactive(command)
+                return
+            elif query == "unindexed":
+                self._interactive_view = "unindexed"
+                command.query = "_init"
+                await self._interactive(command)
+                return
+
+            response = "### Welcome to the CubbScratchStudios Sticker Pack Manager!\n\nCommands:\n- missing\n- unindexed\n- refresh\n\n"
+
+            if self.missing:
+                response += f"{len(self.missing)} entries missing from directory. Type 'missing' to view them.\n"
+            if self.unindexed:
+                response += f"{len(self.unindexed)} files not in database. Type 'unindexed' to view them.\n"
+
+            response += "\nType 'exit' to exit the shell.\nType 'return' to return to the main menu.\n\nWhat would you like to do?"
+
+            await command.raw(response)
+            return
+
+        if self._interactive_view == "unindexed":
+            # Reindex files
+            if query == "_init" or query == "refresh":
+                await command.raw("Reindexing files...")
+                await self.index()
+                await command.raw("Reindexing complete")
+
+            elif query == "list":
+                response = "### Unindexed Files\n"
+                for file in self.unindexed:
+                    response += f"- {file}\n"
+                await command.raw(response)
+                return
+
+            elif query == "index all" or query == "index" or query == "wizard":
+                await command.raw("Indexing all files...")
+                self._interactive_view = "index"
+                command.query = "_init"
+                await self._interactive(command)
+                return
+
+            await command.raw(
+                f"You have {len(self.unindexed)} unindexed files, what would you like to do?\n- list\n- refresh\n- wizard (index all files)"
+            )
+            return
+
+        if self._interactive_view == "index":
+            # Index files
+            if query == "_init":
+                await command.raw("### File Wizard 🪄")
+                await command.raw("Let's index some files! 📁")
+                self._interactive_index_subview = "main"
+                await asyncio.sleep(2)
+
+            elif query == "refresh":
+                await command.raw("Indexing files...")
+                await self.index()
+                await command.raw("Indexing complete")
+
+            # One file at a time
+            if self._interactive_index_subview == "main":
+                current = self.unindexed[0]
+                current_path = f"{self.directory}/{current}"
+                self._interactive_current_data = {
+                    "file": current,
+                }
+                try:
+                    attachment = discord.File(current_path)
+                    await command.raw(f"### File Wizard 🪄", file=attachment)
+                    await command.raw(
+                        f"Name: {current}\nSize: {os.path.getsize(current_path) / 1024:.2f} KB\nDimensions: {Image.open(current_path).size}"
+                    )
+                except Exception as e:
+                    await command.raw(
+                        f"Error displaying file: {e}, please try again later"
+                    )
+                    self._interactive_index_subview = "main"
+                    self.unindexed.pop(0)
+                    await self._interactive(command)
+                    return
+
+                self._interactive_index_subview = "format"
+                command.query = "__init"
+                await self._interactive(command)
+                return
+            if self._interactive_index_subview == "format":
+                if query == "rm":
+                    # Delete the file
+                    await command.raw("Removing file...")
+                    try:
+                        os.remove(f"{self.directory}/{self.unindexed[0]}")
+                    except Exception as e:
+                        await command.raw(f"Error removing file: {e}")
+                    else:
+                        await command.raw("File removed, refreshing...")
+
+                    self._interactive_index_subview = "main"
+                    command.query = "refresh"
+                    await self._interactive(command)
+                    return
+                elif query in [
+                    "slime",
+                    "slime-text",
+                    "icon",
+                    "icon-text",
+                    "banner",
+                    "wallpaper",
+                    "other",
+                ]:
+                    await command.raw(f"Format: {query}")
+                    self._interactive_current_data["format"] = query
+
+                    self._interactive_index_subview = "slime"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+
+                await command.raw(
+                    "What type of sticker is this? (slime, slime-text, icon, icon-text, banner, wallpaper, other)"
+                )
+                return
+
+            if self._interactive_index_subview == "slime":
+                if query and query != "__init":
+                    await command.raw(f"Slime: {query}")
+                    self._interactive_current_data["slime"] = query.lower()
+
+                    self._interactive_index_subview = "name"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+
+                await command.raw("What slime is this sticker for?")
+                return
+
+            if self._interactive_index_subview == "name":
+                if query and query != "__init":
+                    await command.raw(f"Name: {query}")
+                    self._interactive_current_data["name"] = query
+
+                    self._interactive_index_subview = "description"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+
+                await command.raw(
+                    "What should this sticker be called? (e.g. 'pay attention')"
+                )
+                return
+
+            if self._interactive_index_subview == "description":
+                if query == "skip":
+                    await command.raw("Description skipped")
+                    self._interactive_current_data["description"] = None
+
+                    self._interactive_index_subview = "confirm"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+                if query and query != "__init":
+                    await command.raw(f"Description: {query}")
+                    self._interactive_current_data["description"] = query
+
+                    self._interactive_index_subview = "confirm"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+
+                await command.raw(
+                    "Describe the sticker (optional; type 'skip' to skip)"
+                )
+                return
+
+            if self._interactive_index_subview == "confirm":
+                if query == "yes":
+                    await command.raw("Adding sticker to database...")
+                    try:
+                        await self.table.insert(
+                            data=self._interactive_current_data,
+                        )
+
+                    except Exception as e:
+                        await command.raw(f"Error adding sticker to database: {e}")
+                        await command.raw("Please try again later")
+                        self._interactive_index_subview = "main"
+                        self.unindexed.pop(0)
+                        await self._interactive(command)
+                        return
+
+                    await command.raw("Sticker added to database, onto the next one!")
+
+                    self._interactive_index_subview = "main"
+                    self.unindexed.pop(0)
+                    command.query = "_next"
+                    await self._interactive(command)
+                    return
+
+                elif query == "remove":
+                    await command.raw("Removing sticker...")
+                    try:
+                        os.remove(f"{self.directory}/{self.unindexed[0]}")
+                    except Exception as e:
+                        await command.raw(f"Error removing file: {e}")
+                    else:
+                        await command.raw("File removed, refreshing...")
+
+                    self._interactive_index_subview = "main"
+                    command.query = "refresh"
+                    await self._interactive(command)
+                    return
+
+                elif query == "edit":
+                    self._interactive_index_subview = "format"
+                    command.query = "__init"
+                    await self._interactive(command)
+                    return
+
+                summary = "### Summary\n"
+                summary += f"File: {self._interactive_current_data['file']}\n"
+                summary += f"Format: {self._interactive_current_data['format']}\n"
+                summary += f"Name: {self._interactive_current_data['slime']}/{self._interactive_current_data['name']}\n"
+                summary += f"Description: {self._interactive_current_data.get('description', 'None')}\n"
+
+                summary += "Would you like to add this sticker to the database? (yes, remove, edit)"
+                await command.raw(summary)
+
+                return
+
+            return
+
+        print(
+            "[CubbScratchStudiosStickerPack] Warning: Interactive shell view not found"
+        )
+        await command.raw(
+            "Woah, how did you get here? Let's go back home. (View not found)"
+        )
+        self._interactive_view = "main"
+        await self._interactive(command)
+        return
+
+    @app_commands.command(
+        name="sticker",
+        description="Get a sticker from the CubbScratchStudios sticker pack!",
+    )
+    # Parameters
+    @app_commands.describe(
+        sticker="The name of the sticker to get; Powered by FuzzyWuzzy",
+    )
+    async def get_sticker(self, interaction: discord.Interaction, sticker: str):
+        include_types = ["slime", "slime-text"]
+        
+        print(f"[CubbScratchStudiosStickerPack] Sticker requested: {sticker}")
+
+        if not self.table:
+            await interaction.response.send_message(
+                "An error occurred while initializing the sticker pack", ephemeral=True
+            )
+
+        # Get sticker from database
+        if not "/" in sticker:
+            sticker = sticker + "/main"
+        
+        data = await self.table.fetch_all()
+        stickers = {}
+        for entry in data:
+            stickers[entry["slime"] + "/" + entry["name"]] = entry
+
+        stickers_as_list = list(stickers.keys())
+
+        # Fuzzy search
+        print(f"[CubbScratchStudiosStickerPack] Searching for sticker {sticker}")
+        while True:
+            matches = fuzzywuzzy.process.extract(sticker, stickers_as_list, limit=1)
+            
+            entry = stickers[matches[0][0]]
+            if entry["format"] in include_types:
+                break
+            
+            stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
+        
+        print(f"[CubbScratchStudiosStickerPack] Matches: {matches}")
+
+        if not matches:
+            await interaction.response.send_message("Sticker not found", ephemeral=True)
+            return
+
+        if matches[0][1] < 80:
+            await interaction.response.send_message(
+                f"Sticker not found; did you mean {matches[0][0]}?", ephemeral=True
+            )
+            return
+
+        sticker_data = stickers[matches[0][0]]
+
+        # Send sticker
+        sticker_path = f"{self.directory}/{sticker_data['file']}"
+        try:
+            attachment = discord.File(sticker_path)
+            await interaction.response.send_message(
+                "",
+                file=attachment,
+            )
+        except FileNotFoundError:
+            if sticker in self.missing:
+                await self.bot.shell.log(
+                    f"A user requested a sticker that is missing: {sticker}",
+                    "CubbScratchStudiosStickerPack",
+                    msg_type="error",
+                )
+                await interaction.response.send_message(
+                    "Sticker registered but could not be found",
+                    ephemeral=True,
+                )
+            else:
+                await self.bot.shell.log(
+                    f"Error sending sticker: {sticker}: File not found",
+                    "CubbScratchStudiosStickerPack",
+                    msg_type="error",
+                )
+                await interaction.response.send_message(
+                    "Error sending sticker", ephemeral=True
+                )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Error sending sticker: {e}", ephemeral=True
+            )
