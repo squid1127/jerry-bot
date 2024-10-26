@@ -163,6 +163,7 @@ cython_debug/
 
 # Cached files
 store/
+communal/
 
 # Database files
 db/
