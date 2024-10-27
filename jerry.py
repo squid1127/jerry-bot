@@ -926,7 +926,7 @@ class GuildStuff(commands.Cog):
         )
         embed.add_field(
             name="Approximate Number of Times People Pushed Spacebar",
-            value=f"{total_spaces} Why did I count this? Idek",
+            value=f"{total_spaces}! Why did I count this? Idek",
             inline=False,
         )
 
