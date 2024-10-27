@@ -713,7 +713,7 @@ class AutoReply(commands.Cog):
             # General
             r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
             r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"womp": {"response": "Womp womp"},
+            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+|wp(o|0)+m)": {"response": "Womp womp"},
             # Shut it
             r"^shut+[\W_]*up": {"response": "No u"},
             # Gaslighting
