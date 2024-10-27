@@ -12,3 +12,4 @@ timedelta
 watchdog
 PyYAML
 fuzzywuzzy
+python-Levenshtein
