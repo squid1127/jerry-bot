@@ -713,7 +713,9 @@ class AutoReply(commands.Cog):
             # General
             r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
             r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+|wp(o|0)+m)": {"response": "Womp womp"},
+            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+|wp(o|0)+m)": {
+                "response": "Womp womp"
+            },
             # Shut it
             r"^shut+[\W_]*up": {"response": "No u"},
             # Gaslighting
@@ -829,7 +831,7 @@ class GuildStuff(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="guild",
+        name="server",
         description="[Experimental] Get information about this guild (server)",
     )
     async def guild_info(self, interaction: discord.Interaction):
@@ -841,13 +843,16 @@ class GuildStuff(commands.Cog):
         guild_name = guild.name
         guild_owner = guild.owner
         guild_members = guild.member_count
+        guild_channels = len(guild.channels)
+        guild_roles = len(guild.roles)
+
         print(
             f"[GuildStuff] Guild {guild_name} ({guild_id}) has {guild_members} members and is owned by {guild_owner}"
         )
 
         embed = discord.Embed(
-            title="Guild Information",
-            description=f"Here is some information about the guild {guild_name} ({guild_id})\n\nAnalyzing...",
+            title="Server Information",
+            description=f"Here is some information about the server {guild_name} ({guild_id})\n\nAnalyzing...",
             color=discord.Color.yellow(),
         )
         embed.add_field(name="Owner", value=guild_owner.mention, inline=False)
@@ -866,6 +871,8 @@ class GuildStuff(commands.Cog):
         print(f"[GuildStuff] Listing members...")
         members_messages = {}
         total_messages = 0
+        total_characters = 0
+        total_spaces = 0
         for member in guild.members:
             members_messages[member] = 0
             print(f"[GuildStuff] Found member {member.name}")
@@ -883,6 +890,9 @@ class GuildStuff(commands.Cog):
                         continue
                     members_messages[message.author] += 1
                     total_messages += 1
+                    message_content = message.content
+                    total_characters += len(message_content)
+                    total_spaces += message_content.count(" ")
                     print(
                         f"[GuildStuff] Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
                     )
@@ -909,8 +919,17 @@ class GuildStuff(commands.Cog):
         embed.description = (
             f"Here is some information about the guild {guild_name} ({guild_id})"
         )
-        embed.add_field(name="Total Messages", value=total_messages, inline=False)
         embed.add_field(name="Top 10 Members", value=top_members_str, inline=False)
+        embed.add_field(name="Total Messages", value=total_messages, inline=False)
+        embed.add_field(
+            name="Total Characters In Messages", value=total_characters, inline=False
+        )
+        embed.add_field(
+            name="Approximate Number of Times People Pushed Spacebar",
+            value=f"{total_spaces} Why did I count this? Idek",
+            inline=False,
+        )
+
         embed.color = discord.Color.green()
 
         await interaction.edit_original_response(embed=embed)
@@ -1562,7 +1581,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
     )
     async def get_sticker(self, interaction: discord.Interaction, sticker: str):
         include_types = ["slime", "slime-text"]
-        
+
         print(f"[CubbScratchStudiosStickerPack] Sticker requested: {sticker}")
 
         if not self.table:
@@ -1573,7 +1592,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         # Get sticker from database
         if not "/" in sticker:
             sticker = sticker + "/main"
-        
+
         data = await self.table.fetch_all()
         stickers = {}
         for entry in data:
@@ -1585,13 +1604,13 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         print(f"[CubbScratchStudiosStickerPack] Searching for sticker {sticker}")
         while True:
             matches = fuzzywuzzy.process.extract(sticker, stickers_as_list, limit=1)
-            
+
             entry = stickers[matches[0][0]]
             if entry["format"] in include_types:
                 break
-            
+
             stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
-        
+
         print(f"[CubbScratchStudiosStickerPack] Matches: {matches}")
 
         if not matches:
