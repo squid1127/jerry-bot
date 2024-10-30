@@ -713,9 +713,10 @@ class AutoReply(commands.Cog):
             # General
             r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
             r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+|wp(o|0)+m)": {
+            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {
                 "response": "Womp womp"
             },
+            r"wp(o|0)+m": {"response_file": {"url": "https://squid1127.strangled.net/caddy/files/assets/wpom.png"}},
             # Shut it
             r"^shut+[\W_]*up": {"response": "No u"},
             # Gaslighting
@@ -808,9 +809,32 @@ class AutoReply(commands.Cog):
                         await message.delete()
                     except discord.Forbidden:
                         print("[AutoReply] Missing permissions to timeout")
-                elif "response" in response:
+                elif "response" in response or "response_file" in response:
                     if send:
-                        await message.reply(response["response"])
+                        if "response_file" in response:
+                            if "url" in response["response_file"]:
+                                # Check if file is cached
+                                if not os.path.exists("store/images"):
+                                    os.makedirs("store/images")
+                                
+                                file_path = f"store/images/{response['response_file']['url'].split('/')[-1]}"
+                                if not os.path.exists(file_path):
+                                    print(f"[AutoReply] Downloading file: {response['response_file']['url']} to {file_path}")
+                                    async with aiohttp.ClientSession() as session:
+                                        async with session.get(response["response_file"]["url"]) as resp:
+                                            with open(file_path, "wb") as f:
+                                                f.write(await resp.read())
+                                
+                                file = discord.File(file_path)
+                                
+                            else:
+                                file = discord.File(response["response_file"]["path"])
+                        
+                        else:
+                            file = None
+                            
+                        await message.reply(response.get("response", ""), file=file)       
+                        
                     results.append((pattern, response))
                 elif "response_random" in response:
                     if send:
