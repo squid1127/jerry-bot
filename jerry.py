@@ -1559,7 +1559,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         if self._interactive_view == "index":
             # Index files
             if query == "_init":
-                await command.raw("### File Wizard 🪄\nLet's index some files! 📁\nNote: It is suggested that you have a list of currently indexed files as there might be duplicates")
+                await command.raw("### File Wizard 🪄\nLet's index some files! 📁\nNote: It is suggested that you have a list of currently indexed files as there might be duplicates.\n\n**Quick Actions**\n- rm - Delete the current file and move on the the next one\n- reset - Made a mistake in entering everything? Use reset to start over")
                 self._interactive_index_subview = "main"
                 await asyncio.sleep(2)
 
@@ -1567,6 +1567,27 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 await command.raw("Indexing files...")
                 await self.index()
                 await command.raw("Indexing complete")
+                
+            elif query == "reset":
+                await command.raw("Oops, let's try that again!")
+                self._interactive_index_subview = "main"
+                command.query = "__init"
+                await self._interactive(command)
+                return
+            elif query == "rm":
+                # Delete the file
+                await command.raw("Removing file...")
+                try:
+                    os.remove(f"{self.directory}/{self.unindexed[0]}")
+                except Exception as e:
+                    await command.raw(f"Error removing file: {e}")
+                else:
+                    await command.raw("File removed, refreshing...")
+
+                self._interactive_index_subview = "main"
+                command.query = "refresh"
+                await self._interactive(command)
+                return
 
             # One file at a time
             if self._interactive_index_subview == "main":
@@ -1579,7 +1600,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                     attachment = discord.File(current_path)
                     await command.raw(f"### File Wizard 🪄", file=attachment)
                     await command.raw(
-                        f"Name: {current}\nSize: {os.path.getsize(current_path) / 1024:.2f} KB\nDimensions: {Image.open(current_path).size}"
+                        f"**Name**: {current}\n**Size**: {os.path.getsize(current_path) / 1024:.2f} KB\n**Dimensions**: {Image.open(current_path).size}"
                     )
                 except Exception as e:
                     await command.raw(
@@ -1595,21 +1616,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 await self._interactive(command)
                 return
             if self._interactive_index_subview == "format":
-                if query == "rm":
-                    # Delete the file
-                    await command.raw("Removing file...")
-                    try:
-                        os.remove(f"{self.directory}/{self.unindexed[0]}")
-                    except Exception as e:
-                        await command.raw(f"Error removing file: {e}")
-                    else:
-                        await command.raw("File removed, refreshing...")
-
-                    self._interactive_index_subview = "main"
-                    command.query = "refresh"
-                    await self._interactive(command)
-                    return
-                elif query in [
+                if query in [
                     "slime",
                     "slime-text",
                     "icon",
@@ -1706,22 +1713,9 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                     await self._interactive(command)
                     return
 
-                elif query == "remove":
-                    await command.raw("Removing sticker...")
-                    try:
-                        os.remove(f"{self.directory}/{self.unindexed[0]}")
-                    except Exception as e:
-                        await command.raw(f"Error removing file: {e}")
-                    else:
-                        await command.raw("File removed, refreshing...")
-
-                    self._interactive_index_subview = "main"
-                    command.query = "refresh"
-                    await self._interactive(command)
-                    return
-
                 elif query == "edit":
-                    self._interactive_index_subview = "format"
+                    await command.raw("Starting over...")
+                    self._interactive_index_subview = "main"
                     command.query = "__init"
                     await self._interactive(command)
                     return
@@ -1732,7 +1726,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 summary += f"Name: {self._interactive_current_data['slime']}/{self._interactive_current_data['name']}\n"
                 summary += f"Description: {self._interactive_current_data.get('description', 'None')}\n"
 
-                summary += "Would you like to add this sticker to the database? (yes, remove, edit)"
+                summary += "Would you like to add this sticker to the database? (yes|edit)"
                 await command.raw(summary)
 
                 return
@@ -1810,7 +1804,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         try:
             attachment = discord.File(sticker_path)
             await interaction.response.send_message(
-                f"I found sticker '{sticker_data['slime']}/{sticker_data['name']}'! Would you like to send it?",
+                f"I found sticker '{sticker_data['slime']}/{sticker_data['name']}'! 🪄\n## About\n*{sticker_data.get('description','No description provided')}*",
                 file=attachment,
                 ephemeral=True,
                 view=StickerEphemeralView(sticker_path, self),
