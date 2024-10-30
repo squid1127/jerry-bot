@@ -43,6 +43,7 @@ import re
 import google.generativeai as gemini
 import google.api_core.exceptions as gemini_selling
 from PIL import Image
+import pyheif
 
 # FIle management
 import hashlib
@@ -881,6 +882,8 @@ class GuildStuff(commands.Cog):
         )
         embed.add_field(name="Owner", value=guild_owner.mention, inline=False)
         embed.add_field(name="Members", value=guild_members, inline=False)
+        embed.add_field(name="Channels", value=guild_channels, inline=False)
+        embed.add_field(name="Roles", value=guild_roles, inline=False)
         embed.set_footer(text="Powered by Jerry Bot")
         try:
             if guild.icon.url is None:
@@ -1196,6 +1199,25 @@ class InformationChannels(commands.Cog):
         else:
             print("[InformationChannels] Update complete")
 
+class StickerEphemeralView(discord.ui.View):
+    def __init__(self, sticker_file: str, core: 'CubbScratchStudiosStickerPack'):
+        super().__init__()
+        self.sticker_file = sticker_file
+        self.core = core
+        
+    @discord.ui.button(label="Send✅", style=discord.ButtonStyle.primary)
+    async def send(self, interaction: discord.Interaction, button: discord.ui.Button):
+        print(f"[CubbScratchStudiosStickerPack] Confirming sending sticker {self.sticker_file}")
+        await interaction.response.send_message("Sending sticker...", ephemeral=True)
+        try:
+            file = discord.File(self.sticker_file)
+        except Exception as e:
+            print(f"[CubbScratchStudiosStickerPack] Error getting sticker: {e}")
+            await interaction.followup.send(f"Error sending sticker: {e}", ephemeral=True)
+            return
+        await interaction.message.channel.send(file=file)
+    
+    
 
 class CubbScratchStudiosStickerPack(commands.Cog):
     def __init__(self, bot: Jerry, directory: str):
@@ -1273,6 +1295,35 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             return string
         else:
             return "Not initialized"
+        
+    async def apple_to_better(self, file_path: str):
+        """Convert heic/heif files to png"""
+        print(f"[CubbScratchStudiosStickerPack] Converting Apple Type Image {file_path}")
+        new_path = file_path.replace(".heic", ".png").replace(".heif", ".png")
+        
+        if os.path.exists(new_path):
+            print(f"[CubbScratchStudiosStickerPack] File {new_path} already exists, skipping")
+            return new_path
+        
+        try:
+            apple_image = pyheif.read(file_path)
+            image = Image.frombytes(
+                apple_image.mode, 
+                apple_image.size, 
+                apple_image.data,
+                "raw",
+                apple_image.mode,
+                apple_image.stride,
+            )
+            
+            image.save(new_path)
+        
+        except Exception as e:
+            print(f"[CubbScratchStudiosStickerPack] Error converting Apple Type Image: {e}")
+            return None
+        
+        print(f"[CubbScratchStudiosStickerPack] Converted Apple Type Image to {new_path}")
+        return new_path
 
     async def index(self):
         """Index all stickers in the directory and check if they are in the database"""
@@ -1280,9 +1331,65 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         data = await self.table.fetch_all()
         unindexed = []
         missing = []
+        
+        # Optimize file paths & convert Apple type images
+        print("[CubbScratchStudiosStickerPack] Optimizing file paths")
+        while True:
+            interrupted = False
+            files = os.listdir(self.directory)
+            for file in files:
+                if ":Zone.Identifier" in file:
+                    print(f"[CubbScratchStudiosStickerPack] Skipping file with Zone.Identifier: {file}")
+                    continue
 
-        # Get all files in the directory
+                if file.endswith(".heic") or file.endswith(".heif"):
+                    new_path = await self.apple_to_better(f"{self.directory}/{file}")
+                    if new_path:
+                        os.remove(f"{self.directory}/{file}")
+                        interrupted = True
+                    
+                # Replace spaces with underscores
+                if " " in file:
+                    print(f"[CubbScratchStudiosStickerPack] Replacing spaces in file {file}")
+                    new_file = file.replace(" ", "_")
+                    try:
+                        print(f"[CubbScratchStudiosStickerPack] Rename {self.directory}/{file} to {self.directory}/{new_file}")
+                        os.rename(f"{self.directory}/{file}", f"{self.directory}/{new_file}")
+                    except PermissionError:
+                        print(f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to permission error")
+                    except FileNotFoundError:
+                        print(f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to file not found")
+                    except Exception as e:
+                        print(f"[CubbScratchStudiosStickerPack] Error renaming file {file}: {e}")
+                    interrupted = True
+                    continue
+                    
+                # Replace other special characters
+                if re.search(r"[^a-zA-Z0-9_.-]", file):
+                    new_file = re.sub(r"[^a-zA-Z0-9_.-]", "_", file)
+                    try:
+                        print(f"[CubbScratchStudiosStickerPack] Rename {self.directory}/{file} to {self.directory}/{new_file}")
+                        os.rename(f"{self.directory}/{file}", f"{self.directory}/{new_file}")
+                    except PermissionError:
+                        print(f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to permission error")
+                    except FileNotFoundError:
+                        print(f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to file not found")
+                    except Exception as e:
+                        print(f"[CubbScratchStudiosStickerPack] Error renaming file {file}: {e}")   
+                    interrupted = True
+                    continue
+                
+            if not interrupted:
+                print("[CubbScratchStudiosStickerPack] File paths optimized")
+                break
+            print("[CubbScratchStudiosStickerPack] Some files were optimized, checking again")
+
+        # Get all files in the directory (again)
         files = os.listdir(self.directory)
+        
+        # Remove Zone.Identifier files
+        files = [file for file in files if ":Zone.Identifier" not in file]
+            
 
         # Convert database data to a dictionary
         database_files = {}
@@ -1293,6 +1400,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         print(f"[CubbScratchStudiosStickerPack] Checking {len(files)} files")
         for file in files:
             print(f"[CubbScratchStudiosStickerPack] Checking file {file}")
+            
             if file not in database_files:
                 print(f"[CubbScratchStudiosStickerPack] File {file} not in database")
                 unindexed.append(file)
@@ -1362,15 +1470,25 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 command.query = "_init"
                 await self._interactive(command)
                 return
+            elif query == "refresh":
+                await command.raw("Refreshing database and directory...")
+                await self.index()
+                await command.raw("Refreshed")
+            elif query == "help":
+                await command.raw(
+                    "Commands:\n- missing - Manage entries registered in the database but missing from the directory\n- unindexed - Manage files in the directory not registered in the database\n- refresh - Refresh the database and directory\n- exit - Exit the shell\n- return - Return to the main menu"
+                )
+                return
 
-            response = "### Welcome to the CubbScratchStudios Sticker Pack Manager!\n\nCommands:\n- missing\n- unindexed\n- refresh\n\n"
+            response = "### CubbScratchStudios Sticker Pack 🪄\n\n"
 
             if self.missing:
-                response += f"{len(self.missing)} entries missing from directory. Type 'missing' to view them.\n"
+                response += f"{len(self.missing)} entries missing from directory. Use 'missing' to review them.\n"
             if self.unindexed:
-                response += f"{len(self.unindexed)} files not in database. Type 'unindexed' to view them.\n"
+                response += f"{len(self.unindexed)} files not in database. Use 'unindexed' to review them.\n"
+            
 
-            response += "\nType 'exit' to exit the shell.\nType 'return' to return to the main menu.\n\nWhat would you like to do?"
+            response += "\nType 'exit' to exit the shell.\nType 'return' to return to the main menu.\nType 'help' to see commands."
 
             await command.raw(response)
             return
@@ -1389,23 +1507,59 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 await command.raw(response)
                 return
 
-            elif query == "index all" or query == "index" or query == "wizard":
+            elif query == "index" or query == "wizard":
                 await command.raw("Indexing all files...")
                 self._interactive_view = "index"
                 command.query = "_init"
                 await self._interactive(command)
                 return
+            
+            elif query in ["remove", "delete", "rm"]:
+                self._interactive_view = "remove_unindexed"
+                command.query = "_init"
+                await self._interactive(command)
+                return
 
+            if len(self.unindexed) == 0:
+                await command.raw("Nice! All files are indexed! 🎉\nReturning...")
+                self._interactive_view = "main"
+                command.query = "_init"
+                await self._interactive(command)
+                return
             await command.raw(
-                f"You have {len(self.unindexed)} unindexed files, what would you like to do?\n- list\n- refresh\n- wizard (index all files)"
+                f"### Unindexed files: {len(self.unindexed)}\nType 'list' to list them\nType 'wizard' to index them one by one\nType 'remove' to remove them all and mirror the database"
             )
+            return
+        
+        if self._interactive_view == "remove_unindexed":
+            if query == "y" or query == "yes":
+                await command.raw("Removing all unindexed files...")
+                for file in self.unindexed:
+                    try:
+                        os.remove(f"{self.directory}/{file}")
+                    except Exception as e:
+                        await command.raw(f"Error removing file {file}: {e}")
+                await command.raw("All unindexed files removed, refreshing...")
+                self._interactive_view = "unindexed"
+                command.query = "refresh"
+                await self._interactive(command)
+                return
+            
+            elif query == "n" or query == "no":
+                await command.raw("Operation cancelled")
+                self._interactive_view = "unindexed"
+                command.query = "_init"
+                await self._interactive(command)
+                return
+            
+            await command.raw(f"Are you sure you want to remove all unindexed files? (yes/no) This will irreversibly delete {len(self.unindexed)} files")
+            
             return
 
         if self._interactive_view == "index":
             # Index files
             if query == "_init":
-                await command.raw("### File Wizard 🪄")
-                await command.raw("Let's index some files! 📁")
+                await command.raw("### File Wizard 🪄\nLet's index some files! 📁\nNote: It is suggested that you have a list of currently indexed files as there might be duplicates")
                 self._interactive_index_subview = "main"
                 await asyncio.sleep(2)
 
@@ -1602,8 +1756,9 @@ class CubbScratchStudiosStickerPack(commands.Cog):
     # Parameters
     @app_commands.describe(
         sticker="The name of the sticker to get; Powered by FuzzyWuzzy",
+        override_includes="Include stickers that are not slime or slime-text (disable default types)",
     )
-    async def get_sticker(self, interaction: discord.Interaction, sticker: str):
+    async def sticker_command(self, interaction: discord.Interaction, sticker: str, override_includes: bool = False):
         include_types = ["slime", "slime-text"]
 
         print(f"[CubbScratchStudiosStickerPack] Sticker requested: {sticker}")
@@ -1630,7 +1785,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             matches = fuzzywuzzy.process.extract(sticker, stickers_as_list, limit=1)
 
             entry = stickers[matches[0][0]]
-            if entry["format"] in include_types:
+            if entry["format"] in include_types or override_includes:
                 break
 
             stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
@@ -1647,6 +1802,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             )
             return
 
+        # Send sticker suggestion
         sticker_data = stickers[matches[0][0]]
 
         # Send sticker
@@ -1654,13 +1810,15 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         try:
             attachment = discord.File(sticker_path)
             await interaction.response.send_message(
-                "",
+                f"I found sticker '{sticker_data['slime']}/{sticker_data['name']}'! Would you like to send it?",
                 file=attachment,
+                ephemeral=True,
+                view=StickerEphemeralView(sticker_path, self),
             )
         except FileNotFoundError:
             if sticker in self.missing:
                 await self.bot.shell.log(
-                    f"A user requested a sticker that is missing: {sticker}",
+                    f"A user requested a sticker that is missing: {sticker_data['file']} ({sticker_data['slime']}/{sticker_data['name']})",
                     "CubbScratchStudiosStickerPack",
                     msg_type="error",
                 )
@@ -1670,14 +1828,14 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 )
             else:
                 await self.bot.shell.log(
-                    f"Error sending sticker: {sticker}: File not found",
+                    f"Error loading sticker: {sticker_data['file']} ({sticker_data['slime']}/{sticker_data['name']})",
                     "CubbScratchStudiosStickerPack",
                     msg_type="error",
                 )
                 await interaction.response.send_message(
-                    "Error sending sticker", ephemeral=True
+                    "Error loading sticker", ephemeral=True
                 )
         except Exception as e:
             await interaction.response.send_message(
-                f"Error sending sticker: {e}", ephemeral=True
+                f"Error loading sticker: {e}", ephemeral=True
             )
