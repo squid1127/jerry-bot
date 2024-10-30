@@ -13,3 +13,4 @@ watchdog
 PyYAML
 fuzzywuzzy
 python-Levenshtein
+pyheif
