@@ -741,6 +741,8 @@ class AutoReply(commands.Cog):
             },
             r"(^|\s)die($|\s)": {"response": "But why? 😢"},
             r"kys": {"response": "That's not very nice 😢", "bad": True},
+            r"^<@@me>$": {"response": "What???"},
+            r"^<@@author>$": {"response": "Why are you mentioning yourself <@@author>? 🤔"},
         }
 
     @commands.Cog.listener()
@@ -782,6 +784,30 @@ class AutoReply(commands.Cog):
                 embed=msg_embed,
             )
 
+    async def replace_reply(self, message: discord.Message):
+        """Replace placeholders in auto-reply patterns and responses"""
+        result = {}
+        for pattern, response in self.auto_reply.items():
+            new_pattern = pattern.replace("<@@me>", self.bot.user.mention)
+            new_pattern = new_pattern.replace("<@@author>", message.author.mention)
+            
+            new_response = response
+            
+            if new_response.get("response", None):
+                new_response["response"] = new_response["response"].replace("<@@me>", self.bot.user.mention)
+                new_response["response"] = new_response["response"].replace("<@@author>", message.author.mention)
+                
+            if new_response.get("response_random", None):
+                for i, r in enumerate(new_response["response_random"]):
+                    new_response["response_random"][i] = r.replace("<@@me>", self.bot.user.mention)
+                    new_response["response_random"][i] = r.replace("<@@author>", message.author.mention)
+                    
+            result[new_pattern] = new_response
+            
+        return result
+                
+            
+
     async def process_message(self, message: discord.Message, send: bool = True):
         if message.author == self.bot.user:
             return
@@ -791,10 +817,12 @@ class AutoReply(commands.Cog):
 
         if message.channel.id == self.bot.cogs["JerryGemini"].channel_id:
             return
+        
+        auto_reply = await self.replace_reply(message)
 
         results = []
 
-        for pattern, response in self.auto_reply.items():
+        for pattern, response in auto_reply.items():
             if re.search(pattern, message.content, re.IGNORECASE):
                 if "and" in response:
                     for pattern_and in response["and"]:
