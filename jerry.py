@@ -1959,6 +1959,40 @@ class StaticCommands(commands.Cog):
         # Get latency
         latency = self.bot.latency * 1000
         await interaction.response.send_message(f"Pong! 🏓\nLatency: {latency:.2f}ms")
+        
+    @app_commands.command(
+        name="purge",
+        description="Purge messages from a channel",
+    )
+    @app_commands.describe(
+        limit="The number of messages to delete",
+    )
+    async def purge_command(self, interaction: discord.Interaction, limit: int=None):
+        # Check if user has permission
+        if not interaction.channel.permissions_for(interaction.user).manage_messages:
+            await interaction.response.send_message("You don't have permission to delete messages", ephemeral=True)
+            return
+        
+        if limit is not None and (limit > 100 or limit < 1):
+            await interaction.response.send_message("The limit cannot exceed 100", ephemeral=True)
+            return
+        
+        await interaction.response.send_message(f"Purging {limit if limit is not None else 'all'} messages... Beware of rate limits!", ephemeral=True)
+        
+        # Purge messages
+        try:
+            if limit is None:
+                await interaction.channel.purge()
+            else:
+                await interaction.channel.purge(limit=limit)
+        except discord.Forbidden:
+            await interaction.followup.send("I don't have permission to delete messages", ephemeral=True)
+            return
+        except Exception as e:
+            await self.bot.shell.log(f"A purge command failed: {e}", "StaticCommands", msg_type="error")
+            await interaction.followup.send("An error occurred while purging messages", ephemeral=True)
+        
+        await interaction.followup.send("Messages purged", ephemeral=True)
 
     @app_commands.command(
         name="help-jerry",
