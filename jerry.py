@@ -45,12 +45,15 @@ import google.api_core.exceptions as gemini_selling
 from PIL import Image
 import pyheif
 
-# FIle management
+# File management
 import hashlib
+
+# System
 import os
+import sys
 
 # Core bot
-import core.squidcore as core
+import core.squidcore as core  # Core bot (https://github.com/squid1127/squid-core)
 
 # For timing out
 import time, timedelta
@@ -1929,7 +1932,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
 class StaticCommands(commands.Cog):
     """Static commands that don't really do much, including api commands"""
-    
+
     def __init__(self, bot: Jerry):
         self.bot = bot
 
@@ -1938,19 +1941,21 @@ class StaticCommands(commands.Cog):
             cog="StaticCommands",
             description="Manage API keys",
         )
-        
+
     @commands.Cog.listener()
     async def on_ready(self):
         print("[StaticCommands] Ready")
-        
+
     async def cog_status(self):
         return "Ready"
-    
+
     async def shell_callback(self, command: core.ShellCommand):
         if command.name == "api":
-            await command.log("This command is not yet implemented (Since no commands require API keys)")
+            await command.log(
+                "This command is not yet implemented (Since no commands require API keys)"
+            )
             return
-        
+
     @app_commands.command(
         name="ping-jerry",
         description="Is Jerry alive?",
@@ -1959,7 +1964,7 @@ class StaticCommands(commands.Cog):
         # Get latency
         latency = self.bot.latency * 1000
         await interaction.response.send_message(f"Pong! 🏓\nLatency: {latency:.2f}ms")
-        
+
     @app_commands.command(
         name="purge",
         description="Purge messages from a channel",
@@ -1967,18 +1972,25 @@ class StaticCommands(commands.Cog):
     @app_commands.describe(
         limit="The number of messages to delete",
     )
-    async def purge_command(self, interaction: discord.Interaction, limit: int=None):
+    async def purge_command(self, interaction: discord.Interaction, limit: int = None):
         # Check if user has permission
         if not interaction.channel.permissions_for(interaction.user).manage_messages:
-            await interaction.response.send_message("You don't have permission to delete messages", ephemeral=True)
+            await interaction.response.send_message(
+                "You don't have permission to delete messages", ephemeral=True
+            )
             return
-        
+
         if limit is not None and (limit > 100 or limit < 1):
-            await interaction.response.send_message("The limit cannot exceed 100", ephemeral=True)
+            await interaction.response.send_message(
+                "The limit cannot exceed 100", ephemeral=True
+            )
             return
-        
-        await interaction.response.send_message(f"Purging {limit if limit is not None else 'all'} messages... Beware of rate limits!", ephemeral=True)
-        
+
+        await interaction.response.send_message(
+            f"Purging {limit if limit is not None else 'all'} messages... Beware of rate limits!",
+            ephemeral=True,
+        )
+
         # Purge messages
         try:
             if limit is None:
@@ -1986,12 +1998,18 @@ class StaticCommands(commands.Cog):
             else:
                 await interaction.channel.purge(limit=limit)
         except discord.Forbidden:
-            await interaction.followup.send("I don't have permission to delete messages", ephemeral=True)
+            await interaction.followup.send(
+                "I don't have permission to delete messages", ephemeral=True
+            )
             return
         except Exception as e:
-            await self.bot.shell.log(f"A purge command failed: {e}", "StaticCommands", msg_type="error")
-            await interaction.followup.send("An error occurred while purging messages", ephemeral=True)
-        
+            await self.bot.shell.log(
+                f"A purge command failed: {e}", "StaticCommands", msg_type="error"
+            )
+            await interaction.followup.send(
+                "An error occurred while purging messages", ephemeral=True
+            )
+
         await interaction.followup.send("Messages purged", ephemeral=True)
 
     @app_commands.command(
@@ -2002,8 +2020,7 @@ class StaticCommands(commands.Cog):
         embed = discord.Embed(
             title="Jerry Bot",
             description="I'm Jerry, a bot created by CubbScratchStudios. I'm designed as a server-specific bot, meaning I have features that are unique to each server I'm in. However, I also have some global features that are available in all servers.",
-            color=0xff5c5c,
-
+            color=0xFF5C5C,
         )
 
         embed.add_field(
@@ -2029,5 +2046,10 @@ More to come soon!""",
             text="Brought to you by CubbScratchStudios",
             icon_url="https://je.fr.to/static/css_logo.PNG",
         )
-        
+
         await interaction.response.send_message(embed=embed)
+
+
+if __name__ == "__main__":
+    print("You can't run this file directly dummy")
+    sys.exit(1)
