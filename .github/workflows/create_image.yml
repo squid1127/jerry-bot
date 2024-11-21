@@ -1,4 +1,4 @@
-name: Build Docker Image
+name: Build & Deploy Docker Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -104,4 +104,5 @@ jobs:
     steps:
       - name: Trigger deployment webhook
         run: |
-          curl -X POST ${{ secrets.darrius_webhook_recreate }}
+          curl -X POST ${{ secrets.DARRIUS_WEBHOOK_RECREATE }}
+
