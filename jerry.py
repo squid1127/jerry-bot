@@ -718,12 +718,17 @@ class AutoReply(commands.Cog):
             # General
             r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
             r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"(w(o|0)+mp|wm(o|0)+p|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {
+            r"(w(o|0)+mp|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {
                 "response": "Womp womp"
             },
             r"wp(o|0)+m": {
                 "response_file": {
                     "url": "https://squid1127.strangled.net/caddy/files/assets/wpom.png"
+                }
+            },
+            r"wm(o|0)+p": {
+                "response_file": {
+                    "url": "https://squid1127.strangled.net/caddy/files/assets/wmop.png"
                 }
             },
             # Shut it
