@@ -1393,7 +1393,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
     async def index(self):
         """Index all stickers in the directory and check if they are in the database"""
         print("[CubbScratchStudiosStickerPack] Indexing stickers")
-        data = await self.table.fetch_all()
+        data = await self.table.fetch()
         unindexed = []
         missing = []
 
@@ -1866,7 +1866,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         if not "/" in sticker:
             sticker = sticker + "/main"
 
-        data = await self.table.fetch_all()
+        data = await self.table.fetch()
         stickers = {}
         for entry in data:
             stickers[entry["slime"] + "/" + entry["name"]] = entry
@@ -1881,7 +1881,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             entry = stickers[matches[0][0]]
             if entry["format"] in include_types or override_includes:
                 break
-
+                
             stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
 
         print(f"[CubbScratchStudiosStickerPack] Matches: {matches}")
