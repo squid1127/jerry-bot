@@ -19,11 +19,10 @@ from enum import Enum  # For enums (select menus)
 # Async Packages
 import asyncio
 import aiohttp
-import aiomysql
 import fuzzywuzzy.process
 import google.api_core
-import tabulate  # For tabular data
-import cryptography  # For database encryption
+# import tabulate  # For tabular data
+# import cryptography  # For database encryption
 
 # For web frontend
 # from fastapi import FastAPI
@@ -33,8 +32,8 @@ import cryptography  # For database encryption
 # For random status
 import random
 
-# Downtime warning
-import downreport
+# # Downtime warning
+# import downreport
 
 # Regular Expressions
 import re
