@@ -5,3 +5,4 @@ google-api-core
 Pillow
 pyheif
 python-dotenv
+google-generativeai
