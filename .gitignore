@@ -164,6 +164,7 @@ cython_debug/
 # Cached files
 store/
 communal/
+tmp/
 
 # Database files
 db/
