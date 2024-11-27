@@ -21,6 +21,7 @@ import asyncio
 import aiohttp
 import fuzzywuzzy.process
 import google.api_core
+
 # import tabulate  # For tabular data
 # import cryptography  # For database encryption
 
@@ -85,8 +86,8 @@ class Jerry(core.Bot):
 
         # Confgure random status
         statuses = [
-            core.Status("custom", "Nuh-uh"),
-            core.Status("custom", "Yuh-uh"),
+            discord.CustomActivity("Nuh-uh ❌", emoji="❌"),
+            discord.CustomActivity("Yuh-uh ✅", emoji="✅"),
         ]
         self.set_status(random_status=statuses)
 
@@ -717,9 +718,7 @@ class AutoReply(commands.Cog):
             # General
             r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
             r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"(w(o|0)+mp|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {
-                "response": "Womp womp"
-            },
+            r"(w(o|0)+mp|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {"response": "Womp womp"},
             r"wp(o|0)+m": {
                 "response_file": {
                     "url": "https://squid1127.strangled.net/caddy/files/assets/wpom.png"
@@ -1880,7 +1879,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             entry = stickers[matches[0][0]]
             if entry["format"] in include_types or override_includes:
                 break
-                
+
             stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
 
         print(f"[CubbScratchStudiosStickerPack] Matches: {matches}")
