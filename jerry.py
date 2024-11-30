@@ -2167,7 +2167,15 @@ class VoiceChat(commands.Cog):
         
         # Play a sound
         self.logger.info("Playing sound")
-        source = discord.FFmpegPCMAudio(stream)
+        try:
+            source = discord.FFmpegPCMAudio(stream)
+        except Exception as e:
+            self.logger.error(f"Error loading sound: {e}")
+            await interaction.followup.send(f"Error loading sound: {e}", ephemeral=True)
+            # Disconnect
+            await voice.disconnect()
+            
+            return
         
         try:
             voice.play(source)
