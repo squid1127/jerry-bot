@@ -10,6 +10,9 @@ COPY . /app
 # Initialize and update the submodule
 RUN git submodule init && git submodule update
 
+# Install ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg
+
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r ./core/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
