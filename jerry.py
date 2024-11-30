@@ -62,6 +62,10 @@ import datetime
 # Seach/Find closes match
 import fuzzywuzzy
 
+# Logging
+import logging
+logger = logging.getLogger("jerry")
+
 
 class Jerry(core.Bot):
     def __init__(
@@ -757,10 +761,12 @@ class AutoReply(commands.Cog):
                 "response": "Why are you mentioning yourself <@@author>? 🤔"
             },
         }
+        
+        self.logger = logging.getLogger("jerry.auto_reply")
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f"[AutoReply] Ready with {len(self.auto_reply)} replies")
+        self.logger.info(f"[AutoReply] Ready with {len(self.auto_reply)} replies")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -772,14 +778,14 @@ class AutoReply(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        print(f"[AutoReply] Message deleted: {message.content}")
+        self.logger.debug(f"[AutoReply] Message deleted: {message.content}")
         results = await self.process_message(message, send=False)
-        print(f"[AutoReply] Results from deleted message: {results}")
+        self.logger.debug(f"[AutoReply] Results from deleted message: {results}")
         if results:
-            print("[AutoReply] Message triggered auto-reply, sending alert")
+            self.logger.info("[AutoReply] A deleted message triggered auto-reply, sending warning")
             # Check for bad flag (meaning the message was deleted by bot)
             if any(result[1].get("bad", False) for result in results):
-                print("[AutoReply] Message was deleted by bot due to bad content")
+                self.logger.info("[AutoReply] Message was deleted by bot due to bad content")
                 return
 
             msg_embed = discord.Embed(
@@ -828,13 +834,20 @@ class AutoReply(commands.Cog):
         return result
 
     async def process_message(self, message: discord.Message, send: bool = True):
+        # Ignore messages from the bot
         if message.author == self.bot.user:
             return
 
+        # Ignore messages from bots
         if message.author.bot:
             return
 
+        # Ignore messages from JerryGemini channel
         if message.channel.id == self.bot.cogs["JerryGemini"].channel_id:
+            return
+        
+        # Ignore messages from Impersonate threads
+        if isinstance(message.channel, discord.Thread) and message.channel.parent_id == self.bot.shell.channel_id:
             return
 
         auto_reply = await self.replace_reply(message)
@@ -856,18 +869,18 @@ class AutoReply(commands.Cog):
                             )
                         await message.delete()
                     except discord.Forbidden:
-                        print("[AutoReply] Missing permissions to timeout")
+                        self.logger.error("[AutoReply] Missing permissions to delete message")
                 elif "response" in response or "response_file" in response:
                     if send:
                         if "response_file" in response:
                             if "url" in response["response_file"]:
                                 # Check if file is cached
-                                if not os.path.exists("store/images"):
-                                    os.makedirs("store/images")
+                                if not os.path.exists("store/cache/autoreply"):
+                                    os.makedirs("store/cache/autoreply")
 
-                                file_path = f"store/images/{response['response_file']['url'].split('/')[-1]}"
+                                file_path = f"store/cache/autoreply/{response['response_file']['url'].split('/')[-1]}"
                                 if not os.path.exists(file_path):
-                                    print(
+                                    self.logger.info(
                                         f"[AutoReply] Downloading file: {response['response_file']['url']} to {file_path}"
                                     )
                                     async with aiohttp.ClientSession() as session:
@@ -1256,17 +1269,18 @@ class StickerEphemeralView(discord.ui.View):
         super().__init__()
         self.sticker_file = sticker_file
         self.core = core
+        self.logger = core.logger
 
     @discord.ui.button(label="Send✅", style=discord.ButtonStyle.primary)
     async def send(self, interaction: discord.Interaction, button: discord.ui.Button):
-        print(
-            f"[CubbScratchStudiosStickerPack] Confirming sending sticker {self.sticker_file}"
+        self.logger.info(
+            f"Confirming sending sticker {self.sticker_file}"
         )
         await interaction.response.send_message("Sending sticker...", ephemeral=True)
         try:
             file = discord.File(self.sticker_file)
         except Exception as e:
-            print(f"[CubbScratchStudiosStickerPack] Error getting sticker: {e}")
+            self.logger.info(f"Error getting sticker: {e}")
             await interaction.followup.send(
                 f"Error sending sticker: {e}", ephemeral=True
             )
@@ -1293,6 +1307,8 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         self.table = None
         self.missing = []
         self.unindexed = []
+        
+        self.logger = logging.getLogger("jerry.css_sticker_pack")
 
     # Constants
     SCHEMA = "css"
@@ -1314,11 +1330,11 @@ class CubbScratchStudiosStickerPack(commands.Cog):
     async def on_ready(self):
         # Wait for database to be ready
         if not hasattr(self.bot, "db"):
-            print("[CubbScratchStudiosStickerPack] Waiting for database to be ready")
+            self.logger.info("Waiting for database to be ready")
             while not hasattr(self.bot, "db"):
                 await asyncio.sleep(1)
         if not isinstance(self.bot.db, core.DatabaseCore):
-            print("[CubbScratchStudiosStickerPack] Database not ready")
+            self.logger.info("Database not ready")
             while not isinstance(self.bot.db, core.DatabaseCore):
                 await asyncio.sleep(1)
 
@@ -1326,19 +1342,19 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         await self.db.wait_until_ready()
 
         # Create table
-        print("[CubbScratchStudiosStickerPack] Checking database table")
+        self.logger.info("Checking database table")
         try:
             await self.db.execute(self.TABLE_QUERY)
         except Exception as e:
-            print(f"[CubbScratchStudiosStickerPack] Error creating table: {e}")
+            self.logger.error(f"Error creating table: {e}")
             return
 
         self.schema = self.db.data.get_schema(self.SCHEMA)
         self.table: core.DatabaseTable = self.schema.get_table(self.TABLE)
 
-        print("[CubbScratchStudiosStickerPack] Indexing stickers")
+        self.logger.info("Indexing stickers")
         await self.index()
-        print("[CubbScratchStudiosStickerPack] Successfully initialized")
+        self.logger.info("Successfully initialized")
 
     async def cog_status(self):
         if self.table:
@@ -1353,14 +1369,14 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
     async def apple_to_better(self, file_path: str):
         """Convert heic/heif files to png"""
-        print(
-            f"[CubbScratchStudiosStickerPack] Converting Apple Type Image {file_path}"
+        self.logger.debug(
+            f"Converting Apple Type Image to PNG: {file_path}"
         )
         new_path = file_path.replace(".heic", ".png").replace(".heif", ".png")
 
         if os.path.exists(new_path):
-            print(
-                f"[CubbScratchStudiosStickerPack] File {new_path} already exists, skipping"
+            self.logger.debug(
+                f"File {new_path} already exists, skipping"
             )
             return new_path
 
@@ -1378,32 +1394,32 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             image.save(new_path)
 
         except Exception as e:
-            print(
-                f"[CubbScratchStudiosStickerPack] Error converting Apple Type Image: {e}"
+            self.logger.error(
+                f"Error converting {file_path} to PNG: {e}"
             )
             return None
 
-        print(
-            f"[CubbScratchStudiosStickerPack] Converted Apple Type Image to {new_path}"
+        self.logger.info(
+            f"Converted {file_path} to PNG: {new_path}"
         )
         return new_path
 
     async def index(self):
         """Index all stickers in the directory and check if they are in the database"""
-        print("[CubbScratchStudiosStickerPack] Indexing stickers")
+        self.logger.info("Indexing stickers")
         data = await self.table.fetch()
         unindexed = []
         missing = []
 
         # Optimize file paths & convert Apple type images
-        print("[CubbScratchStudiosStickerPack] Optimizing file paths")
+        self.logger.info("Optimizing file paths")
         while True:
             interrupted = False
             files = os.listdir(self.directory)
             for file in files:
                 if ":Zone.Identifier" in file:
-                    print(
-                        f"[CubbScratchStudiosStickerPack] Skipping file with Zone.Identifier: {file}"
+                    self.logger.debug(
+                        f"Skipping file with Zone.Identifier: {file}"
                     )
                     continue
 
@@ -1415,28 +1431,28 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
                 # Replace spaces with underscores
                 if " " in file:
-                    print(
-                        f"[CubbScratchStudiosStickerPack] Replacing spaces in file {file}"
+                    self.logger.debug(
+                        f"Replacing spaces in file {file}"
                     )
                     new_file = file.replace(" ", "_")
                     try:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Rename {self.directory}/{file} to {self.directory}/{new_file}"
+                        self.logger.debug(
+                            f"Rename {self.directory}/{file} to {self.directory}/{new_file}"
                         )
                         os.rename(
                             f"{self.directory}/{file}", f"{self.directory}/{new_file}"
                         )
                     except PermissionError:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to permission error"
+                        self.logger.error(
+                            f"Unable to rename file {file} due to permission error (space)"
                         )
                     except FileNotFoundError:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to file not found"
+                        self.logger.error(
+                            f"Unable to rename file {file} due to file not found (space)"
                         )
                     except Exception as e:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Error renaming file {file}: {e}"
+                        self.logger.error(
+                            f"Error renaming file {file}: {e} (space)"
                         )
                     interrupted = True
                     continue
@@ -1445,32 +1461,32 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 if re.search(r"[^a-zA-Z0-9_.-]", file):
                     new_file = re.sub(r"[^a-zA-Z0-9_.-]", "_", file)
                     try:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Rename {self.directory}/{file} to {self.directory}/{new_file}"
+                        self.logger.debug(
+                            f"Rename {self.directory}/{file} to {self.directory}/{new_file}"
                         )
                         os.rename(
                             f"{self.directory}/{file}", f"{self.directory}/{new_file}"
                         )
                     except PermissionError:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to permission error"
+                        self.logger.error(
+                            f"Unable to rename file {file} due to permission error (special characters)"
                         )
                     except FileNotFoundError:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Unable to rename file {file} due to file not found"
+                        self.logger.error(
+                            f"Unable to rename file {file} due to file not found (special characters)"
                         )
                     except Exception as e:
-                        print(
-                            f"[CubbScratchStudiosStickerPack] Error renaming file {file}: {e}"
+                        self.logger.error(
+                            f"Error renaming file {file}: {e} (special characters)"
                         )
                     interrupted = True
                     continue
 
             if not interrupted:
-                print("[CubbScratchStudiosStickerPack] File paths optimized")
+                self.logger.info("File paths optimized")
                 break
-            print(
-                "[CubbScratchStudiosStickerPack] Some files were optimized, checking again"
+            self.logger.debug(
+                "Some files were optimized, checking again"
             )
 
         # Get all files in the directory (again)
@@ -1485,25 +1501,25 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             database_files[entry["file"]] = entry
 
         # Check if each file is in the database
-        print(f"[CubbScratchStudiosStickerPack] Checking {len(files)} files")
+        self.logger.info(f"Checking {len(files)} files")
         for file in files:
-            print(f"[CubbScratchStudiosStickerPack] Checking file {file}")
+            self.logger.debug(f"Checking file {file}")
 
             if file not in database_files:
-                print(f"[CubbScratchStudiosStickerPack] File {file} not in database")
+                self.logger.debug(f"File {file} not in database")
                 unindexed.append(file)
                 continue
 
-            print(
-                f"[CubbScratchStudiosStickerPack] File {file} found in database as '{database_files[file]['slime']}/{database_files[file]['name']}'"
+            self.logger.debug(
+                f"File {file} found in database as '{database_files[file]['slime']}/{database_files[file]['name']}'"
             )
             data.pop(data.index(database_files[file]))
 
-        print(f"[CubbScratchStudiosStickerPack] Done checking files")
+        self.logger.info(f"Done checking files")
 
-        print(f"[CubbScratchStudiosStickerPack] {len(unindexed)} files not in database")
-        print(
-            f"[CubbScratchStudiosStickerPack] {len(data)} entries missing from directory"
+        self.logger.info(f"{len(unindexed)} files not in database")
+        self.logger.info(
+            f"{len(data)} entries missing from directory"
         )
 
         for entry in data:
@@ -1526,7 +1542,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                 return
 
             # Enter interactive mode
-            print("[CubbScratchStudiosStickerPack] Entering interactive shell")
+            self.logger.info("Entering interactive shell")
             await command.log("Entering interactive shell", title="Sticker Manager")
 
             self.bot.shell.interactive_mode = ("CubbScratchStudiosStickerPack", "cssss")
@@ -1538,7 +1554,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
     async def _interactive(self, command: core.ShellCommand, init=False):
         """Interactive shell for managing the sticker pack"""
-        print("[CubbScratchStudiosStickerPack] Interactive shell -> ", command.query)
+        self.logger.info("Interactive shell -> ", command.query)
         query = command.query
         if init or query == "return":
             self._interactive_view = "main"
@@ -1826,8 +1842,8 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
             return
 
-        print(
-            "[CubbScratchStudiosStickerPack] Warning: Interactive shell view not found"
+        self.logger.warning(
+            "Interactive shell view not found"
         )
         await command.raw(
             "Woah, how did you get here? Let's go back home. (View not found)"
@@ -1853,7 +1869,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
     ):
         include_types = ["slime", "slime-text"]
 
-        print(f"[CubbScratchStudiosStickerPack] Sticker requested: {sticker}")
+        self.logger.info(f"Sticker requested: {sticker}")
 
         if not self.table:
             await interaction.response.send_message(
@@ -1872,7 +1888,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         stickers_as_list = list(stickers.keys())
 
         # Fuzzy search
-        print(f"[CubbScratchStudiosStickerPack] Searching for sticker {sticker}")
+        self.logger.info(f"Searching for sticker {sticker}")
         while True:
             matches = fuzzywuzzy.process.extract(sticker, stickers_as_list, limit=1)
 
@@ -1882,7 +1898,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
             stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
 
-        print(f"[CubbScratchStudiosStickerPack] Matches: {matches}")
+        self.logger.info(f"Matches: {matches}")
 
         if not matches:
             await interaction.response.send_message("Sticker not found", ephemeral=True)
