@@ -2178,7 +2178,7 @@ class VoiceChat(commands.Cog):
             return
         
         try:
-            voice.play(source)
+            voice.play(source, signal_type="music", bitrate=256, application="audio")
         except Exception as e:
             self.logger.error(f"Error playing sound: {e}")
             await interaction.followup.send(f"Error playing sound: {e}", ephemeral=True)
