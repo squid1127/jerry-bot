@@ -7,10 +7,11 @@ name: Build & Deploy Docker Image
 
 on:
   push:
-    branches: ["*"]
-    tags: ['v*.*.*']
+    branches: [ "**" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
   pull_request:
-    branches: ["*"]
+    branches: [ "**" ]
 
 env:
   # Use docker.io for Docker Hub if empty
