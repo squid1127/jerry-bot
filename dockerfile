@@ -1,5 +1,5 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.12.1
+FROM python:3.12.1-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -14,9 +14,6 @@ RUN pip install --no-cache-dir -r ./core/requirements.txt \
 
 # Copy the rest of the application code
 COPY . .
-
-# Initialize and update the submodule
-RUN git submodule init && git submodule update
 
 # Install ffmpeg and clean up apt cache to reduce image size
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
