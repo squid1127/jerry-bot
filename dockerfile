@@ -4,21 +4,22 @@ FROM python:3.12.1
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Copy only the requirements files first to leverage Docker cache
+COPY ./core/requirements.txt ./core/requirements.txt
+COPY requirements.txt requirements.txt
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r ./core/requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
 
 # Initialize and update the submodule
 RUN git submodule init && git submodule update
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg
+# Install ffmpeg and clean up apt cache to reduce image size
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r ./core/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Make port 80 available to the world outside this container
-EXPOSE 80
-
-# Run main.py when the container launches
+# Run app.py when the container launches
 CMD ["python", "app.py"]
