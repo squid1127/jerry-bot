@@ -6,8 +6,6 @@ name: Build & Deploy Docker Image
 # documentation.
 
 on:
-  # schedule:
-  #   - cron: '35 15 * * *'
   push:
     branches: [ "**" ]
     # Publish semver tags as releases.
@@ -36,6 +34,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
