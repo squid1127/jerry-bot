@@ -7,10 +7,10 @@ name: Build & Deploy Docker Image
 
 on:
   push:
-    branches: [ "**" ]
-    tags: [ 'v*.*.*' ]
+    branches: ["*"]
+    tags: ['v*.*.*']
   pull_request:
-    branches: [ "**" ]
+    branches: ["*"]
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -97,7 +97,7 @@ jobs:
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
   deploy:
-    # Trigger the webhook to recreate the deployment
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: build
     steps:
