@@ -7,3 +7,4 @@ pyheif
 python-dotenv
 google-generativeai
 PyNaCl
+pillow-heif

@@ -43,7 +43,9 @@ import re
 import google.generativeai as gemini
 import google.api_core.exceptions as gemini_selling
 from PIL import Image
-import pyheif
+import mimetypes
+import pyheif, pillow_heif
+pillow_heif.register_heif_opener() # Register the HEIF opener to process HEIF images
 
 # File management
 import hashlib
@@ -94,6 +96,7 @@ class Jerry(core.Bot):
             discord.CustomActivity("Yuh-uh ✅", emoji="✅"),
         ]
         self.set_status(random_status=statuses)
+        
 
     # Load cogs
     async def load_cogs(self):
@@ -137,15 +140,17 @@ class JerryGemini(commands.Cog):
         self.hide_seek_jobs = []
 
         self.gemini_channels = {}
+        
+        self.logger = logging.getLogger("jerry.gemini")
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print("[Gemini] Ready")
+        self.logger.info("Ready")
 
         # Remove cached files from /store/images
-        print("[Gemini] Removing cached files")
-        os.system("rm -rf ./store/images/*")
-        print("[Gemini] Cache cleared")
+        self.logger.info("Clearing cache")
+        os.system("rm -rf ./store/cache/gemini/*")
+        self.logger.info("Cache cleared")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -217,17 +222,21 @@ class JerryGemini(commands.Cog):
                 print(f"[Gemini] Error reading memory: {e}")
                 pass
 
+            processed_attachments = []
             if message.attachments:
-                # Check if the attachment is an image
+                # Check if there is an attachment
                 message_send += f"\n\nIncoming Message has Attachment: {message.attachments[0].filename}"
-                image = await self._handle_attachment(message)
-                if image:
-                    print(f"[Gemini] Image processed: {image}")
-                    print(f"[Gemini] Sending message to gemini: {message.content}")
-                    response = await self.chat.send_message_async(
-                        [image, message_send],
+                processed_attachments = await self._handle_attachment(message)
+                if processed_attachments and len(processed_attachments) > 0:
+                    self.logger.debug(f"Processed attachments: {processed_attachments}")
+                    
+                    # Insert the message into the list
+                    processed_attachments.insert(0, message_send)
+                    
+                    response = await self.model.generate_content_async(
+                        processed_attachments,
                     )
-            else:
+            if (not message.attachments) or (not (processed_attachments and len(processed_attachments) > 0)):
                 if promptDebug:
                     await message.channel.send(f"## Prompt\n{message_send}")
                     return
@@ -407,11 +416,79 @@ To interact with the chat, use the following commands:
         return message_prompt
 
     async def _handle_attachment(self, message: discord.Message):
-        try:
-            if len(message.attachments) > 1:
-                await message.channel.send(
-                    "Notice: Only one attachment is supported; the first attachment will be used."
-                )
+        processed_attachments = []
+        for attachment in message.attachments:
+            try:
+                # Download the image
+                self.logger.debug(f"Attachment found: {attachment.filename}. Downloading...")
+                fileName = f"./store/cache/gemini/{attachment.filename}"
+                
+                os.makedirs(os.path.dirname(fileName), exist_ok=True)            # Create the directory if it doesn't exist
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment.url) as resp:
+                        # Save the image
+                        with open(fileName, "wb") as f:
+                            f.write(await resp.read())
+                self.logger.debug(f"File downloaded: {fileName}")
+                
+            except Exception as e:
+                self.logger.error(f"Error downloading attachment {attachment.filename}: {e}")
+                message.reply(f"Error downloading attachment {attachment.filename}: {e}")
+                continue
+                            
+            # Determine the file type
+            try:
+                mime_type, _ = mimetypes.guess_type(fileName)
+                if mime_type is None:
+                    raise Exception("File is missing a file extension or has an unsupported file type")
+                self.logger.debug(f"File type: {mime_type}")
+            except Exception as e:
+                self.logger.error(f"Error determining file type of {fileName}: {e}")
+                message.reply(f"Error determining file type of {fileName}: {e}")
+                continue
+            
+            try:
+                # Process the image/attachment
+                if mime_type in ["image/png", "image/jpeg", "image/gif", "image/webp", "image/heic"]:
+                    # Process the image
+                    image = Image.open(fileName)
+                    image = image.convert("RGB")
+                    self.logger.debug(f"Image processed: {fileName} ({mime_type})")
+                    
+                    processed_attachments.append(image)
+                    
+                elif mime_type.split("/")[0] == "text":
+                    # Process the text file
+                    with open(fileName, "r") as f:
+                        text = f.read()
+                        self.logger.debug(f"Text file processed: {fileName}")
+                        processed_attachments.append(text)
+                    
+                else:
+                    # See if the file is in plain text
+                    try:
+                        with open(fileName, "r") as f:
+                            text = f.read()
+                            self.logger.debug(f"Text file processed (unsupported type): {fileName}")
+                            processed_attachments.append(text)
+                    except UnicodeDecodeError:       
+                        self.logger.debug(f"Unsupported file type: {mime_type}")
+                        await message.reply(f"You sent an unsupported file type! ({mime_type})")
+                        continue
+                
+            except Exception as e:
+                self.logger.error(f"Error processing attachment {attachment.filename}: {e}")
+                message.reply(f"Error processing attachment {attachment.filename}: {e}")
+                continue
+            
+        return processed_attachments
+                
+            
+        
+        
+        # Old code for handling images
+        try:    
             print(f"[Gemini] Attachment found: {message.attachments[0].filename}")
             if (
                 message.attachments[0]
@@ -454,13 +531,13 @@ To interact with the chat, use the following commands:
         return embeds_str
 
     async def _add_memory(self, text: str):
-        with open("store/memory.txt", "a") as f:
+        with open("store/gemini/memory.txt", "a") as f:
             f.write(f"{text}\n\n")
             return True
 
     async def _overwrite_memory(self, text: str):
         # Backup the memory
-        with open("store/memory.txt", "r") as f:
+        with open("store/gemini/memory.txt", "r") as f:
             memory = f.read()
             memory_hash = hashlib.md5(memory.encode()).hexdigest()
             print(f"[Gemini] Memory hash: {memory_hash}")
@@ -468,12 +545,21 @@ To interact with the chat, use the following commands:
                 f.write(memory)
 
         # Overwrite the memory
-        with open("store/memory.txt", "w") as f:
+        with open("store/gemini/memory.txt", "w") as f:
             f.write(f"{text}")
             return True
 
     async def _load_memory(self):
-        with open("store/memory.txt", "r") as f:
+        # Check if the memory file and corresponding directory exists
+        if not os.path.exists("store/gemini"):
+            os.makedirs("store/gemini")
+        if not os.path.exists("store/gemini/memory.txt"):
+            with open("store/gemini/memory.txt", "w") as f:
+                f.write("")
+            return ""
+        
+        
+        with open("store/gemini/memory.txt", "r") as f:
             return f.read()
 
     async def _optimize_memory(self, additional_prompt: str = None):
