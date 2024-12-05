@@ -1047,11 +1047,12 @@ autoreply:
     
     async def _handle_file(self, url: str = None, path: str = None, config: dict = None) -> discord.File:
         """Retrieve a file from a URL or path"""
-        # Ensure the directory exists
-        directory = config.get("config", {}).get("image_cache_dir", "store/cache/auto_reply")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        directory = config.get("config", {}).get("image_cache_dir", "store/cache/autoreply")
+        self.logger.debug(f"Hanlding file: {url} {path} | Directory: {directory}")
         
         if url:
+            # Ensure the directory exists
+            os.makedirs(directory, exist_ok=True)   
             path = os.path.join(directory, url.split("/")[-1])
             
             if not os.path.exists(path):
@@ -1085,11 +1086,11 @@ autoreply:
         elif response.get("random"):
             await self._do_reponse(message, random.choice(response["random"]))
             
-        elif response.get("file"):
-            if response["file"].get("url"):
-                file = await self._handle_file(url=response["file"]["url"], config=response)
-            elif response["file"].get("path"):
-                file = await self._handle_file(path=response["file"]["path"], config=response)
+        elif response.get("type") == "file":
+            if response.get("url"):
+                file = await self._handle_file(url=response["url"], config=response)
+            elif response.get("path"):
+                file = await self._handle_file(path=response["path"], config=response)
             else:
                 self.logger.error("File response is missing URL or path")
                 return
