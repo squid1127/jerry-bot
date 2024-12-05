@@ -22,22 +22,12 @@ import aiohttp
 import fuzzywuzzy.process
 import google.api_core
 
-# import tabulate  # For tabular data
-# import cryptography  # For database encryption
-
-# For web frontend
-# from fastapi import FastAPI
-# from pydantic import BaseModel
-# import uvicorn
-
 # For random status
 import random
 
-# # Downtime warning
-# import downreport
-
-# Regular Expressions
+# Auto-reply
 import re
+import yaml
 
 # Google Gemini client
 import google.generativeai as gemini
@@ -101,7 +91,7 @@ class Jerry(core.Bot):
     # Load cogs
     async def load_cogs(self):
         await self.add_cog(JerryGemini(self))
-        await self.add_cog(AutoReply(self))
+        await self.add_cog(AutoReplyV2(self))
         await self.add_cog(GuildStuff(self))
         await self.add_cog(InformationChannels(self, "store/info_channels.yaml"))
         await self.add_cog(CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
@@ -776,6 +766,344 @@ To interact with the chat, use the following commands:
             return f"Status check failed: {e}"
 
 
+class AutoReplyV2(commands.Cog):
+    """
+    (V2) Listens for messages and replies with a set message configurable in a YAML file.
+    """
+    
+    def __init__(self, bot: Jerry):
+        self.bot = bot        
+        self.logger = logging.getLogger("jerry.auto_reply")
+        
+        # Auto reply configuration
+        self.auto_reply_file = "store/autoreply.yaml"
+        
+        self.auto_reply_cache = {}
+        self.auto_reply_cache_timeout = 0 # Default
+        self.auto_reply_cache_last_updated = 0
+        
+        # Default auto-reply configuration
+        self.auto_reply = """
+config:
+  # The time in seconds to cache config files to reduce the amount of reads to the file system (Set to 0 to disable)
+  cache_timeout: 500 # 10 minutes
+
+vars:
+    - generic_gaslighting:
+          random:
+              - { text: "Lies, all lies" }
+              - { text: "Prove it" }
+              - { text: "Sure you did" }
+              - { text: "Cap" }
+              - { text: "Keep dreaming" }
+              - { text: "Keep telling yourself that" }
+              - { text: "Yeah, and I'm a real person" }
+
+autoreply:
+    - regex: "^I really wanna trigger auto-reply by sending this message$"
+      response:
+            text: "Guess what? You just triggered an auto-reply!"
+"""
+        
+    def _create_config(self):
+        """Create the auto-reply configuration file if it doesn't exist"""
+        if os.path.exists(self.auto_reply_file):
+            self.logger.debug("Got create config request, but file already exists")
+            return
+        
+        self.logger.info("Creating auto-reply configuration file")
+        with open(self.auto_reply_file, "w") as f:
+            f.write(self.auto_reply)
+            
+    def verify_config(self, config: dict) -> tuple:
+        """Verify the auto-reply configuration"""
+        if not config:
+            return (False, "No configuration found")
+        
+        if config.get("config", None):
+            self.auto_reply_cache_timeout = config["config"].get("cache_timeout", self.auto_reply_cache_timeout)
+            
+        if config.get("vars", None):
+            if not isinstance(config["vars"], dict):
+                return (False, "Variables config must be a dictionary")
+            for name, response in config["vars"].items():
+                verify = self._verify_response(response)
+                if not verify[0]:
+                    return verify
+                
+        if config.get("autoreply", None):
+            for pattern in config["autoreply"]:
+                if not isinstance(pattern, dict):
+                    return (False, f"Pattern {pattern} is not a dictionary")
+                
+                if not (pattern.get("regex") or pattern.get("embed")):
+                    return (False, f"Pattern {pattern} is missing its detection regex")
+                
+                if not pattern.get("response"):
+                    return (False, f"Pattern {pattern} is missing its response")
+                verify = self._verify_response(pattern["response"])
+                
+                if not verify[0]:
+                    return (False, f"Pattern {pattern} response is invalid: {verify[1]}")
+        else:
+            return (False, "No auto-reply patterns found")
+        
+        return (True, None)
+    
+    def _verify_response(self, response: dict) -> tuple:
+        """Check a specific response for required fields"""
+        self.logger.debug(f"Verifying response: {response}")
+        if response.get("text") and response.get("type", "text") == "text":
+            try:
+                str(response["text"])
+            except:
+                return (False, "Response text must be a string")
+        if response.get("type") == "file":
+            if not (response.get("path") or response.get("url")):
+                return (False, "Response type is file, but no path or URL was provided")
+        
+        if response.get("type") == "random" or response.get("random"):
+            if response.get("random"):
+                for r in response["random"]:
+                    verify = self._verify_response(r)
+                    if not verify[0]:
+                        return verify
+            else:
+                return (False, "Response type is random, but no responses were provided")
+        
+        if response.get("type") == "vars":
+            if not isinstance(response.get("vars"), list):
+                return (False, "Response type is vars, but no variables were provided")
+            
+            for var in response["vars"]:
+                # Verify the variable (as a response)
+                verify = self._verify_response(var)
+                
+                if not verify[0]:
+                    return verify
+        
+        has_valid_keys = False
+        for key in response.keys():
+            if key not in ["text", "type", "random", "vars", "path", "url","bad"]:
+                return (False, f"Response key `{key}` is invalid")
+            else:
+                has_valid_keys = True
+            
+        if not has_valid_keys:
+            return (False, "Invalid response; no valid keys found")
+        return (True, None)
+        
+            
+    def get_config(self, cache: bool = True) -> dict:
+        """Read the auto-reply configuration file. (Includes caching)"""
+        if cache and self.auto_reply_cache_timeout > 0:
+            # Check if the cache is still valid
+            if self.auto_reply_cache_last_updated + self.auto_reply_cache_timeout > time.time():
+                return self.auto_reply_cache
+        
+        self._create_config()
+        
+        try:
+            with open(self.auto_reply_file, "r") as f:
+                self.auto_reply_cache = yaml.safe_load(f)
+        except Exception as e:
+            self.logger.error(f"Error reading auto-reply configuration: {e}")
+            return {"invalid": True, "error": e, "error_type": "read"}
+        
+        # Verify the configuration
+        verify = self.verify_config(self.auto_reply_cache)
+        if not verify[0]:
+            self.logger.error(f"Invalid auto-reply configuration: {verify[1]}")
+            return {"invalid": True, "error": verify[1], "error_type": "verify"}
+            
+        self.auto_reply_cache_last_updated = time.time()
+        
+        return self.auto_reply_cache
+    
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author == self.bot.user:
+            return
+        
+        await self.process_message(message)
+        
+    async def process_message(self, message: discord.Message):
+        """Process a discord message for auto-reply"""
+        
+        config = self.get_config()
+        
+        if config.get("invalid"):
+            await self.bot.shell.log(f"Auto-reply configuration error: {config.get('error', 'Unknown error')}", "Auto-Reply", msg_type="error", cog="AutoReply")
+            return
+        
+        response = await self._scan_message(message, config)
+        if not response:
+            return
+        
+        await self._do_reponse(message, response)
+        
+    def _recursive_replace(self, input: any, replacements: dict):
+        """Recursively replace values in a dictionary"""
+        if isinstance(input, dict):
+            for key, value in input.items():
+                if isinstance(value, dict) or isinstance(value, list):
+                    input[key] = self._recursive_replace(value, replacements)
+                elif isinstance(value, str):
+                    for k, v in replacements.items():
+                        value = value.replace(k, v)
+                    input[key] = value
+                    
+        elif isinstance(input, list):
+            for i, value in enumerate(input):
+                if isinstance(value, dict) or isinstance(value, list):
+                    input[i] = self._recursive_replace(value, replacements)
+                elif isinstance(value, str):
+                    for k, v in replacements.items():
+                        value = value.replace(k, v)
+                    input[i] = value
+
+        elif isinstance(input, str):
+            for k, v in replacements.items():
+                input = input.replace
+        return input
+        
+    async def _scan_message(self, message: discord.Message, config: dict):
+        """Scan a message for auto-reply patterns""" 
+        for pattern in config["autoreply"]:
+            # Mentions
+            # Recursively replace <@@me> and <@@author> with corresponding user mentions
+            replacements = {
+                "<@@me>": self.bot.user.mention,
+                "<@@author>": message.author.mention,
+            }
+            
+            pattern = self._recursive_replace(pattern, replacements)
+            
+            # Apply variables
+            if pattern.get("vars"):
+                for var in pattern["vars"]:
+                    var = config.get("vars", {}).get(var, None)
+                    if not var:
+                        continue
+                    if not isinstance(var, dict):
+                        continue
+                    
+                    for key, value in var.items():
+                        if isinstance(value, dict):
+                            for key_of_key, value_of_key in value.items():
+                                pattern[key][key_of_key] = value_of_key
+                                
+                        elif isinstance(value, list):
+                            for i in value:
+                                pattern[key].append(i)
+                                
+                        elif not pattern.get(key):
+                            pattern[key] = value
+            
+            # Filters
+            self.logger.debug(f"Bots are {'allowed' if pattern.get('bot', False) else 'not allowed'}. {message.author.name} is {'a bot' if message.author.bot else 'not a bot'}")
+            if not pattern.get("bot", False) and message.author.bot:
+                continue
+            
+            if pattern.get("filter", None):
+                filters = pattern["filter"]
+                
+                # Check for filters
+                if filters.get("channel", None) and filters["channel"] != message.channel.id:
+                    continue
+                
+                if filters.get("user", None) and filters["user"] != message.author.id:
+                    continue
+                
+                if filters.get("guild", None) and filters["guild"] != message.guild.id:
+                    continue
+                
+            # Detection
+            if pattern.get("regex"):
+                if re.search(pattern["regex"], message.content, re.IGNORECASE):
+                    return pattern["response"]
+            
+            if pattern.get("contains"):
+                if pattern["contains"] in message.content:
+                    return pattern["response"]
+                
+            if pattern.get("embed"):
+                embed_regex = pattern["embed"]
+                
+                if not message.embeds:
+                    continue
+                
+                for embed in message.embeds:
+                    if embed_regex.get("title"):
+                        if re.search(embed_regex["title"], embed.title, re.IGNORECASE):
+                            return pattern["response"]
+                    if embed_regex.get("description"):
+                        if re.search(embed_regex["description"], embed.description, re.IGNORECASE):
+                            return pattern["response"]
+                    if embed_regex.get("author"):
+                        if re.search(embed_regex["author"], embed.author.name, re.IGNORECASE):
+                            return pattern["response"]
+        return None
+    
+    async def _handle_file(self, url: str = None, path: str = None, config: dict = None) -> discord.File:
+        """Retrieve a file from a URL or path"""
+        # Ensure the directory exists
+        directory = config.get("config", {}).get("image_cache_dir", "store/cache/auto_reply")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        if url:
+            path = os.path.join(directory, url.split("/")[-1])
+            
+            if not os.path.exists(path):
+                self.logger.info(f"Downloading file from {url}")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as resp:
+                        with open(path, "wb") as f:
+                            f.write(await resp.read())
+                self.logger.info(f"File downloaded to {path}")
+                
+        if not os.path.exists(path):
+            self.logger.error(f"File {path} not found")
+            return None
+        
+        return discord.File(path)
+        
+    
+    async def _do_reponse(self, message: discord.Message, response: dict):
+        """Handle the auto-reply response"""
+        
+        if response.get("bad"):
+            await message.delete()
+            return
+        
+        if response.get("text"):
+            if response.get("bad"):
+                await message.channel.send(response["text"])
+            else:
+                await message.reply(response["text"])
+            
+        elif response.get("random"):
+            await self._do_reponse(message, random.choice(response["random"]))
+            
+        elif response.get("file"):
+            if response["file"].get("url"):
+                file = await self._handle_file(url=response["file"]["url"], config=response)
+            elif response["file"].get("path"):
+                file = await self._handle_file(path=response["file"]["path"], config=response)
+            else:
+                self.logger.error("File response is missing URL or path")
+                return
+            
+            if file:
+                if response.get("bad"):
+                    await message.channel.send(file=file)
+                else:
+                    await message.reply(file=file)
+            
+        return
+                
+                
+        
 class AutoReply(commands.Cog):
     """
     A Discord bot cog for automatically replying to specific messages.
@@ -794,60 +1122,6 @@ class AutoReply(commands.Cog):
 
     def __init__(self, bot: Jerry):
         self.bot = bot
-
-        generic_gaslighting = [
-            "Lies, all lies",
-            "Prove it",
-            "Sure you did",
-            "Cap",
-            "Keep dreaming",
-            "Keep telling yourself that",
-            "Yeah, and I'm a real person",
-        ]
-
-        self.auto_reply = {
-            # General
-            r"nuh+[\W_]*h?uh": {"response": "Yuh-uh ✅"},
-            r"yuh+[\W_]*h?uh": {"response": "Nuh-uh ❌"},
-            r"(w(o|0)+mp|wmp(o|0)+|w(o|0)+pm|wpm(o|0)+)": {"response": "Womp womp"},
-            r"wp(o|0)+m": {
-                "response_file": {
-                    "url": "https://squid1127.strangled.net/caddy/files/assets/wpom.png"
-                }
-            },
-            r"wm(o|0)+p": {
-                "response_file": {
-                    "url": "https://squid1127.strangled.net/caddy/files/assets/wmop.png"
-                }
-            },
-            # Shut it
-            r"^shut+[\W_]*up": {"response": "No u"},
-            # Gaslighting
-            r"^i did(\s|$)": {
-                "response_random": ["No you didn't", "No you did not", "You didn't"]
-                + generic_gaslighting
-            },
-            r"^i (didn'?t|did\snot)(\s|$)": {
-                "response_random": ["Yes you did", "You did"] + generic_gaslighting
-            },
-            r"^i got(\s|$)": {"response_random": generic_gaslighting},
-            r"^i have(\s|$)": {
-                "response_random": ["No you don't", "You don't"] + generic_gaslighting
-            },
-            r"^i (haven'?t|have\snot)(\s|$)": {
-                "response_random": ["Yes you have", "You have"] + generic_gaslighting
-            },
-            # r"^(i'?m|i am)(\s|$)": {"response_random": ["No you're not", "You're not"] + generic_gaslighting}, <- triggered too often, plus generally disliked by users
-            r"^i went(\s|$)": {
-                "response_random": ["No you didn't", "You didn't"] + generic_gaslighting
-            },
-            r"(^|\s)die($|\s)": {"response": "But why? 😢"},
-            r"kys": {"response": "That's not very nice 😢", "bad": True},
-            r"^<@@me>$": {"response": "What???"},
-            r"^<@@author>$": {
-                "response": "Why are you mentioning yourself <@@author>? 🤔"
-            },
-        }
         
         self.logger = logging.getLogger("jerry.auto_reply")
 
