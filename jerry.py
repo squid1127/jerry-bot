@@ -102,10 +102,7 @@ class Jerry(core.Bot):
 class JerryGemini(commands.Cog):
     def __init__(self, bot: Jerry):
         self.bot = bot
-        print("[Gemini] Initializing")
-        print(
-            f"[Gemini] Channel ID: {self.bot.gemini_channel} | Token: {self.bot.gemini_token}"
-        )
+
         gemini.configure(api_key=self.bot.gemini_token)
         self.model = gemini.GenerativeModel(
             "gemini-1.5-flash",
@@ -156,10 +153,10 @@ class JerryGemini(commands.Cog):
         # Typing indicator
         await message.channel.typing()
 
-        print(f"[Gemini] Message received {message.content}")
+        self.logger.debug(f"Message received: {message.content}")
 
         if not hasattr(self, "chat") or message.content.lower() == "~reset":
-            print("[Gemini] Chat not initialized, initializing...")
+            self.logger.debug("Chat not initialized, initializing...")
             await self._new_chat()
             if message.content.lower() == "~reset":
                 await self._new_chat()
@@ -185,37 +182,46 @@ class JerryGemini(commands.Cog):
         try:
             message_prompt = await self._create_prompt(message)
             message_embeds = await self._handle_embed(message)
-            message_send = (
-                f"{message_prompt}\n\nIncoming Message:\n```\n{message.content}\n```"
-            )
-            if message_embeds:
-                message_send += (
-                    f"\n\nIncoming Message has embeds:\n```\n{message_embeds}\n```"
-                )
-
-            # Check for replies
+            
+            message_send = message_prompt
+            
+        # Check for replies
             if message.reference:
                 reply = await message.channel.fetch_message(
                     message.reference.message_id
                 )
-                print(f"[Gemini] Reply detected: {message.reference.resolved.content}")
-                message_send = f"{message_prompt}\n\nIncoming Reply Message:\n```\n{message.content}\n```\nReplying to {reply.author.display_name}:\n```\n{reply.content}\n```"
+                self.logger.debug(f"Reply detected: {message.reference.resolved.content}")
+                message_send = f'\n\nIn reply to: {reply.author.display_name}, who said: \n"""{reply.content}"""'
+                if reply.embeds and len(reply.embeds) > 0:
+                    message_send += (
+                        f"\nReply has Embeded Content:\n```\n{reply.embeds}\n```"
+                    )
+            
+            message_send += (
+                f'\n\n{"In response " if message.reference else ""} {message.author.display_name} said: \n"""{message.content}"""'
+            )
+            if message_embeds:
+                message_send += (
+                    f"\nEmbeded Content:\n```\n{message_embeds}\n```"
+                )
+
+            
 
             # Read memory
             try:
                 memory = await self._load_memory()
                 message_send += f"\n\nMemory:\n```\n{memory}\n```"
             except FileNotFoundError:
-                print("[Gemini] Memory file not found")
+                self.logger.error("Memory file not found")
                 pass
             except Exception as e:
-                print(f"[Gemini] Error reading memory: {e}")
+                self.logger.error(f"Error reading memory: {e}")
                 pass
 
             processed_attachments = []
             if message.attachments:
                 # Check if there is an attachment
-                message_send += f"\n\nIncoming Message has Attachment: {message.attachments[0].filename}"
+                message_send += f"\n\nAttachment: {message.attachments[0].filename}"
                 processed_attachments = await self._handle_attachment(message)
                 if processed_attachments and len(processed_attachments) > 0:
                     self.logger.debug(f"Processed attachments: {processed_attachments}")
@@ -231,7 +237,7 @@ class JerryGemini(commands.Cog):
                     await message.channel.send(f"## Prompt\n{message_send}")
                     return
 
-                print(f"[Gemini] Sending message to gemini: {message.content}")
+                self.logger.debug(f"Sending message to gemini: {message.content}")
                 response = await self.chat.send_message_async(
                     message_send,
                 )
@@ -242,7 +248,7 @@ class JerryGemini(commands.Cog):
             await message.channel.send(
                 "I'm tired, let me rest for a bit. (Resource exhausted)"
             )
-            print("[Gemini] Resource exhausted")
+            self.logger.warning("Resource exhausted")
             return
 
         # Process the response
@@ -255,25 +261,25 @@ class JerryGemini(commands.Cog):
         if len(text) <= max_length:
             return [text]
 
-        print(f"[Gemini] Splitting message of length {len(text)}")
+        self.logger.debug(f"Splitting message of length {len(text)}")
 
         for split in split_by:
-            print(f"[Gemini] Splitting by {split}")
+            self.logger.debug(f"Splitting by {split}")
             unprocessed_chunks = text.split(split)
             processed_chunks = []
             if not len(unprocessed_chunks) > 1:
-                print(f"[Gemini] Splitting by {split} failed; trying next split")
+                self.logger.debug(f"Splitting by {split} failed; trying next split")
                 continue
             current_text = ""
             for chunk in unprocessed_chunks:
                 if len(chunk) + len(current_text) >= max_length:
-                    print(f"[Gemini] Adding chunk with length {len(current_text)}")
+                    self.logger.debug(f"Adding chunk with length {len(current_text)}")
                     processed_chunks.append(current_text)
                     current_text = ""
                 current_text += chunk + split
-                print(f"[Gemini] Current text length: {len(current_text)}")
+                self.logger.debug(f"Current text length: {len(current_text)}")
             if current_text:
-                print(f"[Gemini] Adding final chunk with length {len(current_text)}")
+                self.logger.debug(f"Adding final chunk with length {len(current_text)}")
                 processed_chunks.append(current_text)
 
             return processed_chunks
@@ -284,7 +290,7 @@ class JerryGemini(commands.Cog):
         message: discord.Message = None,
         channel: discord.TextChannel = None,
     ):
-        print(f"[Gemini] Response received: {response}")
+        self.logger.debug(f"Response received: {response}")
         if channel is None:
             channel = message.channel
 
@@ -297,7 +303,7 @@ class JerryGemini(commands.Cog):
             response = r_split[len(r_split) - 2]
 
         commands = response.split("^*&")
-        print(f"[Gemini] Commands: {commands}")
+        self.logger.debug(f"Commands: {commands}")
         for command in commands:
             # Remove leading/trailing whitespace
             command = command.strip()
@@ -306,7 +312,7 @@ class JerryGemini(commands.Cog):
             action = command.split(" ")[0]
             if action.startswith("send"):
                 message_text = command.split(" ", 1)[1]
-                print(f"[Gemini] Sending message: {message_text}")
+                self.logger.debug(f"Sending message: {message_text}")
 
                 # Message length check
                 if len(message_text) > 2000:
@@ -322,7 +328,7 @@ class JerryGemini(commands.Cog):
                 continue
 
             if action.startswith("reset"):
-                print("[Gemini] Resetting chat")
+                self.logger.info("Resetting chat")
                 await self._new_chat()
                 embed = discord.Embed(
                     title="Chat Reset",
@@ -337,7 +343,7 @@ class JerryGemini(commands.Cog):
                 continue
 
             if action.startswith("save"):
-                print(f"[Gemini] Saving text: {command}")
+                self.logger.debug(f"Saving text: {command}")
                 text = command.split(" ", 1)[1]
                 # await self._add_memory(text)
                 await self._optimize_memory(
@@ -346,14 +352,14 @@ class JerryGemini(commands.Cog):
                 continue
 
             if action.startswith("forget"):
-                print(f"[Gemini] Forgetting text: {command}")
+                self.logger.debug(f"Forgetting text: {command}")
                 text_to_forget = command.split(" ", 1)[1]
                 prompt = f"remove the following from memory: '{text_to_forget}'"
                 await self._optimize_memory(prompt)
                 continue
 
             if action.startswith("hide-seek"):
-                print(f"[Gemini] Playing hide and seek")
+                self.logger.debug(f"Playing hide and seek")
                 await self._hide_seek(message)
                 self.hide_seek_from_gemini = True
 
@@ -368,7 +374,7 @@ class JerryGemini(commands.Cog):
 
             # If no action is found, send the message
             if command != "":
-                print(f"[Gemini] Sending message: {command}")
+                self.logger.debug(f"Sending message: {command}")
                 # Message length check
                 message_text = command
 
@@ -473,51 +479,32 @@ To interact with the chat, use the following commands:
                 continue
             
         return processed_attachments
-                
-            
-        
-        
-        # Old code for handling images
-        try:    
-            print(f"[Gemini] Attachment found: {message.attachments[0].filename}")
-            if (
-                message.attachments[0]
-                .filename.lower()
-                .endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
-            ):
-                # Download the image
-                print(f"[Gemini] Downloading image: {message.attachments[0].filename}")
-                fileName = f"./store/images/{message.attachments[0].filename}"
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(message.attachments[0].url) as resp:
-                        # Save the image
-                        with open(fileName, "wb") as f:
-                            f.write(await resp.read())
-
-                        # Process the image
-                        image = Image.open(fileName)
-                        image = image.convert("RGB")
-                        image.save(fileName)
-                        print(f"[Gemini] Image saved: {fileName}")
-
-                    image = Image.open(fileName)
-                    return image
-
-        except Exception as e:
-            print(f"[Gemini] Error processing attachment: {e}")
-            return None
 
     async def _handle_embed(self, message: discord.Message) -> str:
+        # if not message.embeds:
+        #     return None
+        # self.logger.debug(f"{len(message.embeds)} embeds found")
+        # embeds_str = ""
+        # for embed in message.embeds:
+        #     embeds_str += f"Embed Title: {embed.title}\nEmbed Description: {embed.description}\nEmbed Fields:\n"
+        #     for field in embed.fields:
+        #         embeds_str += f"Field Name: {field.name}\nField Value: {field.value}\n"
+        #     embeds_str += f"Embed Footer: {embed.footer.text}\nEmbed Author: {embed.author.name}\n"
+        # self.logger.debug(f"Processed embeds: \n{embeds_str}")
+        # return embeds_str
         if not message.embeds:
             return None
-        print(f"[Gemini] {len(message.embeds)} embeds found")
+        
+        self.logger.debug(f"{len(message.embeds)} embeds found")
         embeds_str = ""
         for embed in message.embeds:
-            embeds_str += f"Embed Title: {embed.title}\nEmbed Description: {embed.description}\nEmbed Fields:\n"
+            embeds_str += f"Author: {embed.author.name}\n"
+            embeds_str += f"# {embed.title}\n{embed.description}\n"
             for field in embed.fields:
-                embeds_str += f"Field Name: {field.name}\nField Value: {field.value}\n"
-            embeds_str += f"Embed Footer: {embed.footer.text}\nEmbed Author: {embed.author.name}\n"
-        print(f"[Gemini] Processed embeds: \n{embeds_str}")
+                embeds_str += f"## {field.name}\n{field.value}\n"
+            embeds_str += f"# {embed.footer.text}\n{embed.author.name}\n"   
+            
+        self.logger.debug(f"Processed embeds: \n{embeds_str}")
         return embeds_str
 
     async def _add_memory(self, text: str):
@@ -530,7 +517,7 @@ To interact with the chat, use the following commands:
         with open("store/gemini/memory.txt", "r") as f:
             memory = f.read()
             memory_hash = hashlib.md5(memory.encode()).hexdigest()
-            print(f"[Gemini] Memory hash: {memory_hash}")
+            self.logger.debug(f"Memory hash: {memory_hash}")
             with open(f"store/memory_backup/{memory_hash}.txt", "w") as f:
                 f.write(memory)
 
@@ -581,52 +568,52 @@ To interact with the chat, use the following commands:
         guild: discord.Guild = None,
     ):
         """Play hide and seek with the user; place a reaction on a random message in the server"""
-        print("[Gemini] Playing hide and seek")
+        self.logger.debug("Playing hide and seek")
         if message:
             guild = message.guild
         # Get all channels
         for i in range(100):
             channels = guild.text_channels
             random_channel = random.choice(channels)  # Select a random channel
-            print(f"[Gemini] Random channel selected: {random_channel.name}")
+            self.logger.debug(f"Random channel selected: {random_channel.name}")
 
             # Check if @everyone can view the channel
             if not random_channel.permissions_for(guild.default_role).send_messages:
-                print(
-                    f"[Gemini] Channel {random_channel.name} is not accessible by @everyone"
+                self.logger.debug(
+                    f"Channel {random_channel.name} is not accessible by @everyone"
                 )
                 continue
-            print(f"[Gemini] Channel {random_channel.name} is accessible by @everyone")
+            self.logger.debug(f"Channel {random_channel.name} is accessible by @everyone")
 
             # Get all messages in the channel within the last 24 hours
 
             a_day_ago = datetime.datetime.now() - timedelta.Timedelta(days=1)
-            print(f"[Gemini] Searching for messages after {a_day_ago}")
+            self.logger.debug(f"Searching for messages after {a_day_ago}")
             messages = [
                 message async for message in random_channel.history(after=a_day_ago)
             ]
             if len(messages) == 0:
-                print(f"[Gemini] No recent messages found in {random_channel.name}")
+                self.logger.debug(f"No recent messages found in {random_channel.name}")
                 continue
             # Select a random message
             random_message: discord.Message = random.choice(messages)
             # Check if message already has a reaction
             if random_message.reactions:
-                print(
-                    f"[Gemini] Message already has a reaction: {random_message.content}"
+                self.logger.debug(
+                    f"Message already has a reaction: {random_message.content}"
                 )
                 continue
-            print(f"[Gemini] Random message selected: {random_message.content}")
+            self.logger.debug(f"Random message selected: {random_message.content}")
             self.hide_seek_message = random_message
             break
 
         else:
-            print("[Gemini] No suitable message found")
+            self.logger.debug("No suitable message found")
             raise Exception("No suitable message found after 100 attempts")
         # Add a reaction to the message
         await random_message.add_reaction("🔍")
-        print(
-            f"[Gemini] Reaction added to message: {random_message.content} in {random_channel.name}"
+        self.logger.debug(
+            f"Reaction added to message: {random_message.content} in {random_channel.name}"
         )
         return True
 
@@ -638,7 +625,7 @@ To interact with the chat, use the following commands:
         if payload.user_id == self.bot.user.id:
             return
         if payload.message_id == self.hide_seek_message.id:
-            print("[Gemini] Hide and Seek reaction added")
+            self.logger.debug("Hide and Seek reaction added")
 
             await self.hide_seek_message.reply("You found me! 🎉")
 
@@ -646,7 +633,7 @@ To interact with the chat, use the following commands:
                 # Tell jerry to congratulate the user
                 message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ^*&send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
 
-                print(f"[Gemini] Sending message to gemini: {message_send}")
+                self.logger.debug(f"Sending message to gemini: {message_send}")
 
                 response = await self.chat.send_message_async(
                     message_send,
@@ -686,11 +673,11 @@ To interact with the chat, use the following commands:
                 return
 
             if sub_command == "hide-seek":
-                print("[Gemini] Initiating hide and seek (shell)")
+                self.logger.debug("Initiating hide and seek (shell)")
                 guild_id = command.query.split(" ")[1]
                 try:
                     guild_id_int = int(guild_id)
-                    print(f"[Gemini] Guild ID: {guild_id_int}")
+                    self.logger.debug(f"Guild ID: {guild_id_int}")
                 except:
                     await command.log(
                         "Invalid guild ID; must be an integer",
@@ -706,7 +693,7 @@ To interact with the chat, use the following commands:
                             "Hide-Seek",
                             msg_type="error",
                         )
-                    print(f"[Gemini] Guild: {guild.name}")
+                    self.logger.debug(f"Guild: {guild.name}")
                     await self._hide_seek(guild=guild)
                 except Exception as e:
                     await command.log(
@@ -728,7 +715,7 @@ To interact with the chat, use the following commands:
 
     async def cog_status(self):
         try:
-            print("[Gemini] Checking model status")
+            self.logger.info("Checking model status")
             # Check if the model is ready by sending a test message
             prompt = "Answer the following question with either 'y' or 'n'; only state 'y' or 'n' in your response: Is 23 + 19 equal to 42?"
             answer = ""
@@ -738,31 +725,31 @@ To interact with the chat, use the following commands:
                 )
                 answer = response.text.strip().lower()
             except gemini_selling.ResourceExhausted:
-                print("[Gemini] Model is not ready; resource exhausted")
+                self.logger.error("Model is not ready; resource exhausted")
                 return "Not ready; rate limited"
             except gemini_selling.PermissionDenied:
-                print("[Gemini] Model is not ready; permission denied")
+                self.logger.error("Model is not ready; permission denied")
                 return "Not ready; permission denied"
             except Exception as e:
-                print(f"[Gemini] Error testing model: {e}")
+                self.logger.error(f"Error testing model: {e}")
                 return f"Not ready; model is throwing error:\n{e}"
             if answer == "y":
-                print("[Gemini] Model is ready, got expected response")
+                self.logger.error("Model is ready, got expected response")
                 return "Ready; model is responding"
             elif answer == "n":
-                print("[Gemini] Model is ready, got incorrect response")
+                self.logger.error("Model is ready, got incorrect response")
                 return "Ready; model is responding but its math is not mathing"
             elif len(answer) > 1:
-                print(
-                    f"[Gemini] Model is ready, got arbitrary response: {response.text}"
+                self.logger.error(
+                    f"Model is ready, got arbitrary response: {response.text}"
                 )
                 return "Ready; model is responding with an arbitrary response"
             else:
-                print("[Gemini] Model is not ready, got no response")
+                self.logger.error("Model is not ready, got no response")
                 return "Failed; model said nothing upon request"
 
         except Exception as e:
-            print(f"[Gemini] Error testing model: {e}")
+            self.logger.error(f"Error testing model: {e}")
             return f"Status check failed: {e}"
 
 
@@ -1124,177 +1111,6 @@ autoreply:
                     await message.reply(file=file)
             
         return
-                
-                
-        
-class AutoReply(commands.Cog):
-    """
-    A Discord bot cog for automatically replying to specific messages.
-    Attributes:
-        bot (Jerry): The instance of the bot.
-        auto_reply (dict): A dictionary containing regex patterns as keys and their corresponding responses.
-    Methods:
-        __init__(bot: Jerry):
-            Initializes the AutoReply cog with the bot instance and predefined auto-reply patterns.
-        on_ready():
-            Event listener that triggers when the bot is ready. Prints the number of auto-reply patterns loaded.
-        on_message(message: discord.Message):
-            Event listener that triggers on every new message. Checks the message content against predefined patterns
-            and replies accordingly if a match is found.
-    """
-
-    def __init__(self, bot: Jerry):
-        self.bot = bot
-        
-        self.logger = logging.getLogger("jerry.auto_reply")
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        self.logger.info(f"[AutoReply] Ready with {len(self.auto_reply)} replies")
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        await self.process_message(message)
-
-    @commands.Cog.listener()
-    async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        await self.process_message(after)
-
-    @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        self.logger.debug(f"[AutoReply] Message deleted: {message.content}")
-        results = await self.process_message(message, send=False)
-        self.logger.debug(f"[AutoReply] Results from deleted message: {results}")
-        if results:
-            self.logger.info("[AutoReply] A deleted message triggered auto-reply, sending warning")
-            # Check for bad flag (meaning the message was deleted by bot)
-            if any(result[1].get("bad", False) for result in results):
-                self.logger.info("[AutoReply] Message was deleted by bot due to bad content")
-                return
-
-            msg_embed = discord.Embed(
-                title="Deleted Message",
-                description=message.content,
-                color=discord.Color.red(),
-            )
-            msg_embed.set_author(
-                name=message.author.display_name,
-                icon_url=message.author.avatar.url,
-            )
-
-            await message.channel.send(
-                f"Hey I saw that! {message.author.mention} 🤨, you said:",
-                embed=msg_embed,
-            )
-
-    async def replace_reply(self, message: discord.Message):
-        """Replace placeholders in auto-reply patterns and responses"""
-        result = {}
-        for pattern, response in self.auto_reply.items():
-            new_pattern = pattern.replace("<@@me>", self.bot.user.mention)
-            new_pattern = new_pattern.replace("<@@author>", message.author.mention)
-
-            new_response = response
-
-            if new_response.get("response", None):
-                new_response["response"] = new_response["response"].replace(
-                    "<@@me>", self.bot.user.mention
-                )
-                new_response["response"] = new_response["response"].replace(
-                    "<@@author>", message.author.mention
-                )
-
-            if new_response.get("response_random", None):
-                for i, r in enumerate(new_response["response_random"]):
-                    new_response["response_random"][i] = r.replace(
-                        "<@@me>", self.bot.user.mention
-                    )
-                    new_response["response_random"][i] = r.replace(
-                        "<@@author>", message.author.mention
-                    )
-
-            result[new_pattern] = new_response
-
-        return result
-
-    async def process_message(self, message: discord.Message, send: bool = True):
-        # Ignore messages from the bot
-        if message.author == self.bot.user:
-            return
-
-        # Ignore messages from bots
-        if message.author.bot:
-            return
-
-        # Ignore messages from JerryGemini channel
-        if message.channel.id == self.bot.cogs["JerryGemini"].channel_id:
-            return
-        
-        # Ignore messages from Impersonate threads
-        if isinstance(message.channel, discord.Thread) and message.channel.parent_id == self.bot.shell.channel_id:
-            return
-
-        auto_reply = await self.replace_reply(message)
-
-        results = []
-
-        for pattern, response in auto_reply.items():
-            if re.search(pattern, message.content, re.IGNORECASE):
-                if "and" in response:
-                    for pattern_and in response["and"]:
-                        if not re.search(pattern_and, message.content, re.IGNORECASE):
-                            continue
-                if response.get("bad", False):
-                    try:
-                        results.append(response)
-                        if send:
-                            await message.channel.send(
-                                f'{message.author.mention} {response.get("response", "That is not very nice")}'
-                            )
-                        await message.delete()
-                    except discord.Forbidden:
-                        self.logger.error("[AutoReply] Missing permissions to delete message")
-                elif "response" in response or "response_file" in response:
-                    if send:
-                        if "response_file" in response:
-                            if "url" in response["response_file"]:
-                                # Check if file is cached
-                                if not os.path.exists("store/cache/autoreply"):
-                                    os.makedirs("store/cache/autoreply")
-
-                                file_path = f"store/cache/autoreply/{response['response_file']['url'].split('/')[-1]}"
-                                if not os.path.exists(file_path):
-                                    self.logger.info(
-                                        f"[AutoReply] Downloading file: {response['response_file']['url']} to {file_path}"
-                                    )
-                                    async with aiohttp.ClientSession() as session:
-                                        async with session.get(
-                                            response["response_file"]["url"]
-                                        ) as resp:
-                                            with open(file_path, "wb") as f:
-                                                f.write(await resp.read())
-
-                                file = discord.File(file_path)
-
-                            else:
-                                file = discord.File(response["response_file"]["path"])
-
-                        else:
-                            file = None
-
-                        await message.reply(response.get("response", ""), file=file)
-
-                    results.append((pattern, response))
-                elif "response_random" in response:
-                    if send:
-                        await message.reply(random.choice(response["response_random"]))
-                    results.append((pattern, response))
-
-        return results
-
-    # Cog status
-    async def cog_status(self):
-        return f"Ready with {len(self.auto_reply)} replies"
 
 
 class GuildStuff(commands.Cog):
