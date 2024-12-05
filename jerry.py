@@ -831,6 +831,15 @@ autoreply:
                 if not verify[0]:
                     return verify
                 
+        if config.get("filters", None):
+            if not isinstance(config["filters"], list):
+                return (False, "Filters must be a list")
+            for filter in config["filters"]:
+                if not isinstance(filter, dict):
+                    return (False, "Filter must be a dictionary")
+                if not (filter.get("channel") or filter.get("user") or filter.get("guild")):
+                    return (False, "Filter needs one of channel, user, or guild")
+                
         if config.get("autoreply", None):
             for pattern in config["autoreply"]:
                 if not isinstance(pattern, dict):
@@ -968,7 +977,20 @@ autoreply:
         return input
         
     async def _scan_message(self, message: discord.Message, config: dict):
-        """Scan a message for auto-reply patterns""" 
+        """Scan a message for auto-reply patterns"""
+        # Check for filters
+        
+        for filter in config.get("filters", []):
+            if filter.get("type", "ignore"):
+                if filter.get("channel", None) and filter["channel"] == message.channel.id:
+                    return None
+
+                if filter.get("user", None) and filter["user"] == message.author.id:
+                    return None
+
+                if filter.get("guild", None) and filter["guild"] == message.guild.id:
+                    return None
+        
         for pattern in config["autoreply"]:
             # Mentions
             # Recursively replace <@@me> and <@@author> with corresponding user mentions
