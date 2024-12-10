@@ -1754,7 +1754,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
     async def _interactive(self, command: core.ShellCommand, init=False):
         """Interactive shell for managing the sticker pack"""
-        self.logger.info("Interactive shell -> ", command.query)
+        self.logger.info("Interactive shell -> " + command.query)
         query = command.query
         if init or query == "return":
             self._interactive_view = "main"
