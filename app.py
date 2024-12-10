@@ -31,8 +31,12 @@ logger.info("Running Jerry Bot")
 logger.info("Loading environment variables")
 load_dotenv()
 
+logger.info(f" Environment Variables Loaded (Hashed: {Jerry.hash_config(None, os.environ)})")
+
 channel = int(os.getenv("JERRY_SHELL"))
 token = os.getenv("JERRY_TOKEN")
+
+logger.info(f"Channel: {channel} | Token: {token}")
 
 try:
     gemini_token = os.getenv("JERRY_GEMINI_TOKEN")
