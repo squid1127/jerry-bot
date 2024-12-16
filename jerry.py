@@ -35,7 +35,8 @@ import google.api_core.exceptions as gemini_selling
 from PIL import Image
 import mimetypes
 import pyheif, pillow_heif
-pillow_heif.register_heif_opener() # Register the HEIF opener to process HEIF images
+
+pillow_heif.register_heif_opener()  # Register the HEIF opener to process HEIF images
 
 # File management
 import hashlib
@@ -56,6 +57,7 @@ import fuzzywuzzy
 
 # Logging
 import logging
+
 logger = logging.getLogger("jerry")
 
 
@@ -86,7 +88,6 @@ class Jerry(core.Bot):
             discord.CustomActivity("Yuh-uh ✅", emoji="✅"),
         ]
         self.set_status(random_status=statuses)
-        
 
     # Load cogs
     async def load_cogs(self):
@@ -127,7 +128,7 @@ class JerryGemini(commands.Cog):
         self.hide_seek_jobs = []
 
         self.gemini_channels = {}
-        
+
         self.logger = logging.getLogger("jerry.gemini")
 
     @commands.Cog.listener()
@@ -182,30 +183,26 @@ class JerryGemini(commands.Cog):
         try:
             message_prompt = await self._create_prompt(message)
             message_embeds = await self._handle_embed(message)
-            
+
             message_send = message_prompt
-            
-        # Check for replies
+
+            # Check for replies
             if message.reference:
                 reply = await message.channel.fetch_message(
                     message.reference.message_id
                 )
-                self.logger.debug(f"Reply detected: {message.reference.resolved.content}")
+                self.logger.debug(
+                    f"Reply detected: {message.reference.resolved.content}"
+                )
                 message_send = f'\n\nIn reply to: {reply.author.display_name}, who said: \n"""{reply.content}"""'
                 if reply.embeds and len(reply.embeds) > 0:
                     message_send += (
                         f"\nReply has Embeded Content:\n```\n{reply.embeds}\n```"
                     )
-            
-            message_send += (
-                f'\n\n{"In response " if message.reference else ""} {message.author.display_name} said: \n"""{message.content}"""'
-            )
-            if message_embeds:
-                message_send += (
-                    f"\nEmbeded Content:\n```\n{message_embeds}\n```"
-                )
 
-            
+            message_send += f'\n\n{"In response " if message.reference else ""} {message.author.display_name} said: \n"""{message.content}"""'
+            if message_embeds:
+                message_send += f"\nEmbeded Content:\n```\n{message_embeds}\n```"
 
             # Read memory
             try:
@@ -225,14 +222,16 @@ class JerryGemini(commands.Cog):
                 processed_attachments = await self._handle_attachment(message)
                 if processed_attachments and len(processed_attachments) > 0:
                     self.logger.debug(f"Processed attachments: {processed_attachments}")
-                    
+
                     # Insert the message into the list
                     processed_attachments.insert(0, message_send)
-                    
+
                     response = await self.model.generate_content_async(
                         processed_attachments,
                     )
-            if (not message.attachments) or (not (processed_attachments and len(processed_attachments) > 0)):
+            if (not message.attachments) or (
+                not (processed_attachments and len(processed_attachments) > 0)
+            ):
                 if promptDebug:
                     await message.channel.send(f"## Prompt\n{message_send}")
                     return
@@ -416,10 +415,14 @@ To interact with the chat, use the following commands:
         for attachment in message.attachments:
             try:
                 # Download the image
-                self.logger.debug(f"Attachment found: {attachment.filename}. Downloading...")
+                self.logger.debug(
+                    f"Attachment found: {attachment.filename}. Downloading..."
+                )
                 fileName = f"./store/cache/gemini/{attachment.filename}"
-                
-                os.makedirs(os.path.dirname(fileName), exist_ok=True)            # Create the directory if it doesn't exist
+
+                os.makedirs(
+                    os.path.dirname(fileName), exist_ok=True
+                )  # Create the directory if it doesn't exist
 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(attachment.url) as resp:
@@ -427,57 +430,75 @@ To interact with the chat, use the following commands:
                         with open(fileName, "wb") as f:
                             f.write(await resp.read())
                 self.logger.debug(f"File downloaded: {fileName}")
-                
+
             except Exception as e:
-                self.logger.error(f"Error downloading attachment {attachment.filename}: {e}")
-                message.reply(f"Error downloading attachment {attachment.filename}: {e}")
+                self.logger.error(
+                    f"Error downloading attachment {attachment.filename}: {e}"
+                )
+                message.reply(
+                    f"Error downloading attachment {attachment.filename}: {e}"
+                )
                 continue
-                            
+
             # Determine the file type
             try:
                 mime_type, _ = mimetypes.guess_type(fileName)
                 if mime_type is None:
-                    raise Exception("File is missing a file extension or has an unsupported file type")
+                    raise Exception(
+                        "File is missing a file extension or has an unsupported file type"
+                    )
                 self.logger.debug(f"File type: {mime_type}")
             except Exception as e:
                 self.logger.error(f"Error determining file type of {fileName}: {e}")
                 message.reply(f"Error determining file type of {fileName}: {e}")
                 continue
-            
+
             try:
                 # Process the image/attachment
-                if mime_type in ["image/png", "image/jpeg", "image/gif", "image/webp", "image/heic"]:
+                if mime_type in [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "image/heic",
+                ]:
                     # Process the image
                     image = Image.open(fileName)
                     image = image.convert("RGB")
                     self.logger.debug(f"Image processed: {fileName} ({mime_type})")
-                    
+
                     processed_attachments.append(image)
-                    
+
                 elif mime_type.split("/")[0] == "text":
                     # Process the text file
                     with open(fileName, "r") as f:
                         text = f.read()
                         self.logger.debug(f"Text file processed: {fileName}")
                         processed_attachments.append(text)
-                    
+
                 else:
                     # See if the file is in plain text
                     try:
                         with open(fileName, "r") as f:
                             text = f.read()
-                            self.logger.debug(f"Text file processed (unsupported type): {fileName}")
+                            self.logger.debug(
+                                f"Text file processed (unsupported type): {fileName}"
+                            )
                             processed_attachments.append(text)
-                    except UnicodeDecodeError:       
+                    except UnicodeDecodeError:
                         self.logger.debug(f"Unsupported file type: {mime_type}")
-                        await message.reply(f"You sent an unsupported file type! ({mime_type})")
+                        await message.reply(
+                            f"You sent an unsupported file type! ({mime_type})"
+                        )
                         continue
-                
+
             except Exception as e:
-                self.logger.error(f"Error processing attachment {attachment.filename}: {e}")
+                self.logger.error(
+                    f"Error processing attachment {attachment.filename}: {e}"
+                )
                 message.reply(f"Error processing attachment {attachment.filename}: {e}")
                 continue
-            
+
         return processed_attachments
 
     async def _handle_embed(self, message: discord.Message) -> str:
@@ -494,7 +515,7 @@ To interact with the chat, use the following commands:
         # return embeds_str
         if not message.embeds:
             return None
-        
+
         self.logger.debug(f"{len(message.embeds)} embeds found")
         embeds_str = ""
         for embed in message.embeds:
@@ -502,8 +523,8 @@ To interact with the chat, use the following commands:
             embeds_str += f"# {embed.title}\n{embed.description}\n"
             for field in embed.fields:
                 embeds_str += f"## {field.name}\n{field.value}\n"
-            embeds_str += f"# {embed.footer.text}\n{embed.author.name}\n"   
-            
+            embeds_str += f"# {embed.footer.text}\n{embed.author.name}\n"
+
         self.logger.debug(f"Processed embeds: \n{embeds_str}")
         return embeds_str
 
@@ -534,8 +555,7 @@ To interact with the chat, use the following commands:
             with open("store/gemini/memory.txt", "w") as f:
                 f.write("")
             return ""
-        
-        
+
         with open("store/gemini/memory.txt", "r") as f:
             return f.read()
 
@@ -583,7 +603,9 @@ To interact with the chat, use the following commands:
                     f"Channel {random_channel.name} is not accessible by @everyone"
                 )
                 continue
-            self.logger.debug(f"Channel {random_channel.name} is accessible by @everyone")
+            self.logger.debug(
+                f"Channel {random_channel.name} is accessible by @everyone"
+            )
 
             # Get all messages in the channel within the last 24 hours
 
@@ -757,23 +779,23 @@ class AutoReplyV2(commands.Cog):
     """
     (V2) Listens for messages and replies with a set message configurable in a YAML file.
     """
-    
+
     def __init__(self, bot: Jerry):
-        self.bot = bot        
+        self.bot = bot
         self.logger = logging.getLogger("jerry.auto_reply")
-        
+
         # Auto reply configuration
         self.auto_reply_file = "store/autoreply.yaml"
-        
+
         self.auto_reply_cache = {}
-        self.auto_reply_cache_timeout = 0 # Default
+        self.auto_reply_cache_timeout = 0  # Default
         self.auto_reply_cache_last_updated = 0
-        
+
         # Command
         self.bot.shell.add_command(
             "autoreply", cog="AutoReplyV2", description="Manage Jerry's auto-reply"
         )
-        
+
         # Default auto-reply configuration
         self.auto_reply = """# Default Config for the AutoReply cog
 config:
@@ -806,25 +828,27 @@ autoreply:
       text: Nuh-uh ❌
 
 """
-        
+
     def _create_config(self):
         """Create the auto-reply configuration file if it doesn't exist"""
         if os.path.exists(self.auto_reply_file):
             self.logger.debug("Got create config request, but file already exists")
             return
-        
+
         self.logger.info("Creating auto-reply configuration file")
         with open(self.auto_reply_file, "w") as f:
             f.write(self.auto_reply)
-            
+
     def verify_config(self, config: dict) -> tuple:
         """Verify the auto-reply configuration"""
         if not config:
             return (False, "No configuration found")
-        
+
         if config.get("config", None):
-            self.auto_reply_cache_timeout = config["config"].get("cache_timeout", self.auto_reply_cache_timeout)
-            
+            self.auto_reply_cache_timeout = config["config"].get(
+                "cache_timeout", self.auto_reply_cache_timeout
+            )
+
         if config.get("vars", None):
             if not isinstance(config["vars"], dict):
                 return (False, "Variables config must be a dictionary")
@@ -832,42 +856,46 @@ autoreply:
                 verify = self._verify_response(response)
                 if not verify[0]:
                     return verify
-                
-                
+
         if config.get("filters", None):
             if not isinstance(config["filters"], list):
                 return (False, "Filters must be a list")
             for filter in config["filters"]:
                 if not isinstance(filter, dict):
                     return (False, "Filter must be a dictionary")
-                if not (filter.get("channel") or filter.get("user") or filter.get("guild")):
+                if not (
+                    filter.get("channel") or filter.get("user") or filter.get("guild")
+                ):
                     return (False, "Filter needs one of channel, user, or guild")
-                
+
         if config.get("autoreply", None):
             for pattern in config["autoreply"]:
                 if not isinstance(pattern, dict):
                     return (False, f"Pattern {pattern} is not a dictionary")
-                
+
                 if not (pattern.get("regex") or pattern.get("embed")):
                     return (False, f"Pattern {pattern} is missing its detection regex")
-                
+
                 if not pattern.get("response"):
                     return (False, f"Pattern {pattern} is missing its response")
                 verify = self._verify_response(pattern["response"])
-                
+
                 if not verify[0]:
-                    return (False, f"Pattern {pattern} response is invalid: {verify[1]}")
+                    return (
+                        False,
+                        f"Pattern {pattern} response is invalid: {verify[1]}",
+                    )
         else:
             return (False, "No auto-reply patterns found")
-        
+
         return (True, None)
-    
+
     def _verify_response(self, response: dict) -> tuple:
         """Check a specific response for required fields"""
         self.logger.debug(f"Verifying response: {response}")
         if not isinstance(response, dict):
             return (False, "Response must be a dictionary")
-        
+
         if response.get("text") and response.get("type", "text") == "text":
             try:
                 str(response["text"])
@@ -876,7 +904,7 @@ autoreply:
         if response.get("type") == "file":
             if not (response.get("path") or response.get("url")):
                 return (False, "Response type is file, but no path or URL was provided")
-        
+
         if response.get("type") == "random" or response.get("random"):
             if response.get("random"):
                 for r in response["random"]:
@@ -884,75 +912,88 @@ autoreply:
                     if not verify[0]:
                         return verify
             else:
-                return (False, "Response type is random, but no responses were provided")
-        
+                return (
+                    False,
+                    "Response type is random, but no responses were provided",
+                )
+
         if response.get("vars") or response.get("var"):
             variables = response.get("vars", response.get("var"))
             if isinstance(variables, str):
                 variables = [variables]
             elif not isinstance(variables, list):
-                return (False, "vars must be a list of variable names or a single variable name")
-        
+                return (
+                    False,
+                    "vars must be a list of variable names or a single variable name",
+                )
+
         has_valid_keys = False
         for key in response.keys():
-            if key not in ["text", "type", "random", "vars", "path", "url","bad"]:
+            if key not in ["text", "type", "random", "vars", "path", "url", "bad"]:
                 return (False, f"Response key `{key}` is invalid")
             else:
                 has_valid_keys = True
-            
+
         if not has_valid_keys:
             return (False, "Invalid response; no valid keys found")
         return (True, None)
-        
-            
+
     def get_config(self, cache: bool = True) -> dict:
         """Read the auto-reply configuration file. (Includes caching)"""
         if cache and self.auto_reply_cache_timeout > 0:
             # Check if the cache is still valid
-            if self.auto_reply_cache_last_updated + self.auto_reply_cache_timeout > time.time():
+            if (
+                self.auto_reply_cache_last_updated + self.auto_reply_cache_timeout
+                > time.time()
+            ):
                 return self.auto_reply_cache
-        
+
         self._create_config()
-        
+
         try:
             with open(self.auto_reply_file, "r") as f:
                 self.auto_reply_cache = yaml.safe_load(f)
         except Exception as e:
             self.logger.error(f"Error reading auto-reply configuration: {e}")
             return {"invalid": True, "error": e, "error_type": "read"}
-        
+
         # Verify the configuration
         verify = self.verify_config(self.auto_reply_cache)
         if not verify[0]:
             self.logger.error(f"Invalid auto-reply configuration: {verify[1]}")
             return {"invalid": True, "error": verify[1], "error_type": "verify"}
-            
+
         self.auto_reply_cache_last_updated = time.time()
-        
+
         return self.auto_reply_cache
-    
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author == self.bot.user:
             return
-        
+
         await self.process_message(message)
-        
+
     async def process_message(self, message: discord.Message):
         """Process a discord message for auto-reply"""
-        
+
         config = self.get_config()
-        
+
         if config.get("invalid"):
-            await self.bot.shell.log(f"Auto-reply configuration error: {config.get('error', 'Unknown error')}", "Auto-Reply", msg_type="error", cog="AutoReply")
+            await self.bot.shell.log(
+                f"Auto-reply configuration error: {config.get('error', 'Unknown error')}",
+                "Auto-Reply",
+                msg_type="error",
+                cog="AutoReply",
+            )
             return
-        
+
         response = await self._scan_message(message, config)
         if not response:
             return
-        
+
         await self._do_reponse(message, response, config)
-        
+
     def _recursive_replace(self, input: any, replacements: dict):
         """Recursively replace values in a dictionary"""
         if isinstance(input, dict):
@@ -963,7 +1004,7 @@ autoreply:
                     for k, v in replacements.items():
                         value = value.replace(k, v)
                     input[key] = value
-                    
+
         elif isinstance(input, list):
             for i, value in enumerate(input):
                 if isinstance(value, dict) or isinstance(value, list):
@@ -977,14 +1018,17 @@ autoreply:
             for k, v in replacements.items():
                 input = input.replace
         return input
-        
+
     async def _scan_message(self, message: discord.Message, config: dict):
         """Scan a message for auto-reply patterns"""
         # Check for filters
-        
+
         for filter in config.get("filters", []):
             if filter.get("type", "ignore"):
-                if filter.get("channel", None) and filter["channel"] == message.channel.id:
+                if (
+                    filter.get("channel", None)
+                    and filter["channel"] == message.channel.id
+                ):
                     return None
 
                 if filter.get("user", None) and filter["user"] == message.author.id:
@@ -992,47 +1036,53 @@ autoreply:
 
                 if filter.get("guild", None) and filter["guild"] == message.guild.id:
                     return None
-        
+
         for pattern in config["autoreply"]:
             # Mentions
             # Recursively replace <@@me> and <@@author> with corresponding user mentions
             replacements = {
-                "<@@me>": self.bot.user.mention, 
+                "<@@me>": self.bot.user.mention,
                 "<@@author>": message.author.mention,
             }
-            
+
             pattern = self._recursive_replace(pattern, replacements)
-            
-            
+
             # Filters
-            self.logger.debug(f"Bots are {'allowed' if pattern.get('bot', False) else 'not allowed'}. {message.author.name} is {'a bot' if message.author.bot else 'not a bot'}")
+            self.logger.debug(
+                f"Bots are {'allowed' if pattern.get('bot', False) else 'not allowed'}. {message.author.name} is {'a bot' if message.author.bot else 'not a bot'}"
+            )
             if not pattern.get("bot", False) and message.author.bot:
                 continue
-            
+
             if pattern.get("filter", None):
                 filters = pattern["filter"]
-                
+
                 # Check for filters
-                if filters.get("channel", None) and filters["channel"] != message.channel.id:
+                if (
+                    filters.get("channel", None)
+                    and filters["channel"] != message.channel.id
+                ):
                     continue
-                
+
                 if filters.get("user", None) and filters["user"] != message.author.id:
                     continue
-                
+
                 if filters.get("guild", None) and filters["guild"] != message.guild.id:
                     continue
-                
+
                 if filters.get("display_name", None):
                     # Process regex for display name
                     name = message.author.display_name
                     if not re.search(filters["display_name"], name, re.IGNORECASE):
                         continue
-                
+
                 if filters.get("username", None):
                     # Process regex for username
-                    if not re.search(filters["username"], message.author.name, re.IGNORECASE):
+                    if not re.search(
+                        filters["username"], message.author.name, re.IGNORECASE
+                    ):
                         continue
-                    
+
                 if filters.get("roles_any", None):
                     # Check if the user has any of the roles
                     for role_id in filters["roles_any"]:
@@ -1041,7 +1091,7 @@ autoreply:
                             break
                     else:
                         continue
-                
+
                 if filters.get("roles_all", None):
                     # Check if the user has all of the roles
                     for role_id in filters["roles_all"]:
@@ -1050,50 +1100,58 @@ autoreply:
                             break
                     else:
                         continue
-            
+
                 if filters.get("role", None):
                     # Check if the user has the role
                     role = discord.utils.get(message.author.roles, id=filters["role"])
                     if not role:
                         continue
-                
+
             # Detection
             if pattern.get("regex"):
                 if re.search(pattern["regex"], message.content, re.IGNORECASE):
                     return pattern["response"]
-            
+
             if pattern.get("contains"):
                 if pattern["contains"] in message.content:
                     return pattern["response"]
-                
+
             if pattern.get("embed"):
                 embed_regex = pattern["embed"]
-                
+
                 if not message.embeds:
                     continue
-                
+
                 for embed in message.embeds:
                     if embed_regex.get("title"):
                         if re.search(embed_regex["title"], embed.title, re.IGNORECASE):
                             return pattern["response"]
                     if embed_regex.get("description"):
-                        if re.search(embed_regex["description"], embed.description, re.IGNORECASE):
+                        if re.search(
+                            embed_regex["description"], embed.description, re.IGNORECASE
+                        ):
                             return pattern["response"]
                     if embed_regex.get("author"):
-                        if re.search(embed_regex["author"], embed.author.name, re.IGNORECASE):
+                        if re.search(
+                            embed_regex["author"], embed.author.name, re.IGNORECASE
+                        ):
                             return pattern["response"]
         return None
-    
-    async def _handle_file(self, url: str = None, path: str = None, config: dict = None) -> discord.File:
+
+    async def _handle_file(
+        self, url: str = None, path: str = None, config: dict = None
+    ) -> discord.File:
         """Retrieve a file from a URL or path"""
-        directory = config.get("config", {}).get("image_cache_dir", "store/cache/autoreply")
+        directory = config.get("config", {}).get(
+            "image_cache_dir", "store/cache/autoreply"
+        )
         self.logger.debug(f"Hanlding file: {url} {path} | Directory: {directory}")
-        
+
         if url:
             # Ensure the directory exists
-            os.makedirs(directory, exist_ok=True)   
+            os.makedirs(directory, exist_ok=True)
             path = os.path.join(directory, url.split("/")[-1])
-            
+
             if not os.path.exists(path):
                 self.logger.info(f"Downloading file from {url}")
                 async with aiohttp.ClientSession() as session:
@@ -1101,24 +1159,25 @@ autoreply:
                         with open(path, "wb") as f:
                             f.write(await resp.read())
                 self.logger.info(f"File downloaded to {path}")
-                
+
         if not os.path.exists(path):
             self.logger.error(f"File {path} not found")
             return None
-        
+
         return discord.File(path)
-        
-    
-    async def _do_reponse(self, message: discord.Message, response: dict, config: dict = None):
+
+    async def _do_reponse(
+        self, message: discord.Message, response: dict, config: dict = None
+    ):
         """Handle the auto-reply response"""
-        
+
         # Apply variables
         if response.get("vars") or response.get("var"):
             variables = response.get("vars", response.get("var"))
             if isinstance(variables, str):
                 variables = [variables]
-            
-            self.logger.info(f"Variables: {variables}")
+
+            self.logger.debug(f"Variables: {variables}")
             for var in variables:
                 if var in config.get("vars", {}):
                     var_payload = config["vars"][var]
@@ -1128,36 +1187,48 @@ autoreply:
                         # Check if the key is already in the response
                         if response.get(key):
                             # If the key is a list, merge the lists
-                            if isinstance(response[key], list) and isinstance(value, list):
+                            if isinstance(response[key], list) and isinstance(
+                                value, list
+                            ):
                                 response[key].extend(value)
-                                self.logger.info(f"Added {value} to {key} (List extension)")
+                                self.logger.debug(
+                                    f"Added {value} to {key} (List extension)"
+                                )
                             # If the key is a dictionary, try to merge the dictionaries, preserving the original values where possible
-                            elif isinstance(response[key], dict) and isinstance(value, dict):
+                            elif isinstance(response[key], dict) and isinstance(
+                                value, dict
+                            ):
                                 for k, v in value.items():
                                     if k not in response[key]:
                                         response[key][k] = v
-                                        self.logger.info(f"Added {k} to {key} (Dict extension)")
-                                        
+                                        self.logger.debug(
+                                            f"Added {k} to {key} (Dict extension)"
+                                        )
+
                             # Otherwise leave it as is
                             else:
-                                self.logger.info(f"Variable {key} already in response; cannot merge")
+                                self.logger.debug(
+                                    f"Variable {key} already in response; cannot merge"
+                                )
                         else:
-                            self.logger.info(f"Set {key} to {value} (Not in response)")
+                            self.logger.debug(f"Set {key} to {value} (Not in response)")
                             response[key] = value
-        
+
         if response.get("bad"):
             await message.delete()
             return
-        
+
         if response.get("text"):
             if response.get("bad"):
                 await message.channel.send(response["text"])
             else:
                 await message.reply(response["text"])
-            
+
         elif response.get("random"):
-            await self._do_reponse(message, random.choice(response["random"]), config=config)
-            
+            await self._do_reponse(
+                message, random.choice(response["random"]), config=config
+            )
+
         elif response.get("type") == "file":
             if response.get("url"):
                 file = await self._handle_file(url=response["url"], config=response)
@@ -1166,27 +1237,34 @@ autoreply:
             else:
                 self.logger.error("File response is missing URL or path")
                 return
-            
+
             if file:
                 if response.get("bad"):
                     await message.channel.send(file=file)
                 else:
                     await message.reply(file=file)
-            
+
         return
-    
+
     async def shell_callback(self, command: core.ShellCommand):
         if command.name == "autoreply":
             sub_command = command.query.split(" ")[0]
-            
+
             if sub_command == "reload":
                 self.auto_reply_cache = {}
                 self.auto_reply_cache_last_updated = 0
                 self.get_config(cache=False)
-                await command.log("Auto-reply configuration reloaded", "Auto-Reply", msg_type="success")
+                await command.log(
+                    "Auto-reply configuration reloaded",
+                    "Auto-Reply",
+                    msg_type="success",
+                )
                 return
-            
-            await command.log("Available commands:\n- **reload** - Reload the auto-reply configuration", "Auto-Reply")
+
+            await command.log(
+                "Available commands:\n- **reload** - Reload the auto-reply configuration",
+                "Auto-Reply",
+            )
             return
 
 
@@ -1550,9 +1628,7 @@ class StickerEphemeralView(discord.ui.View):
 
     @discord.ui.button(label="Send✅", style=discord.ButtonStyle.primary)
     async def send(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.logger.info(
-            f"Confirming sending sticker {self.sticker_file}"
-        )
+        self.logger.info(f"Confirming sending sticker {self.sticker_file}")
         await interaction.response.send_message("Sending sticker...", ephemeral=True)
         try:
             file = discord.File(self.sticker_file)
@@ -1584,7 +1660,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         self.table = None
         self.missing = []
         self.unindexed = []
-        
+
         self.logger = logging.getLogger("jerry.css_sticker_pack")
 
     # Constants
@@ -1646,15 +1722,11 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
     async def apple_to_better(self, file_path: str):
         """Convert heic/heif files to png"""
-        self.logger.debug(
-            f"Converting Apple Type Image to PNG: {file_path}"
-        )
+        self.logger.debug(f"Converting Apple Type Image to PNG: {file_path}")
         new_path = file_path.replace(".heic", ".png").replace(".heif", ".png")
 
         if os.path.exists(new_path):
-            self.logger.debug(
-                f"File {new_path} already exists, skipping"
-            )
+            self.logger.debug(f"File {new_path} already exists, skipping")
             return new_path
 
         try:
@@ -1671,14 +1743,10 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             image.save(new_path)
 
         except Exception as e:
-            self.logger.error(
-                f"Error converting {file_path} to PNG: {e}"
-            )
+            self.logger.error(f"Error converting {file_path} to PNG: {e}")
             return None
 
-        self.logger.info(
-            f"Converted {file_path} to PNG: {new_path}"
-        )
+        self.logger.info(f"Converted {file_path} to PNG: {new_path}")
         return new_path
 
     async def index(self):
@@ -1695,9 +1763,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             files = os.listdir(self.directory)
             for file in files:
                 if ":Zone.Identifier" in file:
-                    self.logger.debug(
-                        f"Skipping file with Zone.Identifier: {file}"
-                    )
+                    self.logger.debug(f"Skipping file with Zone.Identifier: {file}")
                     continue
 
                 if file.endswith(".heic") or file.endswith(".heif"):
@@ -1708,9 +1774,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
                 # Replace spaces with underscores
                 if " " in file:
-                    self.logger.debug(
-                        f"Replacing spaces in file {file}"
-                    )
+                    self.logger.debug(f"Replacing spaces in file {file}")
                     new_file = file.replace(" ", "_")
                     try:
                         self.logger.debug(
@@ -1728,9 +1792,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
                             f"Unable to rename file {file} due to file not found (space)"
                         )
                     except Exception as e:
-                        self.logger.error(
-                            f"Error renaming file {file}: {e} (space)"
-                        )
+                        self.logger.error(f"Error renaming file {file}: {e} (space)")
                     interrupted = True
                     continue
 
@@ -1762,9 +1824,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
             if not interrupted:
                 self.logger.info("File paths optimized")
                 break
-            self.logger.debug(
-                "Some files were optimized, checking again"
-            )
+            self.logger.debug("Some files were optimized, checking again")
 
         # Get all files in the directory (again)
         files = os.listdir(self.directory)
@@ -1795,9 +1855,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
         self.logger.info(f"Done checking files")
 
         self.logger.info(f"{len(unindexed)} files not in database")
-        self.logger.info(
-            f"{len(data)} entries missing from directory"
-        )
+        self.logger.info(f"{len(data)} entries missing from directory")
 
         for entry in data:
             missing.append(entry["file"])
@@ -2119,9 +2177,7 @@ class CubbScratchStudiosStickerPack(commands.Cog):
 
             return
 
-        self.logger.warning(
-            "Interactive shell view not found"
-        )
+        self.logger.warning("Interactive shell view not found")
         await command.raw(
             "Woah, how did you get here? Let's go back home. (View not found)"
         )
@@ -2344,42 +2400,57 @@ More to come soon!""",
         )
 
         await interaction.response.send_message(embed=embed)
-        
 
 
 class VoiceChat(commands.Cog):
     """Experimental cog for interacting with voice channels"""
+
     def __init__(self, bot: Jerry):
         self.bot = bot
-        
-        self.bot.shell.add_command("voice", cog="VoiceChat", description="Manage voice chat runners")
-        
+
+        self.bot.shell.add_command(
+            "voice", cog="VoiceChat", description="Manage voice chat runners"
+        )
+
         self.stop = []
         self.running = []
-        
+
         self.logger = logging.getLogger("jerry.voicechat")
-        
+
     async def shell_callback(self, command: core.ShellCommand):
         if command.name == "voice":
             if command.query == "list":
-                await command.log("Running instances: " + ", ".join(map(str, self.running)))
+                await command.log(
+                    "Running instances: " + ", ".join(map(str, self.running))
+                )
                 return
             if command.query == "stop":
                 self.stop = self.running
-                await command.log("Stopped all voice chat instances", title="Stop All", msg_type="success")
+                await command.log(
+                    "Stopped all voice chat instances",
+                    title="Stop All",
+                    msg_type="success",
+                )
                 return
             fields = [
                 {
                     "name": "Subcommands",
                     "inline": False,
-                    "value": "list - List all running instances\nstop - Stop all running instances"
+                    "value": "list - List all running instances\nstop - Stop all running instances",
                 }
             ]
-            
-            await command.log("To interact with voice chat, use the /play-sound and /stop-sound commands", fields=fields, title="Voice Chat", msg_type="info")
+
+            await command.log(
+                "To interact with voice chat, use the /play-sound and /stop-sound commands",
+                fields=fields,
+                title="Voice Chat",
+                msg_type="info",
+            )
             return
-            
-    @app_commands.command(name="play-sound", description="Play a sound in a voice channel (experimental)")
+
+    @app_commands.command(
+        name="play-sound", description="Play a sound in a voice channel (experimental)"
+    )
     @app_commands.describe(
         stream="The stream to play",
     )
@@ -2389,58 +2460,75 @@ class VoiceChat(commands.Cog):
         except Exception as e:
             self.logger.error(e)
             try:
-                await interaction.followup.send("An unexpected error occurred", ephemeral=True)
+                await interaction.followup.send(
+                    "An unexpected error occurred", ephemeral=True
+                )
             except:
-                await interaction.response.send_message("An error occurred", ephemeral=True)
-        
-    @app_commands.command(name="stop-sound", description="Stop the sound in this voice channel (experimental)")
+                await interaction.response.send_message(
+                    "An error occurred", ephemeral=True
+                )
+
+    @app_commands.command(
+        name="stop-sound",
+        description="Stop the sound in this voice channel (experimental)",
+    )
     async def stop_sound(self, interaction: discord.Interaction):
         self.stop.append(interaction.channel_id)
         await interaction.response.send_message("Stopping sound", ephemeral=True)
-            
-    async def do_voice_chat(self, channel_id: int, interaction: discord.Interaction, stream: str):
+
+    async def do_voice_chat(
+        self, channel_id: int, interaction: discord.Interaction, stream: str
+    ):
         """Test function to initiate voice chat"""
         self.logger.info("Initiating voice chat")
-        
+
         streams = {
             "klove": "https://maestro.emfcdn.com/stream_for/k-love/web/aac",
             "rick": "https://squid1127.strangled.net/caddy/files/bait.MP3",
         }
-        
+
         if stream.startswith("custom:"):
             stream = stream.split("custom:")[1]
-            
-        
+
         elif stream not in streams:
             comma_separated = ", ".join(streams.keys())
-            
-            await interaction.response.send_message("Invalid stream. Available streams: " + comma_separated + ". You can also use 'custom:URL' to play a custom stream", ephemeral=True)
+
+            await interaction.response.send_message(
+                "Invalid stream. Available streams: "
+                + comma_separated
+                + ". You can also use 'custom:URL' to play a custom stream",
+                ephemeral=True,
+            )
             return
-        
+
         else:
             stream = streams[stream]
-        
+
         # Get the voice channel
-        channel:discord.VoiceChannel = self.bot.get_channel(channel_id)
-        
+        channel: discord.VoiceChannel = self.bot.get_channel(channel_id)
+
         # Check if the channel is a voice channel
         if not isinstance(channel, discord.VoiceChannel):
             self.logger.error("Channel is not a voice channel")
-            await interaction.response.send_message("This is not a voice channel", ephemeral=True)
+            await interaction.response.send_message(
+                "This is not a voice channel", ephemeral=True
+            )
             return
-        
+
         await interaction.response.send_message("Playing sound", ephemeral=True)
-        
+
         # Connect to the voice channel
         self.logger.info(f"Connecting to voice channel {channel}")
-        
+
         try:
             voice = await channel.connect()
         except discord.errors.ClientException:
             self.logger.error("Already playing in a voice channel")
-            await interaction.followup.send("Already playing in this voice channel", ephemeral=True)
+            await interaction.followup.send(
+                "Already playing in this voice channel", ephemeral=True
+            )
             return
-        
+
         # Play a sound
         self.logger.info("Playing sound")
         try:
@@ -2450,9 +2538,9 @@ class VoiceChat(commands.Cog):
             await interaction.followup.send(f"Error loading sound: {e}", ephemeral=True)
             # Disconnect
             await voice.disconnect()
-            
+
             return
-        
+
         try:
             voice.play(source, signal_type="music", bitrate=256, application="audio")
         except Exception as e:
@@ -2460,10 +2548,10 @@ class VoiceChat(commands.Cog):
             await interaction.followup.send(f"Error playing sound: {e}", ephemeral=True)
             # Disconnect
             await voice.disconnect()
-            
+
             return
         self.running.append(channel_id)
-        
+
         # Wait for the sound to finish
         manually_stopped = False
         self.logger.info("Waiting for sound to finish")
@@ -2474,21 +2562,21 @@ class VoiceChat(commands.Cog):
                 self.stop.remove(channel_id)
                 voice.stop()
                 break
-            
+
         try:
             self.running.remove(channel_id)
         except ValueError:
             pass
-        
+
         # Disconnect
         self.logger.info("Disconnecting")
         await voice.disconnect()
-        
-        await interaction.followup.send(f"Sound {'finished' if not manually_stopped else 'stopped'}", ephemeral=True)
-        
+
+        await interaction.followup.send(
+            f"Sound {'finished' if not manually_stopped else 'stopped'}", ephemeral=True
+        )
 
 
 if __name__ == "__main__":
     print("You can't run this file directly dummy")
     sys.exit(1)
-
