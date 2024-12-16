@@ -769,27 +769,42 @@ class AutoReplyV2(commands.Cog):
         self.auto_reply_cache_timeout = 0 # Default
         self.auto_reply_cache_last_updated = 0
         
+        # Command
+        self.bot.shell.add_command(
+            "autoreply", cog="AutoReplyV2", description="Manage Jerry's auto-reply"
+        )
+        
         # Default auto-reply configuration
-        self.auto_reply = """
+        self.auto_reply = """# Default Config for the AutoReply cog
 config:
   # The time in seconds to cache config files to reduce the amount of reads to the file system (Set to 0 to disable)
   cache_timeout: 500 # 10 minutes
 
+  # Directory to store image downloads. Defaults to "store/cache/auto_reply"
+  image_cache_dir: "store/cache/autoreply"
+
+# filters:
+#   - type: "ignore"
+#     channel: 123456789012345678
+
+
 vars:
-    - generic_gaslighting:
-          random:
-              - { text: "Lies, all lies" }
-              - { text: "Prove it" }
-              - { text: "Sure you did" }
-              - { text: "Cap" }
-              - { text: "Keep dreaming" }
-              - { text: "Keep telling yourself that" }
-              - { text: "Yeah, and I'm a real person" }
+  generic_gaslighting:
+    random:
+      - text: "Lies, all lies"
+      - text: "Prove it"
+      - text: "Sure you did"
 
 autoreply:
-    - regex: "^I really wanna trigger auto-reply by sending this message$"
-      response:
-            text: "Guess what? You just triggered an auto-reply!"
+  # Nuh-uh and Yuh-uh
+  - regex: "nuh+[\\W_]*h?uh"
+    response:
+      text: Yuh-uh ✅
+
+  - regex: "yuh+[\\W_]*h?uh"
+    response:
+      text: Nuh-uh ❌
+
 """
         
     def _create_config(self):
@@ -817,6 +832,7 @@ autoreply:
                 verify = self._verify_response(response)
                 if not verify[0]:
                     return verify
+                
                 
         if config.get("filters", None):
             if not isinstance(config["filters"], list):
@@ -849,6 +865,9 @@ autoreply:
     def _verify_response(self, response: dict) -> tuple:
         """Check a specific response for required fields"""
         self.logger.debug(f"Verifying response: {response}")
+        if not isinstance(response, dict):
+            return (False, "Response must be a dictionary")
+        
         if response.get("text") and response.get("type", "text") == "text":
             try:
                 str(response["text"])
@@ -867,16 +886,12 @@ autoreply:
             else:
                 return (False, "Response type is random, but no responses were provided")
         
-        if response.get("type") == "vars":
-            if not isinstance(response.get("vars"), list):
-                return (False, "Response type is vars, but no variables were provided")
-            
-            for var in response["vars"]:
-                # Verify the variable (as a response)
-                verify = self._verify_response(var)
-                
-                if not verify[0]:
-                    return verify
+        if response.get("vars") or response.get("var"):
+            variables = response.get("vars", response.get("var"))
+            if isinstance(variables, str):
+                variables = [variables]
+            elif not isinstance(variables, list):
+                return (False, "vars must be a list of variable names or a single variable name")
         
         has_valid_keys = False
         for key in response.keys():
@@ -936,7 +951,7 @@ autoreply:
         if not response:
             return
         
-        await self._do_reponse(message, response)
+        await self._do_reponse(message, response, config)
         
     def _recursive_replace(self, input: any, replacements: dict):
         """Recursively replace values in a dictionary"""
@@ -982,32 +997,12 @@ autoreply:
             # Mentions
             # Recursively replace <@@me> and <@@author> with corresponding user mentions
             replacements = {
-                "<@@me>": self.bot.user.mention,
+                "<@@me>": self.bot.user.mention, 
                 "<@@author>": message.author.mention,
             }
             
             pattern = self._recursive_replace(pattern, replacements)
             
-            # Apply variables
-            if pattern.get("vars"):
-                for var in pattern["vars"]:
-                    var = config.get("vars", {}).get(var, None)
-                    if not var:
-                        continue
-                    if not isinstance(var, dict):
-                        continue
-                    
-                    for key, value in var.items():
-                        if isinstance(value, dict):
-                            for key_of_key, value_of_key in value.items():
-                                pattern[key][key_of_key] = value_of_key
-                                
-                        elif isinstance(value, list):
-                            for i in value:
-                                pattern[key].append(i)
-                                
-                        elif not pattern.get(key):
-                            pattern[key] = value
             
             # Filters
             self.logger.debug(f"Bots are {'allowed' if pattern.get('bot', False) else 'not allowed'}. {message.author.name} is {'a bot' if message.author.bot else 'not a bot'}")
@@ -1026,6 +1021,41 @@ autoreply:
                 
                 if filters.get("guild", None) and filters["guild"] != message.guild.id:
                     continue
+                
+                if filters.get("display_name", None):
+                    # Process regex for display name
+                    name = message.author.display_name
+                    if not re.search(filters["display_name"], name, re.IGNORECASE):
+                        continue
+                
+                if filters.get("username", None):
+                    # Process regex for username
+                    if not re.search(filters["username"], message.author.name, re.IGNORECASE):
+                        continue
+                    
+                if filters.get("roles_any", None):
+                    # Check if the user has any of the roles
+                    for role_id in filters["roles_any"]:
+                        role = discord.utils.get(message.author.roles, id=role_id)
+                        if role:
+                            break
+                    else:
+                        continue
+                
+                if filters.get("roles_all", None):
+                    # Check if the user has all of the roles
+                    for role_id in filters["roles_all"]:
+                        role = discord.utils.get(message.author.roles, id=role_id)
+                        if not role:
+                            break
+                    else:
+                        continue
+            
+                if filters.get("role", None):
+                    # Check if the user has the role
+                    role = discord.utils.get(message.author.roles, id=filters["role"])
+                    if not role:
+                        continue
                 
             # Detection
             if pattern.get("regex"):
@@ -1079,8 +1109,41 @@ autoreply:
         return discord.File(path)
         
     
-    async def _do_reponse(self, message: discord.Message, response: dict):
+    async def _do_reponse(self, message: discord.Message, response: dict, config: dict = None):
         """Handle the auto-reply response"""
+        
+        # Apply variables
+        if response.get("vars") or response.get("var"):
+            variables = response.get("vars", response.get("var"))
+            if isinstance(variables, str):
+                variables = [variables]
+            
+            self.logger.info(f"Variables: {variables}")
+            for var in variables:
+                if var in config.get("vars", {}):
+                    var_payload = config["vars"][var]
+                    for key, value in var_payload.items():
+                        # Add each key to the response
+                        self.logger.info(f"Adding variable {key} to the response")
+                        # Check if the key is already in the response
+                        if response.get(key):
+                            # If the key is a list, merge the lists
+                            if isinstance(response[key], list) and isinstance(value, list):
+                                response[key].extend(value)
+                                self.logger.info(f"Added {value} to {key} (List extension)")
+                            # If the key is a dictionary, try to merge the dictionaries, preserving the original values where possible
+                            elif isinstance(response[key], dict) and isinstance(value, dict):
+                                for k, v in value.items():
+                                    if k not in response[key]:
+                                        response[key][k] = v
+                                        self.logger.info(f"Added {k} to {key} (Dict extension)")
+                                        
+                            # Otherwise leave it as is
+                            else:
+                                self.logger.info(f"Variable {key} already in response; cannot merge")
+                        else:
+                            self.logger.info(f"Set {key} to {value} (Not in response)")
+                            response[key] = value
         
         if response.get("bad"):
             await message.delete()
@@ -1093,7 +1156,7 @@ autoreply:
                 await message.reply(response["text"])
             
         elif response.get("random"):
-            await self._do_reponse(message, random.choice(response["random"]))
+            await self._do_reponse(message, random.choice(response["random"]), config=config)
             
         elif response.get("type") == "file":
             if response.get("url"):
@@ -1111,6 +1174,20 @@ autoreply:
                     await message.reply(file=file)
             
         return
+    
+    async def shell_callback(self, command: core.ShellCommand):
+        if command.name == "autoreply":
+            sub_command = command.query.split(" ")[0]
+            
+            if sub_command == "reload":
+                self.auto_reply_cache = {}
+                self.auto_reply_cache_last_updated = 0
+                self.get_config(cache=False)
+                await command.log("Auto-reply configuration reloaded", "Auto-Reply", msg_type="success")
+                return
+            
+            await command.log("Available commands:\n- **reload** - Reload the auto-reply configuration", "Auto-Reply")
+            return
 
 
 class GuildStuff(commands.Cog):
