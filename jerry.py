@@ -60,7 +60,6 @@ import logging
 
 logger = logging.getLogger("jerry")
 
-
 class Jerry(core.Bot):
     def __init__(
         self,
@@ -784,8 +783,16 @@ class AutoReplyV2(commands.Cog):
         self.bot = bot
         self.logger = logging.getLogger("jerry.auto_reply")
 
-        # Auto reply configuration
-        self.auto_reply_file = "store/autoreply.yaml"
+        # Configuration
+        self.files = self.bot.filebroker.configure_cog(
+            "AutoReplyV2",
+            config_file=True,
+            config_default=self.DEFAULT_CONFIG,
+            config_do_cache=300,
+            cache=True,
+            cache_clear_on_init=True,
+        )
+        self.files.init()
 
         self.auto_reply_cache = {}
         self.auto_reply_cache_timeout = 0  # Default
@@ -796,14 +803,14 @@ class AutoReplyV2(commands.Cog):
             "autoreply", cog="AutoReplyV2", description="Manage Jerry's auto-reply"
         )
 
-        # Default auto-reply configuration
-        self.auto_reply = """# Default Config for the AutoReply cog
+    # Default auto-reply configuration
+    DEFAULT_CONFIG = """# Default Config for the AutoReply cog
 config:
   # The time in seconds to cache config files to reduce the amount of reads to the file system (Set to 0 to disable)
   cache_timeout: 500 # 10 minutes
 
-  # Directory to store image downloads. Defaults to "store/cache/auto_reply"
-  image_cache_dir: "store/cache/autoreply"
+  # Directory to store image downloads. 
+  # image_cache_dir: "store/cache/AutoReplyV2"
 
 # filters:
 #   - type: "ignore"
@@ -819,25 +826,15 @@ vars:
 
 autoreply:
   # Nuh-uh and Yuh-uh
-  - regex: "nuh+[\\W_]*h?uh"
+  - regex: "nuh+[\\\\W_]*h?uh"
     response:
       text: Yuh-uh ✅
 
-  - regex: "yuh+[\\W_]*h?uh"
+  - regex: "yuh+[\\\\W_]*h?uh"
     response:
       text: Nuh-uh ❌
 
 """
-
-    def _create_config(self):
-        """Create the auto-reply configuration file if it doesn't exist"""
-        if os.path.exists(self.auto_reply_file):
-            self.logger.debug("Got create config request, but file already exists")
-            return
-
-        self.logger.info("Creating auto-reply configuration file")
-        with open(self.auto_reply_file, "w") as f:
-            f.write(self.auto_reply)
 
     def verify_config(self, config: dict) -> tuple:
         """Verify the auto-reply configuration"""
@@ -940,32 +937,38 @@ autoreply:
 
     def get_config(self, cache: bool = True) -> dict:
         """Read the auto-reply configuration file. (Includes caching)"""
-        if cache and self.auto_reply_cache_timeout > 0:
-            # Check if the cache is still valid
-            if (
-                self.auto_reply_cache_last_updated + self.auto_reply_cache_timeout
-                > time.time()
-            ):
-                return self.auto_reply_cache
+        # if cache and self.auto_reply_cache_timeout > 0:
+        #     # Check if the cache is still valid
+        #     if (
+        #         self.auto_reply_cache_last_updated + self.auto_reply_cache_timeout
+        #         > time.time()
+        #     ):
+        #         return self.auto_reply_cache
 
-        self._create_config()
+        # try:
+        #     with open(self.auto_reply_file, "r") as f:
+        #         self.auto_reply_cache = yaml.safe_load(f)
+        # except Exception as e:
+        #     self.logger.error(f"Error reading auto-reply configuration: {e}")
+        #     return {"invalid": True, "error": e, "error_type": "read"}
 
-        try:
-            with open(self.auto_reply_file, "r") as f:
-                self.auto_reply_cache = yaml.safe_load(f)
-        except Exception as e:
-            self.logger.error(f"Error reading auto-reply configuration: {e}")
-            return {"invalid": True, "error": e, "error_type": "read"}
+        # Use new built in filebroker
+        config = self.files.get_config()
+        if not config:
+            return {
+                "invalid": True,
+                "error": "No configuration found",
+                "error_type": "read",
+            }
 
         # Verify the configuration
-        verify = self.verify_config(self.auto_reply_cache)
+        verify = self.verify_config(config)
         if not verify[0]:
             self.logger.error(f"Invalid auto-reply configuration: {verify[1]}")
+            self.files.invalidate_config()
             return {"invalid": True, "error": verify[1], "error_type": "verify"}
 
-        self.auto_reply_cache_last_updated = time.time()
-
-        return self.auto_reply_cache
+        return config
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -988,9 +991,14 @@ autoreply:
             )
             return
 
+        self.logger.debug(config)
+
         response = await self._scan_message(message, config)
         if not response:
+            self.logger.debug("No response found")
             return
+
+        self.logger.debug(response)
 
         await self._do_reponse(message, response, config)
 
@@ -1143,7 +1151,7 @@ autoreply:
     ) -> discord.File:
         """Retrieve a file from a URL or path"""
         directory = config.get("config", {}).get(
-            "image_cache_dir", "store/cache/autoreply"
+            "image_cache_dir", self.files.get_cache_dir()
         )
         self.logger.debug(f"Hanlding file: {url} {path} | Directory: {directory}")
 
@@ -1183,7 +1191,7 @@ autoreply:
                     var_payload = config["vars"][var]
                     for key, value in var_payload.items():
                         # Add each key to the response
-                        self.logger.info(f"Adding variable {key} to the response")
+                        self.logger.debug(f"Adding variable {key} to the response")
                         # Check if the key is already in the response
                         if response.get(key):
                             # If the key is a list, merge the lists
@@ -1273,13 +1281,14 @@ class GuildStuff(commands.Cog):
 
     def __init__(self, bot: Jerry):
         self.bot = bot
+        self.logger = logging.getLogger("jerry.guild_stuff")
 
     @app_commands.command(
         name="server",
         description="[Experimental] Get information about this guild (server)",
     )
     async def guild_info(self, interaction: discord.Interaction):
-        print(f"[GuildStuff] Guild info requested for {interaction.guild.name}")
+        self.logger.info(f"Guild info requested for {interaction.guild.name}")
         guild = interaction.guild
 
         # Guild status
@@ -1290,8 +1299,8 @@ class GuildStuff(commands.Cog):
         guild_channels = len(guild.channels)
         guild_roles = len(guild.roles)
 
-        print(
-            f"[GuildStuff] Guild {guild_name} ({guild_id}) has {guild_members} members and is owned by {guild_owner}"
+        self.logger.info(
+            f"Guild {guild_name} ({guild_id}) has {guild_members} members and is owned by {guild_owner}"
         )
 
         embed = discord.Embed(
@@ -1314,24 +1323,24 @@ class GuildStuff(commands.Cog):
 
         # Advanced status
         # Count messages :)
-        print(f"[GuildStuff] Listing members...")
+        self.logger.info(f"Listing members...")
         members_messages = {}
         total_messages = 0
         total_characters = 0
         total_spaces = 0
         for member in guild.members:
             members_messages[member] = 0
-            print(f"[GuildStuff] Found member {member.name}")
+            self.logger.debug(f"Found member {member.name}")
 
-        print(f"[GuildStuff] Counting messages...")
+        self.logger.info(f"Counting messages...")
 
         for channel in guild.text_channels:
-            print(f"[GuildStuff] Counting messages in {channel.name}")
+            self.logger.info(f"Counting messages in {channel.name}")
             try:
                 async for message in channel.history(limit=None):
                     if message.author not in members_messages:
-                        print(
-                            f"[GuildStuff] Skipping message from {message.author.name}; not in member list"
+                        self.logger.debug(
+                            f"Skipping message from {message.author.name}; not in member list"
                         )
                         continue
                     members_messages[message.author] += 1
@@ -1339,15 +1348,15 @@ class GuildStuff(commands.Cog):
                     message_content = message.content
                     total_characters += len(message_content)
                     total_spaces += message_content.count(" ")
-                    print(
-                        f"[GuildStuff] Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
+                    self.logger.debug(
+                        f"Found message from {message.author.name}. That makes {members_messages[message.author]} messages from them and {total_messages} total messages."
                     )
             except discord.Forbidden:
-                print(
-                    f"[GuildStuff] Skipping channel {channel.name}; missing permissions"
+                self.logger.info(
+                    f"Skipping channel {channel.name}; missing permissions"
                 )
 
-        print(f"[GuildStuff] Counted {total_messages} messages")
+        self.logger.info(f"Counted {total_messages} messages")
 
         # Top 10 members
         top_members = sorted(members_messages, key=members_messages.get, reverse=True)[
@@ -1359,7 +1368,7 @@ class GuildStuff(commands.Cog):
                 f"1. {member.name}: {members_messages[member]} messages\n"
             )
 
-        print(f"[GuildStuff] Top 10 members: \n{top_members_str}")
+        self.logger.info(f"Top 10 members: \n{top_members_str}")
 
         # Send the message
         embed.description = (
@@ -1387,7 +1396,12 @@ class GuildStuff(commands.Cog):
 class InformationChannels(commands.Cog):
     def __init__(self, bot: Jerry, file: str):
         self.bot = bot
-        self.file = core.TextFile(file)
+        self.files = self.bot.filebroker.configure_cog(  # Filebroker
+            "InformationChannels",
+            config_file=True,
+            config_do_cache=0,
+        )
+        self.files.init()
 
         self.bot.shell.add_command(
             "infochannels",
@@ -1401,31 +1415,28 @@ class InformationChannels(commands.Cog):
         )
 
         self.update_task.start()
+        
+        self.logger = logging.getLogger("jerry.information_channels")
 
     async def check_file(self):
-        print("[InformationChannels] Checking file")
-        if not os.path.exists(self.file.path):
-            print(
-                f"[InformationChannels] File {self.file.path} does not exist, creating..."
-            )
-            self.file.write({})
+        # return True
 
-        contents = self.file.read()
-
+        contents = self.files.get_config()
+    
         if contents is None or not contents.get("guilds", None):
             if contents is None:
                 contents = {}
 
-            print("[InformationChannels] Guilds key missing, creating...")
+            self.logger.warning("Guilds key missing, creating...")
             contents["guilds"] = []
-            self.file.write(contents)
+            self.files.set_config(contents)
 
             return True
 
         guilds = contents["guilds"]
 
         if not isinstance(guilds, list):
-            print("[InformationChannels] Error: Guilds is not a list")
+            self.logger.error("Guilds is not a list")
             await self.bot.shell.log(
                 "Error: Messages is not a list", "InformationChannels", msg_type="error"
             )
@@ -1434,25 +1445,25 @@ class InformationChannels(commands.Cog):
         return True
 
     async def check_then_update(self):
-        print("[InformationChannels] Checking and updating all channels")
+        self.logger.info("Checking and updating all channels")
         success = await self.check_file()
         if not success:
             raise Exception("Error initializing")
 
-        contents = self.file.read()
+        contents = self.files.get_config()
         guilds = contents["guilds"]
         for guild in guilds:
             guild["name"] = self.bot.get_guild(guild["id"]).name
-            print(
-                f"[InformationChannels] Checking guild {guild.get('name', guild.get('id', 'Unknown'))}"
+            self.logger.debug(
+                f"Checking guild {guild.get('name', guild.get('id', 'Unknown'))}"
             )
             for channel in guild["channels"]:
-                print(
-                    f"[InformationChannels] Checking channel {channel.get('name', channel.get('id', 'Unknown'))}"
+                self.logger.debug(
+                    f"Checking channel {channel.get('name', channel.get('id', 'Unknown'))}"
                 )
                 dc_channel = self.bot.get_channel(channel["id"])
                 if dc_channel is None:
-                    print(f"[InformationChannels] Channel {channel} not found")
+                    self.logger.debug(f"Channel {channel} not found")
                     await self.bot.shell.log(
                         f"Channel {channel} not found",
                         "InformationChannels",
@@ -1461,25 +1472,25 @@ class InformationChannels(commands.Cog):
                     continue
 
                 # Optimize message entry
-                print(
-                    f"[InformationChannels] Optimizing messages for {dc_channel.name}"
+                self.logger.debug(
+                    f"Optimizing messages for {dc_channel.name}"
                 )
                 for message in channel["messages"]:
                     if message.get("content", None) == None:
                         message["content"] = ""
 
                 channel["name"] = dc_channel.name
-                print(
-                    f"[InformationChannels] Found channel {dc_channel.name}, reading messages..."
+                self.logger.debug(
+                    f"Found channel {dc_channel.name}, reading messages..."
                 )
                 dc_channel_as_dict = await self._channel_to_dict(dc_channel)
 
-                print(f"[InformationChannels] Current messages:\n{dc_channel_as_dict}")
-                print(f"[InformationChannels] Saved messages:\n{channel['messages']}")
+                self.logger.debug(f"Current messages:\n{dc_channel_as_dict}")
+                self.logger.debug(f"Saved messages:\n{channel['messages']}")
 
                 # Check if messages match
                 if dc_channel_as_dict != channel["messages"]:
-                    print("[InformationChannels] Messages do not match, updating...")
+                    self.logger.info(f"Messages do not match in {dc_channel.name}, updating...")
                     await dc_channel.purge(limit=None)
                     for message in channel["messages"]:
                         if len(message.get("embeds", [])) > 1:
@@ -1491,25 +1502,25 @@ class InformationChannels(commands.Cog):
                             )
                         else:
                             await dc_channel.send(content=message.get("content", None))
-                    print("[InformationChannels] Messages updated")
+                    self.logger.info("Messages updated")
                     await self.bot.shell.log(
                         f"Messages in channel {dc_channel.mention} updated",
                         "InformationChannels",
                         msg_type="success",
                     )
                 else:
-                    print("[InformationChannels] Messages match")
+                    self.logger.debug("Messages match")
 
-        self.file.write(contents)
+        self.files.set_config(contents)
         return True
 
     @commands.Cog.listener()
     async def on_ready(self):
         success = await self.check_file()
         if success:
-            print("[InformationChannels] Ready")
+            self.logger.info("Ready")
         else:
-            print("[InformationChannels] Error initializing")
+            self.logger.info("Error initializing")
 
     async def cog_status(self):
         success = await self.check_file()
@@ -1530,7 +1541,7 @@ class InformationChannels(commands.Cog):
                         msg_type="success",
                     )
                 except Exception as e:
-                    print(f"[InformationChannels] Error updating channels: {e}")
+                    self.logger.error(f"Error updating channels: {e}")
                     await command.log(
                         f"Error updating channels: {e}",
                         "InformationChannels",
@@ -1605,18 +1616,18 @@ class InformationChannels(commands.Cog):
 
     @tasks.loop(time=datetime.time(hour=0, minute=0, second=0))
     async def update_task(self):
-        print("[InformationChannels] Checking for updates (Periodic)")
+        self.logger.info("Checking for updates (Periodic)")
         try:
             await self.check_then_update()
         except Exception as e:
-            print(f"[InformationChannels] Error updating channels: {e}")
+            self.logger.error(f"Error updating channels: {e}")
             await self.bot.shell.log(
                 f"Error updating channels during periodic check: {e}",
                 "InformationChannels",
                 msg_type="error",
             )
         else:
-            print("[InformationChannels] Update complete")
+            self.logger.info("Update complete")
 
 
 class StickerEphemeralView(discord.ui.View):
