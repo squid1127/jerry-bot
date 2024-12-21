@@ -119,7 +119,7 @@ class JerryGemini(commands.Cog):
             cache_clear_on_init=True,
         )
         self.files.init()
-        self.load_config(init=True)
+        self.load_config()
 
         # Add the Gemini command to the shell for managing Jerry's Gemini chat
         self.bot.shell.add_command(
@@ -127,13 +127,18 @@ class JerryGemini(commands.Cog):
         )
 
         self.logger.info("Successfully initialized")
+        
+        # Command
+        self.bot.shell.add_command(
+            "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
+        )
 
-    def load_config(self, init=False):
-        """Load the global configuration"""
+    def load_config(self, reload=False):
+        """Load/reload the configuration and create instances"""
         # Fetch config
         self.logger.info("Loading global configuration")
         self.logger.debug("Fetching configuration")
-        self.config = self.files.get_config()
+        self.config = self.files.get_config(cache=not reload)
 
         # Model config
         self.ai_token = self.config.get("global", {}).get("token")
@@ -175,6 +180,8 @@ class JerryGemini(commands.Cog):
 
         # Load instances
         self.logger.info("Loading instances")
+        if reload:
+            self.instances = {}
         for instance in self.config.get("instances", []):
             channel = instance.get("channel")
             if not channel:
@@ -227,6 +234,60 @@ class JerryGemini(commands.Cog):
                 
                 # Remove the job
                 self.hide_seek_jobs.remove(job)
+                
+    async def shell_callback(self, command: core.ShellCommand):
+        """Handle shell commands"""
+        if command.name == "gemini":
+            if command.query == "reload":
+                self.load_config(reload=True)
+                await command.log(
+                    "Successfully recreated all instances",
+                    title="Configuration Reloaded",
+                    msg_type="success",
+                )
+                return
+            if command.query == "instances":
+                fields = []
+                if len(self.instances) <= 20:
+                    # Each instance as field
+                    for channel, instance in self.instances.items():
+                        info = ""
+                        # List addons
+                        if len(instance.addons) > 0:
+                            info += f"Addons: {', '.join(instance.addons)}"
+                        # List custom model
+                        if instance.ai_model != self.ai_model:
+                            info += f"\nModel: {instance.ai_model}"
+                        # Debug
+                        if instance.instance_config.get("debug", False):
+                            info += "\nDebug mode enabled"
+                        # Custom processing
+                        if instance.instance_config.get("response_processing", {}).get("override", False):
+                            info += "\nCustom response processing"
+                            
+                        fields.append(
+                            {
+                                "name": f"Channel: {channel} (<#{channel}>)",
+                                "value": info,
+                            }
+                        )
+                    
+                await command.log(
+                    f"Instances: {len(self.instances)}",
+                    title="JerryGemini Instances",
+                    msg_type="info",
+                    fields=fields,
+                )
+                return
+            
+            # Help command
+            await command.log(
+                f"JerryGemini Commands:\n- reload: Reload the configuration\n- instances: List all instances",
+                title="JerryGemini Help",
+                msg_type="info",
+            )
+            return
+                
     # Constants
     DEFUALT_CONFIG = """# Configuration for JerryGemini
 global:
@@ -541,6 +602,16 @@ class JerryGeminiInstance:
             return ("Unsupported file type", None)
         
     async def process_response(self, response: str, message: discord.Message):
+        # Custom response processing
+        config:dict = self.instance_config.get("response_processing", {})
+        if config.get("override", False):
+            self.logger.debug("Overriding response processing")
+            if config.get("response_type") == "text":
+                # Process response text as a send command
+                await self.handle_action("send", response, message)
+                return
+        
+        
         # Parse commands
         response = response.strip()
         commands = response.split(self.core.COMMAND_PREFIX)
