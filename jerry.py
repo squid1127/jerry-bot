@@ -60,23 +60,18 @@ import logging
 
 logger = logging.getLogger("jerry")
 
+
 class Jerry(core.Bot):
     def __init__(
         self,
         discord_token: str,
-        gemini_token: str,
         shell_channel: int,
-        gemini_channel: int,
         **kwargs,
     ):
         # Initialize the bot
         super().__init__(
             token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
         )
-
-        # Set the gemini token
-        self.gemini_token = gemini_token
-        self.gemini_channel = gemini_channel
 
         # Load cogs
         asyncio.run(self.load_cogs())
@@ -100,16 +95,73 @@ class Jerry(core.Bot):
 
 
 class JerryGemini(commands.Cog):
+    """V2 | Chat with Jerry, powered by Google Gemini"""
+
     def __init__(self, bot: Jerry):
         self.bot = bot
+        self.instances = {}
+        
+        # Hide Seek Instances
+        self.hide_seek_jobs = []
 
-        gemini.configure(api_key=self.bot.gemini_token)
+        # Logger
+        self.logger = logging.getLogger("jerry.gemini")
+        self.logger.info("Initializing")
+
+        # Configuration
+        self.files = self.bot.filebroker.configure_cog(
+            "JerryGemini",
+            config_file=True,
+            config_default=self.DEFUALT_CONFIG,
+            config_do_cache=300,
+            cache=True,
+            cache_clear_on_init=True,
+        )
+        self.files.init()
+        self.load_config(init=True)
+
+        # Add the Gemini command to the shell for managing Jerry's Gemini chat
+        self.bot.shell.add_command(
+            "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
+        )
+
+        self.logger.info("Successfully initialized")
+
+    def load_config(self, init=False):
+        """Load the global configuration"""
+        # Fetch config
+        self.logger.info("Loading global configuration")
+        self.logger.debug("Fetching configuration")
+        self.config = self.files.get_config()
+
+        # Model config
+        self.ai_token = self.config.get("global", {}).get("token")
+        if not self.ai_token or self.ai_token == "CHANGE_ME":
+            self.logger.error(
+                "AI token not set; please set it in the configuration file (store/config/JerryGemini.yaml)"
+            )
+            return
+        self.ai_model = (
+            self.config.get("global", {}).get("ai", {}).get("model", "gemini-1.5-flash")
+        )
+        self.ai_top_p = self.config.get("global", {}).get("ai", {}).get("top_p", 0.95)
+        self.ai_top_k = self.config.get("global", {}).get("ai", {}).get("top_k", 40)
+        self.ai_temperature = (
+            self.config.get("global", {}).get("ai", {}).get("temperature", 1.0)
+        )
+        
+        # Discord Config
+        self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
+
+        # Configure model
+        self.logger.info("Configuring model")
+        gemini.configure(api_key=self.ai_token)
         self.model = gemini.GenerativeModel(
-            "gemini-1.5-flash",
+            self.ai_model,
             generation_config=gemini.types.GenerationConfig(
-                top_p=0.95,
-                top_k=40,
-                temperature=1.0,
+                top_p=self.ai_top_p,
+                top_k=self.ai_top_k,
+                temperature=self.ai_temperature,
             ),
             safety_settings={
                 "HARASSMENT": "BLOCK_NONE",
@@ -118,140 +170,338 @@ class JerryGemini(commands.Cog):
                 "DANGEROUS": "BLOCK_NONE",
             },
         )
-        self.bot.shell.add_command(
-            "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
-        )
 
-        self.channel_id = self.bot.gemini_channel
+        # Load instances
+        self.logger.info("Loading instances")
+        for instance in self.config.get("instances", []):
+            channel = instance.get("channel")
+            if not channel:
+                self.logger.error("Channel ID not set in instance configuration")
+                continue
+            self.instances[channel] = JerryGeminiInstance(
+                self, channel, self.config, instance
+            )
 
-        self.hide_seek_jobs = []
-
-        self.gemini_channels = {}
-
-        self.logger = logging.getLogger("jerry.gemini")
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        self.logger.info("Ready")
-
-        # Remove cached files from /store/images
-        self.logger.info("Clearing cache")
-        os.system("rm -rf ./store/cache/gemini/*")
-        self.logger.info("Cache cleared")
+        self.logger.info("Global configuration loaded")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.channel.id != self.channel_id:  # TODO: Make this a config variable
-            return
-
+        """Handle messages for JerryGemini"""
         if message.author == self.bot.user:
-            # Comment out to allow Jerry to talk to himself
             return
 
-            # await asyncio.sleep(5) # Prevent rate limiting during self-chat
+        # Check if the message is in a JerryGemini channel
+        if message.channel.id in self.instances:
+            instance = self.instances[message.channel.id]
 
-        # Typing indicator
-        await message.channel.typing()
+            # Pass to corresponding instance
+            await instance.handle(message)
+            
+    # Hide and Seek
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle reactions for JerryGemini"""
+        
+        # Check if reaction is from Jerry
+        if payload.user_id == self.bot.user.id:
+            return
+        
+        # Check that there are active hide and seek jobs
+        if len(self.hide_seek_jobs) == 0:
+            return
+        
+        # Check if the reaction is the hide and seek emoji
+        if payload.emoji.name != "🔍":
+            return
+        
+        # Check if the message is in a hide and seek job
+        for job in self.hide_seek_jobs:
+            if job["message"].id == payload.message_id:
+                # Get the instance
+                instance = self.instances[job["instance_id"]]
+                
+                # Forward the message to the instance
+                await instance._hide_seek_found(payload, job)
+                
+                # Remove the job
+                self.hide_seek_jobs.remove(job)
+    # Constants
+    DEFUALT_CONFIG = """# Configuration for JerryGemini
+global:
+  # Google Generative AI API Token
+  token: "CHANGE_ME"
 
-        self.logger.debug(f"Message received: {message.content}")
+  # Google Generative AI Model Config
+  ai:
+    model: gemini-1.5-flash
+    top_p: 0.95
+    model_top_k: 40
+    model_temperature: 1.0
 
-        if not hasattr(self, "chat") or message.content.lower() == "~reset":
-            self.logger.debug("Chat not initialized, initializing...")
-            await self._new_chat()
-            if message.content.lower() == "~reset":
-                await self._new_chat()
-                embed = discord.Embed(
-                    title="Chat Reset",
-                    description="The chat has been reset; Jerry has forgotten everything :(",
-                    color=discord.Color.green(),
-                )
-                embed.set_footer(text="Powered by Jerry Bot")
-                embed.set_author(
-                    name="Conversation Agent",
-                )
-                await message.channel.send(embed=embed)
-                return
+instances:
+  - channel: change_to_channel_id
+    addons:
+      - hide-seek
+      - files
+"""
 
-        if message.content.lower().startswith("~prompt "):
-            message.content = "~prompt ".join(message.content.split(" ")[1:])
-            promptDebug = True
+    NAME = "Jerry"
+    PROMPT = f"""You are {NAME}, an intellegent experimental octopus. you are chatting in a discord channel.
+
+Your name is {NAME}, you are displayed and characterized as a red octopus, your emoji and avatar is <:$jerry-emoji:> if anyone asks.
+
+The user id of the member who sent the message is included in the request, feel free to use an @mention in place of their name. Mentions are formed like this: <@user id>. 
+
+You are here to be helpful as well as entertain others with your intellegence. You are currently in a discord channel. You are talking to memebers if the server. """
+
+    COMMAND_PREFIX = "%^&"
+    COMMAND_SUFFIX = "&^%"
+    COMMANDS_INTRO = (
+        """To interact with the chat, you may use the following commands:"""
+    )
+    COMMANDS = {
+        "send": "Respond with a message",
+        "reset": "Reset/reinitialize the chat",
+        "hide-seek": "Facilitate a hide and seek game. You will hide an emoji in a random message in a random channel (automaticly determined by the system). DO NOT USE UNLESS REQUESTED (you may only suggest it when appropriate). When using the command the system will alert you when the game is ready.",
+        "dm": "Send a direct message to the user. Useful for sending private information. Hint: emojis are not supported in DMs. Be sure to also send the message in the regular chat.",
+        "sticker": "Send a sticker from discord's sticker collection. Use the sticker id as the argument. DO NOT GUESS STICKER IDS.",
+        "reaction": "React to the message sent by the user. Use the emoji as the argument. DO NOT OVERUSE. Be sure to also send the message the normal way (Unless you want to and the user sent a reaction). Multiple reactions can be added by using multiple commands.",
+    }
+    COMMANDS_DEFUALT = ["send", "reset","sticker","reaction"]
+    COMMANDS_DIRECTIONS = f"""To use a command, type the command prefix followed by the command name. For example, "{COMMAND_PREFIX}send{COMMAND_SUFFIX} Let's play!{COMMAND_PREFIX}hide-seek{COMMAND_SUFFIX}" This will send the message "Let's play!" and start a hide and seek game. Multiple commands can be used in a single response. """
+
+    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI.
+Commands:
+    - reset: Reset the chat
+    - hide-seek: Start a hide and seek game
+    """
+
+    async def generate_prompt(self, addons: list = [], emoji: str = None):
+        """Generate a prompt for the chat"""
+        prompt = self.PROMPT
+        
+        # Emoji
+        if emoji:
+            prompt = prompt.replace("<:$jerry-emoji:>", emoji)
         else:
-            promptDebug = False
+            prompt = prompt.replace("<:$jerry-emoji:>", self.emoji_default)
 
-        # Send the message to the model
+        addons.extend(self.COMMANDS_DEFUALT)
+        prompt += f"\n\n{self.COMMANDS_INTRO}"
+        for command, description in self.COMMANDS.items():
+            if command in addons:
+                prompt += f"\n{self.COMMAND_PREFIX}{command}{self.COMMAND_SUFFIX} - {description}"
+        prompt += f"\n{self.COMMANDS_DIRECTIONS}"
+
+        return prompt
+
+
+class JerryGeminiInstance:
+    def __init__(
+        self,
+        core: JerryGemini,
+        channel: int,
+        global_config: dict,
+        instance_config: dict,
+    ):
+        self.core = core
+        self.channel_id = channel
+        self.global_config = global_config
+        self.instance_config = instance_config
+        self.chat = None
+        self.hs_logger = logging.getLogger(f"jerry.gemini.{channel}.hide_seek")
+        self.logger = logging.getLogger(f"jerry.gemini.{channel}")
+
+        self.logger.info(f"Initializing instance for channel {channel}")
+
+        # Check for addons
+        self.addons = self.instance_config.get("addons", [])
+        self.logger.debug(f"Addons: {self.addons}")
+
+        self.logger.info("Successfully initialized")
+
+    async def start_chat(self):
+        """Initialize the chat"""
+        # Initialize the chat model
+        self.logger.info("(Re)Starting chat")
+        self.chat = self.core.model.start_chat()
+        
+        # Update the channel description
         try:
-            message_prompt = await self._create_prompt(message)
-            message_embeds = await self._handle_embed(message)
-
-            message_send = message_prompt
-
-            # Check for replies
-            if message.reference:
-                reply = await message.channel.fetch_message(
-                    message.reference.message_id
-                )
-                self.logger.debug(
-                    f"Reply detected: {message.reference.resolved.content}"
-                )
-                message_send = f'\n\nIn reply to: {reply.author.display_name}, who said: \n"""{reply.content}"""'
-                if reply.embeds and len(reply.embeds) > 0:
-                    message_send += (
-                        f"\nReply has Embeded Content:\n```\n{reply.embeds}\n```"
-                    )
-
-            message_send += f'\n\n{"In response " if message.reference else ""} {message.author.display_name} said: \n"""{message.content}"""'
-            if message_embeds:
-                message_send += f"\nEmbeded Content:\n```\n{message_embeds}\n```"
-
-            # Read memory
-            try:
-                memory = await self._load_memory()
-                message_send += f"\n\nMemory:\n```\n{memory}\n```"
-            except FileNotFoundError:
-                self.logger.error("Memory file not found")
-                pass
-            except Exception as e:
-                self.logger.error(f"Error reading memory: {e}")
-                pass
-
-            processed_attachments = []
-            if message.attachments:
-                # Check if there is an attachment
-                message_send += f"\n\nAttachment: {message.attachments[0].filename}"
-                processed_attachments = await self._handle_attachment(message)
-                if processed_attachments and len(processed_attachments) > 0:
-                    self.logger.debug(f"Processed attachments: {processed_attachments}")
-
-                    # Insert the message into the list
-                    processed_attachments.insert(0, message_send)
-
-                    response = await self.model.generate_content_async(
-                        processed_attachments,
-                    )
-            if (not message.attachments) or (
-                not (processed_attachments and len(processed_attachments) > 0)
-            ):
-                if promptDebug:
-                    await message.channel.send(f"## Prompt\n{message_send}")
-                    return
-
-                self.logger.debug(f"Sending message to gemini: {message.content}")
-                response = await self.chat.send_message_async(
-                    message_send,
-                )
-            # response = await self.model.generate_content_async(
-            #     message.content, generation_config=self.model_config,
-            # )
-        except gemini_selling.ResourceExhausted:
-            await message.channel.send(
-                "I'm tired, let me rest for a bit. (Resource exhausted)"
+            channel:discord.TextChannel = self.core.bot.get_channel(self.channel_id)
+            await channel.edit(
+                topic=self.core.CHANNEL_DESCRIPTION,
             )
-            self.logger.warning("Resource exhausted")
-            return
+        except discord.Forbidden:
+            self.logger.error("Failed to update channel description (Missing permissions)")
+        
+        return
 
-        # Process the response
-        await self._process_response(response.text, message)
+    async def handle_embed(self, embed: discord.Embed) -> str:
+        """Process an embed"""
+        embed_str = ""
+        if embed.author:
+            embed_str += f"Author: '{embed.author.name}'\n"
+        embed_str += f"# '{embed.title}'\n'{embed.description}'\n"
+        for field in embed.fields:
+            embed_str += f"## '{field.name}'\n'{field.value}'\n"
+        if embed.footer:
+            embed_str += f"### '{embed.footer.text}'"
+        return embed_str
 
+    async def generate_prompt(self, message: discord.Message):
+        """Generate the prompt for the chat"""
+        prompt = await self.core.generate_prompt(addons=self.addons, emoji=self.instance_config.get("personal_emoji"))
+        
+        # Inject additional information
+        if self.instance_config.get("extra_prompt"):
+            prompt += f"\n\n{self.instance_config.get('extra_prompt')}"
+
+        # Handle reply
+        if message.reference:
+            # Fetch the reply
+            reply = await message.channel.fetch_message(message.reference.message_id)
+            if reply:
+                prompt += f'\n\nIn reply to: {reply.author.display_name} (ID: {reply.author.id}), who said: \n"""{reply.content}"""'
+                if reply.embeds:
+                    prompt += f"Message embeds:\n"
+                    for embed in reply.embeds:
+                        prompt += f"\n{await self.handle_embed(embed)}"
+
+        # Add message content
+        prompt += f'\n\n{"In response " if message.reference else ""}{message.author.display_name} (ID: {message.author.id}) said: \n"""{message.content}"""'
+        if message.stickers:
+            for sticker in message.stickers:
+                prompt += f"\nSticker: {sticker.name} (ID: {sticker.id})"
+
+        # Handle embeds
+        if message.embeds:
+            prompt += f"Message embeds:\n"
+            for embed in message.embeds:
+                prompt += f"\n{await self.handle_embed(embed)}"
+
+        return prompt
+
+    async def handle_attachments(self, message: discord.Message, prompt: str):
+        attachments = []
+        for attachment in message.attachments:
+            attachments.append((attachment, False))
+        for embed in message.embeds:
+            if embed.image:
+                attachments.append((embed.image, True))
+            if embed.thumbnail:
+                attachments.append((embed.thumbnail, True))
+        
+        if len(attachments) == 0:
+            return prompt
+        
+        if not "files" in self.addons:
+            await message.channel.send(
+                embed=discord.Embed(
+                    title="Attachments Disabled",
+                    description="Attachments are not enabled for this channel and will not be processed.",
+                    color=discord.Color.red(),
+                )
+            )
+            return prompt
+
+        processed_attachments = [prompt]
+        for attachment in attachments:
+            attachment_processed = await self._handle_attachment(*attachment)
+            if attachment_processed[1]:
+                processed_attachments.append(attachment_processed[1])
+            else:
+                message.channel.send(
+                    embed=discord.Embed(
+                        title="Attachment Error",
+                        description=f"Error processing attachment {attachment.filename}: {attachment_processed[0]}",
+                        color=discord.Color.red(),
+                    )
+                )
+
+        return processed_attachments
+
+    async def _handle_attachment(self, attachment: discord.Attachment, image: bool = False):
+        """Handle an attachment"""
+        # Determine file name and location
+        directory = self.core.files.get_cache_dir()
+        file_name = os.path.join(directory, attachment.filename if attachment.filename else "attachment")
+
+        # Download the file (overwrite if it exists)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(attachment.url) as resp:
+                with open(file_name, "wb") as f:
+                    f.write(await resp.read())
+
+        # Determine the file type
+        mime_type, _ = mimetypes.guess_type(file_name)
+        if mime_type is None:
+            file_type = "unknown"
+            self.logger.error(f"File type not found for {file_name}")
+            return ("Unsupported file type", None)
+        
+        if mime_type in [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp",
+            "image/heic",
+        ] or image:
+            file_type = "image"
+            try:
+                # Process the image
+                image = Image.open(file_name)
+                return (None, image)
+            except:
+                self.logger.error(f"Error processing image: {file_name}")
+                return ("Error processing image", None)
+
+        # Check if the file is text
+        if mime_type.split("/")[0] == "text":
+            file_type = "text"
+
+        # Try to read the file as text
+        try:
+            with open(file_name, "r") as f:
+                text = f.read()
+            return (None, text)
+        except UnicodeDecodeError:
+            self.logger.error(f"Unsupported file type: {mime_type}")
+            return ("Unsupported file type", None)
+        
+    async def process_response(self, response: str, message: discord.Message):
+        # Parse commands
+        response = response.strip()
+        commands = response.split(self.core.COMMAND_PREFIX)
+        if len(commands) < 1:
+            self.logger.warning("No commands found in response")
+            commands = [response]
+        self.logger.debug(f"Commands: {commands}")
+        for command in commands:
+            self.logger.debug(f"Command: {command}")
+            # Remove leading/trailing whitespace
+            command = command.strip()
+
+            # Check for suffix
+            if self.core.COMMAND_SUFFIX in command:
+                action = command.split(self.core.COMMAND_SUFFIX)[0]
+                if action == "" or action == None:
+                    action = "send"
+                if action not in self.core.COMMANDS:
+                    self.logger.warning(f"Invalid command: {command}")
+                    continue
+                try:
+                    args = command.split(self.core.COMMAND_SUFFIX)[1]
+                except IndexError:
+                    args = None
+            else:
+                action = "send"
+                args = command
+                
+            self.logger.debug(f"Action: {action} | Args: {args}")
+                
+            await self.handle_action(action, args, message)
+    
     def _split_message(
         self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]
     ):
@@ -281,498 +531,300 @@ class JerryGemini(commands.Cog):
                 processed_chunks.append(current_text)
 
             return processed_chunks
-
-    async def _process_response(
-        self,
-        response: str,
-        message: discord.Message = None,
-        channel: discord.TextChannel = None,
-    ):
-        self.logger.debug(f"Response received: {response}")
-        if channel is None:
-            channel = message.channel
-
-        # BUg: remove tool_code from beginning of response
-        response = response.replace("tool_code", "")
-        if response.startswith("```"):
-            response = response.split("```")[1]
-        if response.endswith("```"):
-            r_split = response.rsplit("```")
-            response = r_split[len(r_split) - 2]
-
-        commands = response.split("^*&")
-        self.logger.debug(f"Commands: {commands}")
-        for command in commands:
-            # Remove leading/trailing whitespace
-            command = command.strip()
-
-            # Check for actions
-            action = command.split(" ")[0]
-            if action.startswith("send"):
-                message_text = command.split(" ", 1)[1]
-                self.logger.debug(f"Sending message: {message_text}")
-
-                # Message length check
-                if len(message_text) > 2000:
-                    # Split the message into words
-                    chunks = self._split_message(message_text)
-                    for chunk in chunks:
-                        await channel.send(chunk)
-
-                    continue
-
-                # Send Messsage
-                await channel.send(message_text)
-                continue
-
-            if action.startswith("reset"):
-                self.logger.info("Resetting chat")
-                await self._new_chat()
-                embed = discord.Embed(
+            
+    async def handle_action(self, action: str, args: str, message: discord.Message):
+        if action == "send":
+            if len(args) == 0 or args is None:
+                self.logger.warning("No message to send")
+                return
+            if len(args) > 2000:
+                chunks = self._split_message(args)
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+                return
+            await message.channel.send(args)
+        elif action == "sticker":
+            if len(args) == 0 or args is None:
+                self.logger.warning("No sticker ID provided")
+                return
+            try:
+                sticker_id = int(args.strip())
+            except ValueError:
+                self.logger.warning("Invalid sticker ID")
+                return
+            sticker = await self.core.bot.fetch_sticker(sticker_id)
+            if not sticker:
+                self.logger.warning("Sticker not found")
+                return
+            await message.channel.send(stickers=[sticker])
+            
+        elif action == "reaction":
+            if len(args) == 0 or args is None:
+                self.logger.warning("No reaction provided")
+                return
+            try:
+                await message.add_reaction(args.strip())
+            except discord.errors.HTTPException:
+                self.logger.warning("Invalid reaction")
+            
+        elif action == "reset":
+            await self.start_chat()
+            await message.channel.send(
+                embed=discord.Embed(
                     title="Chat Reset",
-                    description="The chat has been reset; Jerry has forgotten everything :(",
+                    description=f"The chat has been reset; {self.core.NAME} has forgotten everything :(",
                     color=discord.Color.green(),
                 )
-                embed.set_footer(text="Powered by Jerry Bot")
-                embed.set_author(
-                    name="Conversation Agent",
-                )
-                await channel.send(embed=embed)
-                continue
-
-            if action.startswith("save"):
-                self.logger.debug(f"Saving text: {command}")
-                text = command.split(" ", 1)[1]
-                # await self._add_memory(text)
-                await self._optimize_memory(
-                    f"Add the following to its respective category or header: '{text}'"
-                )
-                continue
-
-            if action.startswith("forget"):
-                self.logger.debug(f"Forgetting text: {command}")
-                text_to_forget = command.split(" ", 1)[1]
-                prompt = f"remove the following from memory: '{text_to_forget}'"
-                await self._optimize_memory(prompt)
-                continue
-
-            if action.startswith("hide-seek"):
-                self.logger.debug(f"Playing hide and seek")
-                await self._hide_seek(message)
-                self.hide_seek_from_gemini = True
-
-                # Tell the user to find the message via jerry
-                message_send = f"{await self._create_prompt(message)}\n\nHide and Seek initiated. Tell the user to find the message with the 🔍 reaction. Tell them that it is in a random channel, on a random message sent witin the last 24 hours. Don't forget to use ^*&send when saying so. You will be notified by the system when the emoji is found. Tell the user so, so they wont try to cheat and trick you. The hidden reaction is in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
-                response = await self.chat.send_message_async(
-                    message_send,
-                )
-
-                await self._process_response(response.text, message)
-                continue
-
-            # If no action is found, send the message
-            if command != "":
-                self.logger.debug(f"Sending message: {command}")
-                # Message length check
-                message_text = command
-
-                if len(message_text) > 2000:
-                    # Split the message into words
-                    chunks = self._split_message(message_text)
+            )
+        elif action == "hide-seek":
+            if "hide-seek" in self.addons:
+                await self._hide_seek_init(message)
+        elif action == "dm":
+            if "dm" in self.addons:
+                if len(args) == 0 or args is None:
+                    self.logger.warning("No message to send")
+                    return
+                if len(args) > 2000:
+                    chunks = self._split_message(args)
                     for chunk in chunks:
-                        await channel.send(chunk)
-
-                # Send Messsage
-                await channel.send(message_text)
-                continue
-
-    async def _new_chat(self):
-        self.chat = self.model.start_chat()
-        return
-
-    async def _create_prompt(self, message: discord.Message):
-        message_prompt = f"""You are Jerry, an intellegent experimental octopus. you are chatting in a discord channel.
-
-Your name is Jerry, you are displayed and characterized as a red octopus, your emoji and avatar is <:jerry:1284336293811327080> if anyone asks
-
-The user id of the member who sent the message is included in the request, feel free to use an @mention in place of their name. Mentions are formed like this: <@user id>. 
-
-You are here to be helpful as well as entertain others with you intellegence. You are currently in a discord channel. You are talking to a user. They are called {message.author.display_name} and can be mentioned as {message.author.mention}. 
-
-To interact with the chat, use the following commands:
-^*&send <message> - Respond with a message
-^*&reset - Reset the chat
-^*&save <text> - Remember a piece of text forever; use this to remember important information such as names, dates, or other details that may be relevant to the conversation in the future. You can also use it to remember names & ids of users, etc. Memory will be included in this prompt.
-^*&forget <text> - Forget a piece of text; only use this when asked to forget something. This is powered by ai so it does not need to be perfect, but try to be as accurate as possible, as it may remove additional information, if it is similar to the text you want to forget. Memory will be included in this prompt.
-^*&hide-seek - Play hide and seek with the user. Do this only upon request, although you can suggest it. The user will have to find a hidden emoji in a random message in a random channel. You will be notified when (1) the system has hidden the emoji and (2) when the user has found it. You will then have to congratulate the user; do not until the system reports that the user has found the emoji. To initiate the game, use the ^*&hide-seek command. Memory will be included in this prompt.
-"""
-
-        return message_prompt
-
-    async def _handle_attachment(self, message: discord.Message):
-        processed_attachments = []
-        for attachment in message.attachments:
-            try:
-                # Download the image
-                self.logger.debug(
-                    f"Attachment found: {attachment.filename}. Downloading..."
-                )
-                fileName = f"./store/cache/gemini/{attachment.filename}"
-
-                os.makedirs(
-                    os.path.dirname(fileName), exist_ok=True
-                )  # Create the directory if it doesn't exist
-
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(attachment.url) as resp:
-                        # Save the image
-                        with open(fileName, "wb") as f:
-                            f.write(await resp.read())
-                self.logger.debug(f"File downloaded: {fileName}")
-
-            except Exception as e:
-                self.logger.error(
-                    f"Error downloading attachment {attachment.filename}: {e}"
-                )
-                message.reply(
-                    f"Error downloading attachment {attachment.filename}: {e}"
-                )
-                continue
-
-            # Determine the file type
-            try:
-                mime_type, _ = mimetypes.guess_type(fileName)
-                if mime_type is None:
-                    raise Exception(
-                        "File is missing a file extension or has an unsupported file type"
-                    )
-                self.logger.debug(f"File type: {mime_type}")
-            except Exception as e:
-                self.logger.error(f"Error determining file type of {fileName}: {e}")
-                message.reply(f"Error determining file type of {fileName}: {e}")
-                continue
-
-            try:
-                # Process the image/attachment
-                if mime_type in [
-                    "image/png",
-                    "image/jpeg",
-                    "image/gif",
-                    "image/webp",
-                    "image/heic",
-                ]:
-                    # Process the image
-                    image = Image.open(fileName)
-                    image = image.convert("RGB")
-                    self.logger.debug(f"Image processed: {fileName} ({mime_type})")
-
-                    processed_attachments.append(image)
-
-                elif mime_type.split("/")[0] == "text":
-                    # Process the text file
-                    with open(fileName, "r") as f:
-                        text = f.read()
-                        self.logger.debug(f"Text file processed: {fileName}")
-                        processed_attachments.append(text)
-
-                else:
-                    # See if the file is in plain text
-                    try:
-                        with open(fileName, "r") as f:
-                            text = f.read()
-                            self.logger.debug(
-                                f"Text file processed (unsupported type): {fileName}"
-                            )
-                            processed_attachments.append(text)
-                    except UnicodeDecodeError:
-                        self.logger.debug(f"Unsupported file type: {mime_type}")
-                        await message.reply(
-                            f"You sent an unsupported file type! ({mime_type})"
-                        )
-                        continue
-
-            except Exception as e:
-                self.logger.error(
-                    f"Error processing attachment {attachment.filename}: {e}"
-                )
-                message.reply(f"Error processing attachment {attachment.filename}: {e}")
-                continue
-
-        return processed_attachments
-
-    async def _handle_embed(self, message: discord.Message) -> str:
-        # if not message.embeds:
-        #     return None
-        # self.logger.debug(f"{len(message.embeds)} embeds found")
-        # embeds_str = ""
-        # for embed in message.embeds:
-        #     embeds_str += f"Embed Title: {embed.title}\nEmbed Description: {embed.description}\nEmbed Fields:\n"
-        #     for field in embed.fields:
-        #         embeds_str += f"Field Name: {field.name}\nField Value: {field.value}\n"
-        #     embeds_str += f"Embed Footer: {embed.footer.text}\nEmbed Author: {embed.author.name}\n"
-        # self.logger.debug(f"Processed embeds: \n{embeds_str}")
-        # return embeds_str
-        if not message.embeds:
-            return None
-
-        self.logger.debug(f"{len(message.embeds)} embeds found")
-        embeds_str = ""
-        for embed in message.embeds:
-            embeds_str += f"Author: {embed.author.name}\n"
-            embeds_str += f"# {embed.title}\n{embed.description}\n"
-            for field in embed.fields:
-                embeds_str += f"## {field.name}\n{field.value}\n"
-            embeds_str += f"# {embed.footer.text}\n{embed.author.name}\n"
-
-        self.logger.debug(f"Processed embeds: \n{embeds_str}")
-        return embeds_str
-
-    async def _add_memory(self, text: str):
-        with open("store/gemini/memory.txt", "a") as f:
-            f.write(f"{text}\n\n")
-            return True
-
-    async def _overwrite_memory(self, text: str):
-        # Backup the memory
-        with open("store/gemini/memory.txt", "r") as f:
-            memory = f.read()
-            memory_hash = hashlib.md5(memory.encode()).hexdigest()
-            self.logger.debug(f"Memory hash: {memory_hash}")
-            with open(f"store/memory_backup/{memory_hash}.txt", "w") as f:
-                f.write(memory)
-
-        # Overwrite the memory
-        with open("store/gemini/memory.txt", "w") as f:
-            f.write(f"{text}")
-            return True
-
-    async def _load_memory(self):
-        # Check if the memory file and corresponding directory exists
-        if not os.path.exists("store/gemini"):
-            os.makedirs("store/gemini")
-        if not os.path.exists("store/gemini/memory.txt"):
-            with open("store/gemini/memory.txt", "w") as f:
-                f.write("")
-            return ""
-
-        with open("store/gemini/memory.txt", "r") as f:
-            return f.read()
-
-    async def _optimize_memory(self, additional_prompt: str = None):
-        memory = await self._load_memory()
-
-        prompt = (
-            "Rewrite the following text file, removing any duplicate or redundant entries. Each entry should be on a new line and separated by at least 2 new lines. Do not make any major changes, keep the file as is but with format.If an item begins with ^*&send, remove it. You may merge entries, but be very careful to not merge unrelated entries. If you are unsure, leave it as is. You may add categories or headers to the data, but do not remove any data. When working with user ids (<@user id>), you may merge data with the same user id, but be careful to not merge unrelated data. If you are unsure, leave it as is. If you are unable to optimize the data, leave it as is. "
-            + (
-                f"In addition, you must {additional_prompt}."
-                if additional_prompt
-                else ""
-            )
-            + "\n```\n"
-            + memory
-            + "\n```"
-        )
-
-        response = await self.model.generate_content_async(
-            prompt,
-        )
-
-        new_memory = response.text
-        await self._overwrite_memory(new_memory)
-        return True
-
-    async def _hide_seek(
-        self,
-        message: discord.Message = None,
-        guild: discord.Guild = None,
-    ):
-        """Play hide and seek with the user; place a reaction on a random message in the server"""
-        self.logger.debug("Playing hide and seek")
-        if message:
-            guild = message.guild
-        # Get all channels
-        for i in range(100):
-            channels = guild.text_channels
-            random_channel = random.choice(channels)  # Select a random channel
-            self.logger.debug(f"Random channel selected: {random_channel.name}")
-
-            # Check if @everyone can view the channel
-            if not random_channel.permissions_for(guild.default_role).send_messages:
-                self.logger.debug(
-                    f"Channel {random_channel.name} is not accessible by @everyone"
-                )
-                continue
-            self.logger.debug(
-                f"Channel {random_channel.name} is accessible by @everyone"
-            )
-
-            # Get all messages in the channel within the last 24 hours
-
-            a_day_ago = datetime.datetime.now() - timedelta.Timedelta(days=1)
-            self.logger.debug(f"Searching for messages after {a_day_ago}")
-            messages = [
-                message async for message in random_channel.history(after=a_day_ago)
-            ]
-            if len(messages) == 0:
-                self.logger.debug(f"No recent messages found in {random_channel.name}")
-                continue
-            # Select a random message
-            random_message: discord.Message = random.choice(messages)
-            # Check if message already has a reaction
-            if random_message.reactions:
-                self.logger.debug(
-                    f"Message already has a reaction: {random_message.content}"
-                )
-                continue
-            self.logger.debug(f"Random message selected: {random_message.content}")
-            self.hide_seek_message = random_message
-            break
-
+                        await message.author.send(chunk)
+                    return
+                await message.author.send(args)
         else:
-            self.logger.debug("No suitable message found")
-            raise Exception("No suitable message found after 100 attempts")
-        # Add a reaction to the message
-        await random_message.add_reaction("🔍")
-        self.logger.debug(
-            f"Reaction added to message: {random_message.content} in {random_channel.name}"
-        )
-        return True
+            self.logger.warning(f"Invalid action: {action}")
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        """Handle the hide and seek reaction"""
-        if not hasattr(self, "hide_seek_message"):
-            return
-        if payload.user_id == self.bot.user.id:
-            return
-        if payload.message_id == self.hide_seek_message.id:
-            self.logger.debug("Hide and Seek reaction added")
 
-            await self.hide_seek_message.reply("You found me! 🎉")
-
-            if hasattr(self, "hide_seek_from_gemini"):
-                # Tell jerry to congratulate the user
-                message_send = f"{await self._create_prompt(self.hide_seek_message)}\n\nHide and Seek completed. The user has found the message. Congratulate them! Use the ^*&send command to do so. It was found by {self.bot.get_user(payload.user_id).mention} in the channel {self.hide_seek_message.channel.name} on the message:\n```\n{self.hide_seek_message.content} {'[Image]' if self.hide_seek_message.attachments else ''}\n```."
-
-                self.logger.debug(f"Sending message to gemini: {message_send}")
-
-                response = await self.chat.send_message_async(
-                    message_send,
-                )
-                channel = self.bot.get_channel(self.channel_id)
-
-                await self._process_response(response.text, channel=channel)
-
-                del self.hide_seek_from_gemini
-
-            del self.hide_seek_message
-
-    async def shell_callback(self, command: core.ShellCommand):
-        if command.name == "gemini":
-            sub_command = command.query.split(" ")[0]
-
-            if sub_command == "memory":
-                try:
-                    if command.query.split(" ")[1] == "optimize":
-                        await self._optimize_memory()
-                        memory = await self._load_memory()
-                        await command.log(
-                            f"Memory optimized:\n```\n{memory}```",
-                            "Memory",
-                            msg_type="success",
-                        )
-                        return
-                except IndexError:
-                    pass
-                except Exception as e:
-                    await command.log(
-                        f"Error optimizing memory: {e}", "Memory", msg_type="error"
-                    )
-                    return
-                memory = await self._load_memory()
-                await command.log(f"```\n{memory}```", "Memory")
-                return
-
-            if sub_command == "hide-seek":
-                self.logger.debug("Initiating hide and seek (shell)")
-                guild_id = command.query.split(" ")[1]
-                try:
-                    guild_id_int = int(guild_id)
-                    self.logger.debug(f"Guild ID: {guild_id_int}")
-                except:
-                    await command.log(
-                        "Invalid guild ID; must be an integer",
-                        "Hide-Seek",
-                        msg_type="error",
-                    )
-                    return
-                try:
-                    guild = self.bot.get_guild(guild_id_int)
-                    if guild is None:
-                        await command.log(
-                            "Guild not found; make sure the bot is in the guild",
-                            "Hide-Seek",
-                            msg_type="error",
-                        )
-                    self.logger.debug(f"Guild: {guild.name}")
-                    await self._hide_seek(guild=guild)
-                except Exception as e:
-                    await command.log(
-                        f"Error initiating hide and seek: {e}",
-                        "Hide-Seek",
-                        msg_type="error",
-                    )
-                    return
-                await command.log(
-                    "Hide and Seek initiated", "Hide-Seek", msg_type="success"
-                )
-                return
-
-            await command.log(
-                "Available commands:\n- **memory optimize** - Optimize the memory file\n- **hide-seek** `[guild_id]` - Play hide and seek with the user",
-                "Gemini",
-            )
-            return
-
-    async def cog_status(self):
+    async def handle(self, message: discord.Message):
+        """Process an incoming message"""
         try:
-            self.logger.info("Checking model status")
-            # Check if the model is ready by sending a test message
-            prompt = "Answer the following question with either 'y' or 'n'; only state 'y' or 'n' in your response: Is 23 + 19 equal to 42?"
-            answer = ""
-            try:
-                response = await self.model.generate_content_async(
-                    prompt,
-                )
-                answer = response.text.strip().lower()
-            except gemini_selling.ResourceExhausted:
-                self.logger.error("Model is not ready; resource exhausted")
-                return "Not ready; rate limited"
-            except gemini_selling.PermissionDenied:
-                self.logger.error("Model is not ready; permission denied")
-                return "Not ready; permission denied"
-            except Exception as e:
-                self.logger.error(f"Error testing model: {e}")
-                return f"Not ready; model is throwing error:\n{e}"
-            if answer == "y":
-                self.logger.error("Model is ready, got expected response")
-                return "Ready; model is responding"
-            elif answer == "n":
-                self.logger.error("Model is ready, got incorrect response")
-                return "Ready; model is responding but its math is not mathing"
-            elif len(answer) > 1:
-                self.logger.error(
-                    f"Model is ready, got arbitrary response: {response.text}"
-                )
-                return "Ready; model is responding with an arbitrary response"
-            else:
-                self.logger.error("Model is not ready, got no response")
-                return "Failed; model said nothing upon request"
+            self.logger.debug(f"Message received: {message.content}")
+            # Typing indicator
+            async with message.channel.typing():
+                # Check if the chat is initialized
+                if not self.chat:
+                    self.logger.debug("Chat not initialized, initializing...")
+                    await self.start_chat()
+
+                # Generate the prompt
+                self.logger.debug("Generating prompt")
+                prompt = await self.generate_prompt(message)
+
+                # Handle Attachments
+                self.logger.debug("Handling attachments")
+                content = await self.handle_attachments(message, prompt)
+
+                # Send the message to the model
+                self.logger.debug(f"Sending message to gemini:\n{content}")
+                try:
+                    response = await self.chat.send_message_async(content)
+                except gemini_selling.ResourceExhausted:
+                    await message.channel.send(
+                        embed=discord.Embed(
+                            title="Rate Limit",
+                            description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
+                        ).set_footer(text="Resource Exhausted")
+                    )
+                    self.logger.warning("Resource exhausted")
+                    return
+                except gemini_selling.TooManyRequests:
+                    await message.channel.send(
+                        embed=discord.Embed(
+                            title="Rate Limit",
+                            description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
+                        ).set_footer(text="Too Many Requests")
+                    )
+                    self.logger.warning("Rate limited")
+                    return
+                self.logger.debug(f"Response received: {response.text}")
+
+                # Process the response
+                self.logger.debug("Processing response")
+                await self.process_response(response.text, message)
 
         except Exception as e:
-            self.logger.error(f"Error testing model: {e}")
-            return f"Status check failed: {e}"
+            self.logger.error(f"Error handling message: {e}")
+            await message.channel.send(
+                embed=discord.Embed(
+                    title="Error Encountered",
+                    description=f"An error occurred while processing your message.",
+                    color=discord.Color.red(),
+                )
+            )
+            await self.core.bot.shell.log(
+                f"Failed to process incoming message: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                title="Message Proccess Error",
+                cog="JerryGemini",
+                msg_type="error",
+            )
+            
+    async def _model_system_request(self, request: str, message: discord.Message):
+        """Send a system message to the model"""
+        # Format the request
+        prompt = await self.core.generate_prompt()
+        
+        # Append the request
+        prompt += f"\n\nConversation Agent Alert: \n```\n{request}\n```"
+        
+        # Send the message to the model
+        response = await self.chat.send_message_async(prompt)
+        
+        # Process the response
+        await self.process_response(response.text, message)
 
+    # Hide and seek
+    async def _hide_seek_init(self, message: discord.Message):
+        """Initiate a hide and seek game"""
+        try:
+            self.hs_logger.info("Initiating hide and seek game")
+            edit = await message.channel.send(
+                embed=discord.Embed(
+                    title="Hide and Seek",
+                    description="Starting a hide and seek game...",
+                    color=discord.Color.yellow(),
+                )
+            )
+            
+            # Fetch a message to hide the emoji
+            self.hide_seek_message = await self._hide_seek_find(message)
+            
+            # Add the emoji
+            try:
+                await self.hide_seek_message.add_reaction("🔍")
+            except discord.errors.Forbidden:
+                self.hs_logger.error("Failed to add reaction")
+                await edit.edit(
+                    embed=discord.Embed(
+                        title="Hide and Seek",
+                        description="An error occurred while starting the hide and seek game.",
+                        color=discord.Color.red(),
+                    )
+                )
+                return
+            
+            # Register the job
+            information = {
+                "instance_id": self.channel_id,
+                "message": self.hide_seek_message,
+                "request": message,
+                "user": message.author,
+                "notification": edit,
+            }
+            self.core.hide_seek_jobs.append(information)
+            
+            # Notify the user
+            await edit.edit(
+                embed=discord.Embed(
+                    title="Hide and Seek",
+                    description="Hide and seek started!",
+                    color=discord.Color.blue(),
+                )
+            )
+            
+            # Notify the model
+            request = "A hide and seek game has been initiated. The user needs to find a 🔍 reaction placed on a random message (Sent in the past 24 hours) in a random channel on this server. This system will alert when the user has found the reaction, so the user cannot cheat. Explain this to the user."
+            await self._model_system_request(request, message)
+            
+        except Exception as e:
+            try:
+                await edit.edit(
+                    embed=discord.Embed(
+                        title="Hide and Seek",
+                        description="Whoops! Something went wrong while starting the hide and seek game! :(",
+                        color=discord.Color.red(),
+                    )
+                )
+            except:
+                self.hs_logger.error("Failed to edit message")
+            self.hs_logger.error(f"Error initiating hide and seek game: {e}")
+            try:
+                await self._model_system_request(f"An error occurred while starting the hide and seek game: {e}", message)
+            except:
+                self.hs_logger.error("Failed to notify model")
+        
+    async def _hide_seek_found(self, payload: discord.RawReactionActionEvent, job: dict):
+        """Handle a found hide and seek emoji"""
+        request_message: discord.Message = job["request"]
+        hidden_message: discord.Message = job["message"]
+        notification: discord.Message = job["notification"]
+        user: discord.User = job["user"]
+        
+        # Clear the reaction
+        try:
+            await hidden_message.clear_reaction("🔍")
+        except discord.errors.Forbidden:
+            self.hs_logger.warning("Failed to clear reaction; missing permissions")
+            
+        # Check mark!
+        try:
+            await hidden_message.add_reaction("✅")
+            
+            await asyncio.sleep(2)  
+            
+            await hidden_message.remove_reaction("✅", self.core.bot.user)
+        except discord.errors.Forbidden:
+            self.hs_logger.warning("Failed to add reaction; missing permissions")
+        
+            
+        # Edit the notification
+        await notification.edit(
+            embed=discord.Embed(
+                title="Hide and Seek",
+                description=f"Hide and seek completed! {user.mention} found the emoji!",
+                color=discord.Color.green(),
+            )
+        )
+            
+        # Notify the model
+        request = f"{user.mention} found the emoji in the hide and seek game. The emoji was hidden in a message sent by {hidden_message.author.display_name} in channel {hidden_message.channel.name}. Congradulate {user.display_name} (ID: {user.id}) on finding the emoji."
+        await self._model_system_request(request, request_message)
+        
+    async def _hide_seek_find(self, message: discord.Message) -> discord.Message:
+        """Find the message to hide the emoji"""
+        guild = message.guild
+        
+        if not guild:
+            return None
+        
+        # Loop until a message is found
+        self.hs_logger.info("Finding message to hide emoji")
+        for i in range(50):
+            # Fetch a random channel
+            channel = random.choice(guild.text_channels)
+            
+            self.hs_logger.debug(f"Checking channel {channel.name}")
+            
+            # Determine channel permissions
+            # Criteria: @everyone can send messages
+            if not channel.permissions_for(guild.default_role).send_messages:
+                self.hs_logger.debug("Channel does not allow @everyone to send messages")
+                continue
+            
+            
+            # Fetch a random message
+            a_day_ago = datetime.datetime.now() - datetime.timedelta(days=1)
+            try:
+                messages = [
+                    message async for message in channel.history(after=a_day_ago)
+                ]
+                if len(messages) == 0:
+                    self.hs_logger.debug("No recent messages found in channel")
+                    continue
+                message = random.choice(messages)
+            except discord.errors.Forbidden:
+                self.hs_logger.debug("Channel does not allow Jerry to read messages")
+                continue
+            except discord.errors.HTTPException:
+                continue
+            
+            # Ensure message has no reactions
+            if len(message.reactions) > 0:
+                self.hs_logger.debug("Message has reactions; skipping")
+                continue
+            
+            self.hs_logger.info(f"Found message to hide emoji: {message.content} (ID: {message.id}) in channel {channel.name}")
+            return message
+
+        self.hs_logger.error("Failed to find message to hide emoji")
 
 class AutoReplyV2(commands.Cog):
     """
@@ -1415,14 +1467,14 @@ class InformationChannels(commands.Cog):
         )
 
         self.update_task.start()
-        
+
         self.logger = logging.getLogger("jerry.information_channels")
 
     async def check_file(self):
         # return True
 
         contents = self.files.get_config()
-    
+
         if contents is None or not contents.get("guilds", None):
             if contents is None:
                 contents = {}
@@ -1472,9 +1524,7 @@ class InformationChannels(commands.Cog):
                     continue
 
                 # Optimize message entry
-                self.logger.debug(
-                    f"Optimizing messages for {dc_channel.name}"
-                )
+                self.logger.debug(f"Optimizing messages for {dc_channel.name}")
                 for message in channel["messages"]:
                     if message.get("content", None) == None:
                         message["content"] = ""
@@ -1490,7 +1540,9 @@ class InformationChannels(commands.Cog):
 
                 # Check if messages match
                 if dc_channel_as_dict != channel["messages"]:
-                    self.logger.info(f"Messages do not match in {dc_channel.name}, updating...")
+                    self.logger.info(
+                        f"Messages do not match in {dc_channel.name}, updating..."
+                    )
                     await dc_channel.purge(limit=None)
                     for message in channel["messages"]:
                         if len(message.get("embeds", [])) > 1:
