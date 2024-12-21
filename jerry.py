@@ -154,22 +154,23 @@ class JerryGemini(commands.Cog):
         self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
 
         # Configure model
-        self.logger.info("Configuring model")
-        gemini.configure(api_key=self.ai_token)
-        self.model = gemini.GenerativeModel(
-            self.ai_model,
-            generation_config=gemini.types.GenerationConfig(
-                top_p=self.ai_top_p,
-                top_k=self.ai_top_k,
-                temperature=self.ai_temperature,
-            ),
-            safety_settings={
-                "HARASSMENT": "BLOCK_NONE",
-                "HATE": "BLOCK_NONE",
-                "SEXUAL": "BLOCK_NONE",
-                "DANGEROUS": "BLOCK_NONE",
-            },
-        )
+        #! Model config is going to be instance-specific
+        # self.logger.info("Configuring model")
+        # gemini.configure(api_key=self.ai_token)
+        # self.model = gemini.GenerativeModel(
+        #     self.ai_model,
+        #     generation_config=gemini.types.GenerationConfig(
+        #         top_p=self.ai_top_p,
+        #         top_k=self.ai_top_k,
+        #         temperature=self.ai_temperature,
+        #     ),
+        #     safety_settings={
+        #         "HARASSMENT": "BLOCK_NONE",
+        #         "HATE": "BLOCK_NONE",
+        #         "SEXUAL": "BLOCK_NONE",
+        #         "DANGEROUS": "BLOCK_NONE",
+        #     },
+        # )
 
         # Load instances
         self.logger.info("Loading instances")
@@ -319,12 +320,58 @@ class JerryGeminiInstance:
         self.logger.debug(f"Addons: {self.addons}")
 
         self.logger.info("Successfully initialized")
+        
+        # Import the model configuration
+        self.ai_token = self.instance_config.get("ai", {}).get("token", self.core.ai_token)
+        self.ai_model = self.instance_config.get("ai", {}).get("model", self.core.ai_model)
+        self.ai_top_p = self.instance_config.get("ai", {}).get("top_p", self.core.ai_top_p)
+        self.ai_top_k = self.instance_config.get("ai", {}).get("top_k", self.core.ai_top_k)
+        self.ai_temperature = self.instance_config.get("ai", {}).get("temperature", self.core.ai_temperature)
+        
 
     async def start_chat(self):
         """Initialize the chat"""
+        # General prompt
+        prompt = await self.core.generate_prompt(addons=self.addons, emoji=self.instance_config.get("personal_emoji"))
+        
+        # Inject additional information
+        if self.instance_config.get("extra_prompt"):
+            prompt += f"\n\n{self.instance_config.get('extra_prompt')}"
+            
+        self.prompt = prompt
+        
+        # Configure the model
+        self.logger.info("Configuring model")
+        gemini.configure(api_key=self.ai_token)
+        
+        if self.instance_config.get("ai", {}).get("gen_config_as_dict", False):
+            generation_config = {
+                "top_p": self.ai_top_p,
+                "top_k": self.ai_top_k,
+                "temperature": self.ai_temperature,
+            }
+        else:
+            generation_config = gemini.types.GenerationConfig(
+                top_p=self.ai_top_p,
+                top_k=self.ai_top_k,
+                temperature=self.ai_temperature,
+            )
+        
+        self.model = gemini.GenerativeModel(
+            self.ai_model,
+            generation_config=generation_config,
+            safety_settings={
+                "HARASSMENT": "BLOCK_NONE",
+                "HATE": "BLOCK_NONE",
+                "SEXUAL": "BLOCK_NONE",
+                "DANGEROUS": "BLOCK_NONE",
+            },
+            system_instruction=self.prompt,
+        )
+        
         # Initialize the chat model
         self.logger.info("(Re)Starting chat")
-        self.chat = self.core.model.start_chat()
+        self.chat = self.model.start_chat()
         
         # Update the channel description
         try:
@@ -351,12 +398,7 @@ class JerryGeminiInstance:
 
     async def generate_prompt(self, message: discord.Message):
         """Generate the prompt for the chat"""
-        prompt = await self.core.generate_prompt(addons=self.addons, emoji=self.instance_config.get("personal_emoji"))
-        
-        # Inject additional information
-        if self.instance_config.get("extra_prompt"):
-            prompt += f"\n\n{self.instance_config.get('extra_prompt')}"
-
+        prompt = ""
         # Handle reply
         if message.reference:
             # Fetch the reply
