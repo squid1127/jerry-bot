@@ -397,6 +397,10 @@ Commands:
     async def generate_prompt(self, addons: list = [], emoji: str = None):
         """Generate a prompt for the chat"""
         prompt = self.PROMPT
+        
+        # Append global extra prompt
+        if self.config.get("global", {}).get("prompt", {}).get("extra", False):
+            prompt += f"\n\n{self.config.get('global', {}).get('prompt', {}).get('extra')}"
 
         # Emoji
         if emoji:
