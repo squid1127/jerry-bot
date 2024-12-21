@@ -323,7 +323,7 @@ You are here to be helpful as well as entertain others with your intellegence. Y
 Respond in text, formatted as Disord markdown, or with emojis. You have also been given commands to carry out certain actions."""
 
     # Commands
-    COMMANDS_DEFUALT = ["send", "reset", "sticker", "reaction"]
+    COMMANDS_DEFUALT = ["send", "reset", "sticker", "reaction", "panic"]
     # Commands as Params (v2)
     COMMANDS_PARAMS = {
         "reset": gemini.protos.FunctionDeclaration(
@@ -336,7 +336,7 @@ Respond in text, formatted as Disord markdown, or with emojis. You have also bee
         ),
         "dm": gemini.protos.FunctionDeclaration(
             name="dm",
-            description="Send a direct message to the user. Useful for sending private information. Hint: emojis are not supported in DMs. Be sure to also send the message in the regular chat.",
+            description="Send a direct message to the user. Useful for sending private information. Emojis are not supported in DMs. If you send a DM, also send a text response to the normal channel to adknowledge the user's request.",
             parameters=gemini_content.Schema(
                 type=gemini_content.Type.OBJECT,
                 enum=[],
@@ -374,6 +374,18 @@ Respond in text, formatted as Disord markdown, or with emojis. You have also bee
                 },
             ),
         ),
+        "panic": gemini.protos.FunctionDeclaration(
+            name="panic",
+            description="Conversation taking a bad turn? This command will alert bot admins to the conversation. Use with caution and only when necessary. Please use this if the user is producing unwanted spam across multiple messages as we have rate limits to adhear to.",
+            parameters=gemini_content.Schema(
+                type=gemini_content.Type.OBJECT,
+                properties={
+                    "reason": gemini_content.Schema(
+                        type=gemini_content.Type.STRING,
+                    ),
+                },
+            ),
+        ),
     }
 
     CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI.
@@ -382,9 +394,7 @@ Commands:
     - hide-seek: Start a hide and seek game
     """
 
-    async def generate_prompt(
-        self, addons: list = [], emoji: str = None
-    ):
+    async def generate_prompt(self, addons: list = [], emoji: str = None):
         """Generate a prompt for the chat"""
         prompt = self.PROMPT
 
@@ -395,11 +405,11 @@ Commands:
             prompt = prompt.replace("<:$jerry-emoji:>", self.emoji_default)
 
         return prompt
-    
+
     def generate_tools(self, addons: list = [], command_params: bool = True):
         """Generate tools for the chat"""
         tools = []
-        
+
         # Commands
         if command_params:
             command_declarations = []
@@ -414,9 +424,8 @@ Commands:
                     function_declarations=command_declarations,
                 )
             )
-        
+
         return tools
-        
 
 
 class JerryGeminiInstance:
@@ -481,9 +490,12 @@ class JerryGeminiInstance:
         # Configure the model
         self.logger.info("Configuring model")
         gemini.configure(api_key=self.ai_token)
-        
+
         # Generate tools
-        tools = self.core.generate_tools(addons=self.addons, command_params=self.instance_config.get("command_params", True))
+        tools = self.core.generate_tools(
+            addons=self.addons,
+            command_params=self.instance_config.get("command_params", True),
+        )
 
         if self.instance_config.get("ai", {}).get("gen_config_as_dict", False):
             generation_config = {
@@ -698,7 +710,11 @@ class JerryGeminiInstance:
             self.logger.error(f"Unsupported file type: {mime_type}")
             return ("Unsupported file type", None)
 
-    async def process_response(self, response: gemini_generation_types.AsyncGenerateContentResponse, message: discord.Message):
+    async def process_response(
+        self,
+        response: gemini_generation_types.AsyncGenerateContentResponse,
+        message: discord.Message,
+    ):
         # Iterate through parts
         for part in response.parts:
             if part.text:
@@ -711,7 +727,6 @@ class JerryGeminiInstance:
                     args=dict(part.function_call.args),
                     message=message,
                 )
-                
 
     def _split_message(
         self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]
@@ -745,7 +760,7 @@ class JerryGeminiInstance:
 
     async def handle_action(self, action: str, args: dict, message: discord.Message):
         if action == "send":
-            content = args.get("content","").strip()
+            content = args.get("content", "").strip()
             if len(content) == 0 or content is None:
                 self.logger.warning("No message to send")
                 return
@@ -767,12 +782,12 @@ class JerryGeminiInstance:
             except ValueError:
                 self.logger.warning("Invalid sticker ID")
                 return
-            
+
             sticker = await self.core.bot.fetch_sticker(sticker_id)
             if not sticker:
                 self.logger.warning("Sticker not found")
                 return
-            
+
             await message.channel.send(stickers=[sticker])
         elif action == "reaction":
             emoji = args.get("emoji")
@@ -783,7 +798,7 @@ class JerryGeminiInstance:
                 await message.add_reaction(emoji)
             except discord.errors.HTTPException:
                 self.logger.warning("Invalid emoji")
-                
+
         elif action == "reset":
             await self.start_chat()
             await message.channel.send(
@@ -793,11 +808,11 @@ class JerryGeminiInstance:
                     color=discord.Color.green(),
                 )
             )
-        
+
         elif action == "hide-seek":
             if "hide-seek" in self.addons:
                 await self._hide_seek_init(message)
-                
+
         elif action == "dm":
             content = args.get("content")
             if len(content) == 0 or content is None:
@@ -813,7 +828,7 @@ class JerryGeminiInstance:
                     await user.send(content)
             except discord.errors.Forbidden:
                 self.logger.warning("Failed to send DM")
-                
+
                 # Notify the user
                 await message.channel.send(
                     embed=discord.Embed(
@@ -822,10 +837,25 @@ class JerryGeminiInstance:
                         color=discord.Color.red(),
                     )
                 )
-                
+
                 # Notify the model
                 request = f"Failed to send a direct message to the user. The server may have direct messages disabled or the user may have blocked/denied messages from this bot."
                 await self._model_system_request(request, message)
+        
+        elif action == "panic":
+            self.logger.warning("Panic mode activated")
+            reason = args.get("reason")
+            if len(reason) == 0 or reason is None:
+                self.logger.warning("No reason provided")
+                reason = "No reason provided"
+            
+            await self.core.bot.shell.log(
+                f"Panic mode activated: {reason} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                title="Model Triggered Panic",
+                cog="JerryGemini",
+                msg_type="error",
+            )
+        
         else:
             self.logger.warning(f"Invalid action: {action}")
 
@@ -898,7 +928,7 @@ class JerryGeminiInstance:
                     self.logger.debug(f"Processing response: {response.text}")
                 except:
                     self.logger.debug(f"Processing response (No text)")
-                    
+
                 try:
                     await self.process_response(response, message)
                 except Exception as e:
@@ -943,7 +973,7 @@ class JerryGeminiInstance:
 
         # Send the message to the model
         response = await self.chat.send_message_async(prompt)
-        
+
         # Debug mode
         if self.instance_config.get("debug", False):
             await message.channel.send(
