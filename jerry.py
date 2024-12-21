@@ -35,6 +35,7 @@ import google.api_core.exceptions as gemini_selling
 from PIL import Image
 import mimetypes
 import pyheif, pillow_heif
+import json
 
 pillow_heif.register_heif_opener()  # Register the HEIF opener to process HEIF images
 
@@ -154,22 +155,23 @@ class JerryGemini(commands.Cog):
         self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
 
         # Configure model
-        self.logger.info("Configuring model")
-        gemini.configure(api_key=self.ai_token)
-        self.model = gemini.GenerativeModel(
-            self.ai_model,
-            generation_config=gemini.types.GenerationConfig(
-                top_p=self.ai_top_p,
-                top_k=self.ai_top_k,
-                temperature=self.ai_temperature,
-            ),
-            safety_settings={
-                "HARASSMENT": "BLOCK_NONE",
-                "HATE": "BLOCK_NONE",
-                "SEXUAL": "BLOCK_NONE",
-                "DANGEROUS": "BLOCK_NONE",
-            },
-        )
+        #! Model config is going to be instance-specific
+        # self.logger.info("Configuring model")
+        # gemini.configure(api_key=self.ai_token)
+        # self.model = gemini.GenerativeModel(
+        #     self.ai_model,
+        #     generation_config=gemini.types.GenerationConfig(
+        #         top_p=self.ai_top_p,
+        #         top_k=self.ai_top_k,
+        #         temperature=self.ai_temperature,
+        #     ),
+        #     safety_settings={
+        #         "HARASSMENT": "BLOCK_NONE",
+        #         "HATE": "BLOCK_NONE",
+        #         "SEXUAL": "BLOCK_NONE",
+        #         "DANGEROUS": "BLOCK_NONE",
+        #     },
+        # )
 
         # Load instances
         self.logger.info("Loading instances")
@@ -319,12 +321,58 @@ class JerryGeminiInstance:
         self.logger.debug(f"Addons: {self.addons}")
 
         self.logger.info("Successfully initialized")
+        
+        # Import the model configuration
+        self.ai_token = self.instance_config.get("ai", {}).get("token", self.core.ai_token)
+        self.ai_model = self.instance_config.get("ai", {}).get("model", self.core.ai_model)
+        self.ai_top_p = self.instance_config.get("ai", {}).get("top_p", self.core.ai_top_p)
+        self.ai_top_k = self.instance_config.get("ai", {}).get("top_k", self.core.ai_top_k)
+        self.ai_temperature = self.instance_config.get("ai", {}).get("temperature", self.core.ai_temperature)
+        
 
     async def start_chat(self):
         """Initialize the chat"""
+        # General prompt
+        prompt = await self.core.generate_prompt(addons=self.addons, emoji=self.instance_config.get("personal_emoji"))
+        
+        # Inject additional information
+        if self.instance_config.get("extra_prompt"):
+            prompt += f"\n\n{self.instance_config.get('extra_prompt')}"
+            
+        self.prompt = prompt
+        
+        # Configure the model
+        self.logger.info("Configuring model")
+        gemini.configure(api_key=self.ai_token)
+        
+        if self.instance_config.get("ai", {}).get("gen_config_as_dict", False):
+            generation_config = {
+                "top_p": self.ai_top_p,
+                "top_k": self.ai_top_k,
+                "temperature": self.ai_temperature,
+            }
+        else:
+            generation_config = gemini.types.GenerationConfig(
+                top_p=self.ai_top_p,
+                top_k=self.ai_top_k,
+                temperature=self.ai_temperature,
+            )
+        
+        self.model = gemini.GenerativeModel(
+            self.ai_model,
+            generation_config=generation_config,
+            safety_settings={
+                "HARASSMENT": "BLOCK_NONE",
+                "HATE": "BLOCK_NONE",
+                "SEXUAL": "BLOCK_NONE",
+                "DANGEROUS": "BLOCK_NONE",
+            },
+            system_instruction=self.prompt,
+        )
+        
         # Initialize the chat model
         self.logger.info("(Re)Starting chat")
-        self.chat = self.core.model.start_chat()
+        self.chat = self.model.start_chat()
         
         # Update the channel description
         try:
@@ -351,12 +399,7 @@ class JerryGeminiInstance:
 
     async def generate_prompt(self, message: discord.Message):
         """Generate the prompt for the chat"""
-        prompt = await self.core.generate_prompt(addons=self.addons, emoji=self.instance_config.get("personal_emoji"))
-        
-        # Inject additional information
-        if self.instance_config.get("extra_prompt"):
-            prompt += f"\n\n{self.instance_config.get('extra_prompt')}"
-
+        prompt = ""
         # Handle reply
         if message.reference:
             # Fetch the reply
@@ -411,17 +454,18 @@ class JerryGeminiInstance:
             if attachment_processed[1]:
                 processed_attachments.append(attachment_processed[1])
             else:
-                message.channel.send(
+                await message.channel.send(
                     embed=discord.Embed(
                         title="Attachment Error",
-                        description=f"Error processing attachment {attachment.filename}: {attachment_processed[0]}",
+                        description=f"Error processing attachment {attachment[0].filename}: {attachment_processed[0]}",
                         color=discord.Color.red(),
                     )
                 )
+                processed_attachments.append(f"User sent an attachment, but it could not be processed. File: {attachment[0].filename} Error: {attachment_processed[0]}")
 
         return processed_attachments
 
-    async def _handle_attachment(self, attachment: discord.Attachment, image: bool = False):
+    async def _handle_attachment(self, attachment: discord.Attachment, image: bool = False, upload_mode: bool = True):
         """Handle an attachment"""
         # Determine file name and location
         directory = self.core.files.get_cache_dir()
@@ -432,6 +476,15 @@ class JerryGeminiInstance:
             async with session.get(attachment.url) as resp:
                 with open(file_name, "wb") as f:
                     f.write(await resp.read())
+                    
+        if upload_mode:
+            try:
+                file = gemini.upload_file(file_name)
+            except:
+                self.logger.warning(f"Error uploading file: {file_name}. Attempting to process locally...")
+                
+            else:
+                return (None, file)
 
         # Determine the file type
         mime_type, _ = mimetypes.guess_type(file_name)
@@ -455,6 +508,23 @@ class JerryGeminiInstance:
             except:
                 self.logger.error(f"Error processing image: {file_name}")
                 return ("Error processing image", None)
+            
+        if mime_type in [
+            "audio/wav",
+            "audio/mpeg",  # MP3
+            "audio/ogg",   # Ogg Vorbis
+            "audio/aac",   # AAC
+            "audio/webm"   # WebM
+            # Add more as needed...
+        ]:
+            # Offical Gemini docs: https://ai.google.dev/gemini-api/docs/audio?lang=python
+            file_type = "audio"
+            try:
+                audio = gemini.upload_file(file_name)
+                return (None, audio)
+            except:
+                self.logger.error(f"Error processing audio: {file_name}")
+                return ("Error processing audio", None)
 
         # Check if the file is text
         if mime_type.split("/")[0] == "text":
@@ -465,6 +535,7 @@ class JerryGeminiInstance:
             with open(file_name, "r") as f:
                 text = f.read()
             return (None, text)
+        
         except UnicodeDecodeError:
             self.logger.error(f"Unsupported file type: {mime_type}")
             return ("Unsupported file type", None)
@@ -636,6 +707,10 @@ class JerryGeminiInstance:
                     self.logger.warning("Rate limited")
                     return
                 self.logger.debug(f"Response received: {response.text}")
+                
+                # Debugging - Full response as JSON
+                if self.instance_config.get("debug", False):
+                    await message.channel.send(f'```json\n{json.dumps(response.to_dict(), indent=4)}```')
 
                 # Process the response
                 self.logger.debug("Processing response")
