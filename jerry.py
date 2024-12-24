@@ -130,11 +130,6 @@ class JerryGemini(commands.Cog):
 
         self.logger.info("Successfully initialized")
 
-        # Command
-        self.bot.shell.add_command(
-            "gemini", cog="JerryGemini", description="Manage Jerry's Gemini chat"
-        )
-
     def load_config(self, reload=False):
         """Load/reload the configuration and create instances"""
         # Fetch config
@@ -160,6 +155,8 @@ class JerryGemini(commands.Cog):
 
         # Discord Config
         self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
+        
+        self.has_database_setup = False
 
         # Configure model
         #! Model config is going to be instance-specific
@@ -195,20 +192,93 @@ class JerryGemini(commands.Cog):
 
         self.logger.info("Global configuration loaded")
 
+    # Incoming Messages
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Handle messages for JerryGemini"""
         if message.author == self.bot.user:
             return
+        
+        ephemeral_config = self.config.get("global", {}).get("ephemeral_instance", {})
+
+        # Check if the message is in a JerryGemini channel
+        if message.channel.id in self.instances:
+            instance = self.instances[message.channel.id]
+            
+            if instance.ephemeral:
+                # Check if the instance has expired
+                if time.time() - instance.last_message > ephemeral_config.get("timeout", 300):
+                    self.logger.info(f"Ephemeral instance in channel {message.channel.id} has expired")
+                    # Remove the instance
+                    del self.instances[message.channel.id]
+                    return
+
+            # Pass to corresponding instance
+            await instance.handle(message)
+            
+        elif ephemeral_config.get("enabled", False) and self.bot.user.mentioned_in(message) and not message.author.bot:
+            # Create an ephemeral instance
+            instance = JerryGeminiInstance(
+                self, message.channel.id, self.config, ephemeral_config, ephemeral=True
+            )
+            
+            # Save the instance
+            self.instances[message.channel.id] = instance
+            
+            # Pass to corresponding instance
+            await instance.handle(message)
+            
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        """Handle edited messages for JerryGemini"""
+        if before.author == self.bot.user:
+            return
+
+        # Check if the message is in a JerryGemini channel
+        if before.channel.id in self.instances:
+            instance = self.instances[before.channel.id]
+
+            # Pass to corresponding instance
+            await instance.handle(after, interaction_type="message_edit", before=before)
+            
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        """Handle deleted messages for JerryGemini"""
 
         # Check if the message is in a JerryGemini channel
         if message.channel.id in self.instances:
             instance = self.instances[message.channel.id]
 
             # Pass to corresponding instance
-            await instance.handle(message)
+            await instance.handle(message, interaction_type="message_delete")
+    
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.User):
+        """Handle reactions for JerryGemini"""
+        if user == self.bot.user:
+            return
 
-    # Hide and Seek
+        # Check if the message is in a JerryGemini channel
+        if reaction.message.channel.id in self.instances:
+            instance = self.instances[reaction.message.channel.id]
+
+            # Pass to corresponding instance
+            await instance.handle(reaction.message, interaction_type="reaction_add", reaction=reaction, user=user)
+            
+    @commands.Cog.listener()
+    async def on_reaction_remove(self, reaction: discord.Reaction, user: discord.User):
+        """Handle reactions for JerryGemini"""
+        if user == self.bot.user:
+            return
+
+        # Check if the message is in a JerryGemini channel
+        if reaction.message.channel.id in self.instances:
+            instance = self.instances[reaction.message.channel.id]
+
+            # Pass to corresponding instance
+            await instance.handle(reaction.message, interaction_type="reaction_remove", reaction=reaction, user=user)
+
+    # Hide and Seek + Reactions
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle reactions for JerryGemini"""
@@ -236,19 +306,124 @@ class JerryGemini(commands.Cog):
 
                 # Remove the job
                 self.hide_seek_jobs.remove(job)
+                
+    async def setup_database(self, overwrite: bool = False):
+        """Setup the database for JerryGemini"""
+        if self.has_database_setup and not overwrite:
+            return
+        
+        # Setup the database
+        self.logger.info("Setting up database")
+        await self.bot.db.execute(self.DATABASE_SETUP)
+        self.has_database_setup = True        
+        
+    # Fetch Message History
+    async def fetch_message_history(self, instance_id: int, limit: int = None) -> list:
+        """Fetch the message history for an instance from the database ready to be injected into the model"""
+        # Setup the database
+        await self.setup_database()
+        
+        # Fetch the instance
+        instance = self.instances.get(instance_id)
+        if not instance:
+            self.logger.error(f"Instance not found: {instance_id}")
+            return
+        
+        # Grab Objects
+        database_schema = self.bot.db.data.get_schema(self.DATABASE_SCHEMA)
+        database_table = database_schema.get_table(self.DATABASE_TABLE)
+        
+        # Fetch the messages (matching the instance, sorted by timestamp (oldest first))
+        filters = {"instance_id": instance_id}
+        database_messages = await database_table.fetch(filters=filters, order="timestamp", limit=limit)
+        
+        # Process the messages
+        if not database_messages or len(database_messages) == 0:
+            self.logger.info(f"No messages found for instance {instance_id}")
+            return []
+        
+        # Process the messages
+        self.logger.info(f"Processing {len(database_messages)} messages for instance {instance_id}")
+        messages = []
+        for database_message in database_messages:
+            # Fetch Parts
+            parts_json = database_message.get("parts", "[]")
+            if not parts_json or len(parts_json) == 0:
+                continue
+            parts = json.loads(parts_json)
+
+            if database_message.get("content"):
+                parts.append(database_message["content"])
+            
+            # Confirm parts aren't empty
+            if len(parts) == 0 or not parts:
+                continue
+                
+            # Create the message data
+            message_data = {
+                "role": database_message.get("origin"),
+                "parts": parts,
+            }
+            
+            messages.append(message_data)
+            
+        return messages
+    
+    async def append_to_history(self, instance_id: int, origin: str, parts: list = []):
+        """Add a message to the message log"""
+        # Setup the database
+        await self.setup_database()
+        
+        # Grab Objects
+        database_schema = self.bot.db.data.get_schema(self.DATABASE_SCHEMA)
+        database_table = database_schema.get_table(self.DATABASE_TABLE)
+        
+        # Add the message
+        data = {
+            "instance_id": instance_id,
+            "origin": origin,
+        }
+        if parts:
+            # Convert parts to JSON
+            parts_json = json.dumps(parts)
+            data["parts"] = parts_json
+        await database_table.insert(
+            data=data,
+        )
+
     
     # User Commands
     @app_commands.command(
         name="gemini-reset",
         description="[Jerry Gemini] Reset the chat and clear the bot's conversation history",
     )
-    async def gemini_reset(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        clear="Whether to clear the bot's conversation history if message retention is enabled"
+    )
+    async def gemini_reset(self, interaction: discord.Interaction, clear: bool = False):
         """Reset the chat"""
         await interaction.response.defer(thinking=True)
         # Check if the message is in a JerryGemini channel
         if interaction.channel_id in self.instances:
             instance = self.instances[interaction.channel_id]
-
+            
+            # Clear the chat history
+            if clear:
+                # Confirm that message retention is enabled on this instance
+                if instance.instance_config.get("history", {}) != {}:
+                    if instance.instance_config.get("history", {}).get("type", "database") == "database":
+                        # Clear the chat history
+                        await self.bot.db.execute(
+                            f"DELETE FROM {self.DATABASE_SCHEMA}.{self.DATABASE_TABLE} WHERE instance_id = {interaction.channel_id}"
+                        )
+                        await interaction.followup.send(
+                            embed=discord.Embed(
+                                title="Chat Cleared",
+                                description="The chat history has been cleared.",
+                                color=discord.Color.green(),
+                            ),
+                        )
+            
             # Restart the chat
             try: 
                 await instance.start_chat()
@@ -262,7 +437,6 @@ class JerryGemini(commands.Cog):
                         description="An error occurred while resetting the chat.",
                         color=discord.Color.red(),
                     ),
-                    ephemeral=True,
                 )
                 
                 return
@@ -274,7 +448,6 @@ class JerryGemini(commands.Cog):
                     description=f"The chat has been reset; {self.NAME} has forgotten everything :(",
                     color=discord.Color.green(),
                 ),
-                ephemeral=True,
             )
             
             return
@@ -286,6 +459,39 @@ class JerryGemini(commands.Cog):
                 description="This command can only be executed in a JerryGemini channel.",
                 color=discord.Color.red(),
             ),
+            ephemeral=True,
+        )
+        
+    @app_commands.command(
+        name="gemini-dismiss",
+        description="[Jerry Gemini] Disable Jerry Gemini in an ephemeral channel",
+    )
+    async def gemini_dismiss(self, interaction: discord.Interaction):
+        # Find the instance
+        if interaction.channel_id in self.instances:
+            instance = self.instances[interaction.channel_id]
+            
+            # Check if the instance is ephemeral
+            if instance.ephemeral:
+                # Remove the instance
+                del self.instances[interaction.channel_id]
+                
+                # Respond
+                await interaction.response.send_message(
+                    "Jerry Gemini has been dismissed from this channel.",
+                    ephemeral=False,
+                )
+                
+                return
+            
+            await interaction.response.send_message(
+                "Jerry Gemini is not an ephemeral instance.",
+                ephemeral=True,
+            )
+            
+        # Respond if not in a JerryGemini channel
+        await interaction.response.send_message(
+            "Jerry Gemini is not present in this channel.",
             ephemeral=True,
         )
             
@@ -347,6 +553,21 @@ class JerryGemini(commands.Cog):
             return
 
     # Constants
+    DATABASE_SCHEMA = "jerry"
+    DATABASE_TABLE = "gemini_message_log"
+    DATABASE_SETUP = f"""
+    CREATE SCHEMA IF NOT EXISTS {DATABASE_SCHEMA};
+    
+    
+    CREATE TABLE IF NOT EXISTS {DATABASE_SCHEMA}.{DATABASE_TABLE} (
+        id SERIAL PRIMARY KEY,
+        instance_id BIGINT NOT NULL,
+        origin TEXT NOT NULL,
+        parts JSONB,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+
     DEFUALT_CONFIG = """# Configuration for JerryGemini
 global:
   # Google Generative AI API Token
@@ -456,6 +677,8 @@ If you have any concerns, please contact the server owner or an admin. For more 
 Commands:
     - /gemini-reset: Reset the chat
     """
+    
+    # Default Prompt Generation
 
     async def generate_prompt(self, addons: list = [], emoji: str = None):
         """Generate a prompt for the chat"""
@@ -502,14 +725,18 @@ class JerryGeminiInstance:
         channel: int,
         global_config: dict,
         instance_config: dict,
+        ephemeral: bool = False, 
     ):
         self.core = core
         self.channel_id = channel
         self.global_config = global_config
         self.instance_config = instance_config
         self.chat = None
+        self.ephemeral = ephemeral
         self.hs_logger = logging.getLogger(f"jerry.gemini.{channel}.hide_seek")
         self.logger = logging.getLogger(f"jerry.gemini.{channel}")
+        
+        self.last_message = time.time()
 
         self.logger.info(f"Initializing instance for channel {channel}")
 
@@ -564,6 +791,7 @@ class JerryGeminiInstance:
             command_params=self.instance_config.get("command_params", True),
         )
 
+        # Model configuration
         if self.instance_config.get("ai", {}).get("gen_config_as_dict", False):
             generation_config = {
                 "top_p": self.ai_top_p,
@@ -576,7 +804,7 @@ class JerryGeminiInstance:
                 top_k=self.ai_top_k,
                 temperature=self.ai_temperature,
             )
-
+        
         self.model = gemini.GenerativeModel(
             self.ai_model,
             generation_config=generation_config,
@@ -590,20 +818,46 @@ class JerryGeminiInstance:
             system_instruction=self.prompt,
         )
 
+        # Fetch history
+        history = []
+        if self.instance_config.get("history", {}) != {}:
+            if self.instance_config.get("history", {}).get("type", "database") == "database":
+                self.logger.info("Fetching message history from database")
+                limit = self.instance_config.get("history", {}).get("limit", None)
+                if limit == False:
+                    limit = None
+                    
+                history = await self.core.fetch_message_history(self.channel_id, limit=limit)
+            else:
+                self.logger.error("Unsupported history type")
+
+
         # Initialize the chat model
         self.logger.info("(Re)Starting chat")
-        self.chat = self.model.start_chat()
+        self.chat = self.model.start_chat(history=history)
 
-        # Update the channel description
-        try:
+        if self.ephemeral:
+            self.logger.info("Ephemeral instance started")
             channel: discord.TextChannel = self.core.bot.get_channel(self.channel_id)
-            await channel.edit(
-                topic=self.core.CHANNEL_DESCRIPTION,
+            await channel.send(
+                embed=discord.Embed(
+                    title="Ephemeral Jerry Gemini Chat",
+                    description="You pinged me, so I'm here! Feel free to chat with me. I'll be here until you stop talking to me. Use /gemini-dismiss to dismiss me.",
+                    color=discord.Color.red(),
+                )
             )
-        except discord.Forbidden:
-            self.logger.error(
-                "Failed to update channel description (Missing permissions)"
-            )
+            
+        else:
+            # Update the channel description
+            try:
+                channel: discord.TextChannel = self.core.bot.get_channel(self.channel_id)
+                await channel.edit(
+                    topic=self.core.CHANNEL_DESCRIPTION,
+                )
+            except discord.Forbidden:
+                self.logger.error(
+                    "Failed to update channel description (Missing permissions)"
+                )
 
         return
 
@@ -618,9 +872,9 @@ class JerryGeminiInstance:
         if embed.footer:
             embed_str += f"### '{embed.footer.text}'"
         return embed_str
-
-    async def generate_prompt(self, message: discord.Message):
-        """Generate the prompt for the chat"""
+    
+    async def _generate_prompt_message(self, message: discord.Message) -> str:
+        """Generate the prompt for the chat, specifically for messages"""
         prompt = ""
         # Handle reply
         if message.reference:
@@ -644,10 +898,41 @@ class JerryGeminiInstance:
             prompt += f"Message embeds:\n"
             for embed in message.embeds:
                 prompt += f"\n{await self.handle_embed(embed)}"
-
+                
         return prompt
+                
 
-    async def handle_attachments(self, message: discord.Message, prompt: str):
+    async def generate_prompt(self, message: discord.Message, interaction_type: str = None, **kwargs):
+        """Generate the prompt for the chat"""
+        prompt = ""
+        if interaction_type.startswith("message"):
+            # Message headings
+            if interaction_type == "message_delete":
+                prompt += f"The Following Message Was Deleted:"
+            elif interaction_type == "message_edit":
+                prompt += f"The Following Message Was Edited. Here is the new message:"
+
+             # Generate the prompt message
+            prompt += await self._generate_prompt_message(message)
+
+
+            if interaction_type == "message_edit":
+                before = kwargs.get("before")
+                if before:
+                    prompt += f"\n\nThat was the new message; previously, it was: \n\n{await self._generate_prompt_message(before)}"
+                    
+            return prompt
+                
+        if interaction_type.startswith("reaction"):
+            reaction: discord.Reaction = kwargs.get("reaction")
+            user: discord.User = kwargs.get("user")
+            
+            prompt += f"{user.display_name} (ID: {user.id}) {'reacted' if interaction_type == 'reaction_add' else 'removed their reaction'} with the emoji: {reaction.emoji} to the message:    {await self._generate_prompt_message(reaction.message)}"
+            prompt += f"\n\nFor this reaction, you can respond if you want, but you shouldn't if not necessary. You can also use the reaction command to add more reactions to the message."
+            return prompt
+        
+
+    async def handle_attachments(self, message: discord.Message, prompt: str, interaction_type: str = None, **kwargs):
         attachments = []
         for attachment in message.attachments:
             attachments.append((attachment, False))
@@ -776,12 +1061,38 @@ class JerryGeminiInstance:
         except UnicodeDecodeError:
             self.logger.error(f"Unsupported file type: {mime_type}")
             return ("Unsupported file type", None)
+        
+    async def save_response_model(self, response: gemini_generation_types.AsyncGenerateContentResponse):
+        """Save the response model to the database"""
+        parts = response.parts
+        
+        # Process parts
+        parts_list = []
+        for part in parts:
+            if part.text:
+                parts_list.append(part.text)
+            if part.function_call:
+                function_call_data = {
+                    "name": part.function_call.name,
+                }
+                if part.function_call.args:
+                    function_call_data["args"] = dict(part.function_call.args)
+                parts_list.append(f"```Function Call\n{json.dumps(function_call_data, indent=4)}\n```")
+        
+        await self.core.append_to_history(
+            instance_id=self.channel_id,
+            origin="model",
+            parts=parts_list,
+        )
 
     async def process_response(
         self,
         response: gemini_generation_types.AsyncGenerateContentResponse,
         message: discord.Message,
     ):
+        await self.save_response_model(response)
+
+        
         # Iterate through parts
         for part in response.parts:
             if part.text:
@@ -795,50 +1106,57 @@ class JerryGeminiInstance:
                     message=message,
                 )
 
-    def _split_message(
-        self, text: str, max_length: int = 2000, split_by: list = ["\n", " "]
-    ):
-        """Split a message into chunks of a maximum length by words, newlines, etc."""
+    def split_text_by_sep(self, text: str, max_length: int = 2000, sep: str = None) -> list:
+        """Split text into chunks of max_length by a separator"""
+        
+        # Split the text by separator (maximize the length of the chunk)
+        chunks = text.split(sep)
+        processed_chunks = []
+        current_chunk = ""
+        for chunk in chunks:
+            if len(current_chunk) + len(chunk) <= max_length:
+                current_chunk += chunk
+            else:
+                processed_chunks.append(current_chunk)
+                current_chunk = chunk
+                
+        # Append the last chunk
+        if current_chunk != "":
+            processed_chunks.append(current_chunk)
+        else:
+            return None
+
+        return processed_chunks
+
+    def split_text(self, text: str, max_length: int = 2000) -> list:
+        """Split text into chunks of max_length"""
         if len(text) <= max_length:
             return [text]
-
-        self.logger.debug(f"Splitting message of length {len(text)}")
-
-        for split in split_by:
-            self.logger.debug(f"Splitting by {split}")
-            unprocessed_chunks = text.split(split)
-            processed_chunks = []
-            if not len(unprocessed_chunks) > 1:
-                self.logger.debug(f"Splitting by {split} failed; trying next split")
-                continue
-            current_text = ""
-            for chunk in unprocessed_chunks:
-                if len(chunk) + len(current_text) >= max_length:
-                    self.logger.debug(f"Adding chunk with length {len(current_text)}")
-                    processed_chunks.append(current_text)
-                    current_text = ""
-                current_text += chunk + split
-                self.logger.debug(f"Current text length: {len(current_text)}")
-            if current_text:
-                self.logger.debug(f"Adding final chunk with length {len(current_text)}")
-                processed_chunks.append(current_text)
-
-            return processed_chunks
-
+        
+        # Split the text by newline
+        result = self.split_text_by_sep(text, max_length, "\n")
+        if result is not None:
+            return result
+        
+        # Split the text by whitespace
+        result = self.split_text_by_sep(text, max_length, " ")
+        if result is not None:
+            return result
+        
+        # Split the text by character (last resort)
+        return [text[i:i+max_length] for i in range(0, len(text), max_length)]
+    
     async def handle_action(self, action: str, args: dict, message: discord.Message):
         if action == "send":
             content = args.get("content", "").strip()
             if len(content) == 0 or content is None:
                 self.logger.warning("No message to send")
                 return
-            if len(content) > 2000:
-                chunks = self._split_message(content)
-                for chunk in chunks:
-                    await message.channel.send(chunk)
-                return
             self.logger.debug(f"Sending message: {content}")
-            await message.channel.send(content)
-            self.logger.debug("Message sent")
+            chunks = self.split_text(content)
+            for chunk in chunks:
+                await message.channel.send(chunk)
+                
         elif action == "sticker":
             sticker_id = args.get("id")
             if len(sticker_id) == 0 or sticker_id is None:
@@ -887,12 +1205,10 @@ class JerryGeminiInstance:
                 return
             user = message.author
             try:
-                if len(content) > 2000:
-                    chunks = self._split_message(content)
-                    for chunk in chunks:
-                        await user.send(chunk)
-                else:
-                    await user.send(content)
+                # Split the message
+                chunks = self.split_text(content)
+                for chunk in chunks:
+                    await user.send(chunk)
             except discord.errors.Forbidden:
                 self.logger.warning("Failed to send DM")
 
@@ -919,6 +1235,8 @@ class JerryGeminiInstance:
             suggested_action = args.get("suggested_action")
             if suggested_action is not None:
                 fields.append({"name": "Suggested Action", "value": suggested_action})
+                
+            fields.append({"name": "Instance", "value": f"Channel: {message.channel.mention} | {message.guild.id}/{message.channel.id}"})
             
             await self.core.bot.shell.log(
                 f"A Jerry Gemini Model has triggered panic mode.",
@@ -931,15 +1249,17 @@ class JerryGeminiInstance:
         else:
             self.logger.warning(f"Invalid action: {action}")
 
-    async def handle(self, message: discord.Message):
+    async def handle(self, message: discord.Message, interaction_type: str = "message", **kwargs):
         """Process an incoming message"""
         failure = None
         failure_type = None
         
+        self.last_message = time.time()
+        
         # Retry loop
         for i in range(3): # Retry 3 times
             try:
-                self.logger.debug(f"Message received: {message.content}")
+                self.logger.debug(f"Message received: {message.content} | Interaction Type: {interaction_type}")
                 # Typing indicator
                 async with message.channel.typing():
                     # Check if the chat is initialized
@@ -949,11 +1269,37 @@ class JerryGeminiInstance:
 
                     # Generate the prompt
                     self.logger.debug("Generating prompt")
-                    prompt = await self.generate_prompt(message)
+                    prompt = await self.generate_prompt(message, interaction_type=interaction_type, **kwargs)
 
                     # Handle Attachments
                     self.logger.debug("Handling attachments")
-                    content = await self.handle_attachments(message, prompt)
+                    content = await self.handle_attachments(message, prompt, interaction_type=interaction_type, **kwargs)
+                    
+                    # Save (plain text only) to history
+                    try:
+                        plain_content = []
+                        if isinstance(content, list):
+                            for part in content:
+                                if isinstance(part, str):
+                                    plain_content.append(part)
+                                else:
+                                    plain_content.append(f"Warning: Attachment included is not saved to history.")
+                        else:
+                            plain_content.append(content)
+                        self.logger.info(f"Saving message to history: {plain_content}")
+                        await self.core.append_to_history(
+                            instance_id=self.channel_id,
+                            origin="user",
+                            parts=plain_content,
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Error saving message to history: {e}")
+                        await self.core.bot.shell.log(
+                            f"Failed to save message to history: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                            title="Message Save Error",
+                            cog="JerryGemini",
+                            msg_type="error",
+                        )
 
                     # Send the message to the model
                     self.logger.debug(f"Sending message to gemini:\n{content}")
