@@ -445,7 +445,14 @@ Respond in text, formatted as Disord markdown, or with emojis. You have also bee
         ),
     }
 
-    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI. By talking in this channel, you agree to the respective terms and condition & privacy policy of Google's Generative AI. Your conversation may be used by Google as training data to improve the AI model. Please do not share any personal or sensitive information. If you have any concerns, please contact the server owner or an admin. For more information, visit https://ai.google.dev/gemini-api/docs/
+    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI. 
+
+By talking in this channel, you agree to the respective terms and conditions & privacy policy of Google's Generative AI. 
+
+Your conversation may be used by Google as training data to improve the AI model. Please do not share any personal or sensitive information. 
+
+If you have any concerns, please contact the server owner or an admin. For more information, visit https://ai.google.dev/gemini-api/docs/
+
 Commands:
     - /gemini-reset: Reset the chat
     """
