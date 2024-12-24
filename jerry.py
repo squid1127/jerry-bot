@@ -236,7 +236,61 @@ class JerryGemini(commands.Cog):
 
                 # Remove the job
                 self.hide_seek_jobs.remove(job)
+    
+    # User Commands
+    @app_commands.command(
+        name="gemini-reset",
+        description="[Jerry Gemini] Reset the chat and clear the bot's conversation history",
+    )
+    async def gemini_reset(self, interaction: discord.Interaction):
+        """Reset the chat"""
+        await interaction.response.defer(thinking=True)
+        # Check if the message is in a JerryGemini channel
+        if interaction.channel_id in self.instances:
+            instance = self.instances[interaction.channel_id]
 
+            # Restart the chat
+            try: 
+                await instance.start_chat()
+            
+            # Handle errors
+            except Exception as e:
+                self.logger.error(f"Error resetting chat: {e}")
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        title="Error Encountered",
+                        description="An error occurred while resetting the chat.",
+                        color=discord.Color.red(),
+                    ),
+                    ephemeral=True,
+                )
+                
+                return
+            
+            # Respond
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="Chat Reset",
+                    description=f"The chat has been reset; {self.NAME} has forgotten everything :(",
+                    color=discord.Color.green(),
+                ),
+                ephemeral=True,
+            )
+            
+            return
+        
+        # Respond if not in a JerryGemini channel
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="Error Encountered",
+                description="This command can only be executed in a JerryGemini channel.",
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
+            
+    
+    # Admin Interactive Shell
     async def shell_callback(self, command: core.ShellCommand):
         """Handle shell commands"""
         if command.name == "gemini":
@@ -376,11 +430,14 @@ Respond in text, formatted as Disord markdown, or with emojis. You have also bee
         ),
         "panic": gemini.protos.FunctionDeclaration(
             name="panic",
-            description="Conversation taking a bad turn? This command will alert bot admins to the conversation. Use with caution and only when necessary. Please use this if the user is producing unwanted spam across multiple messages as we have rate limits to adhear to.",
+            description="Conversation taking a bad turn? This command will alert bot admins to the conversation. Use with caution and only when necessary. Please use this if the user is producing unwanted spam across multiple messages as we have rate limits to adhear to. Provide the users ID and a reason for the panic. Be sure to follow up if anything more happens.",
             parameters=gemini_content.Schema(
                 type=gemini_content.Type.OBJECT,
                 properties={
                     "reason": gemini_content.Schema(
+                        type=gemini_content.Type.STRING,
+                    ),
+                    "suggested_action": gemini_content.Schema(
                         type=gemini_content.Type.STRING,
                     ),
                 },
@@ -388,10 +445,9 @@ Respond in text, formatted as Disord markdown, or with emojis. You have also bee
         ),
     }
 
-    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI.
+    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI. By talking in this channel, you agree to the respective terms and condition & privacy policy of Google's Generative AI. Your conversation may be used by Google as training data to improve the AI model. Please do not share any personal or sensitive information. If you have any concerns, please contact the server owner or an admin. For more information, visit https://ai.google.dev/gemini-api/docs/
 Commands:
-    - reset: Reset the chat
-    - hide-seek: Start a hide and seek game
+    - /gemini-reset: Reset the chat
     """
 
     async def generate_prompt(self, addons: list = [], emoji: str = None):
@@ -847,17 +903,22 @@ class JerryGeminiInstance:
                 await self._model_system_request(request, message)
         
         elif action == "panic":
+            fields = []
             self.logger.warning("Panic mode activated")
             reason = args.get("reason")
-            if len(reason) == 0 or reason is None:
-                self.logger.warning("No reason provided")
-                reason = "No reason provided"
+            if reason is not None:
+                fields.append({"name": "Reason", "value": reason})
+            
+            suggested_action = args.get("suggested_action")
+            if suggested_action is not None:
+                fields.append({"name": "Suggested Action", "value": suggested_action})
             
             await self.core.bot.shell.log(
-                f"Panic mode activated: {reason} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
-                title="Model Triggered Panic",
+                f"A Jerry Gemini Model has triggered panic mode.",
+                title="Model Panic",
                 cog="JerryGemini",
                 msg_type="error",
+                fields=fields,
             )
         
         else:
@@ -865,107 +926,122 @@ class JerryGeminiInstance:
 
     async def handle(self, message: discord.Message):
         """Process an incoming message"""
-        try:
-            self.logger.debug(f"Message received: {message.content}")
-            # Typing indicator
-            async with message.channel.typing():
-                # Check if the chat is initialized
-                if not self.chat:
-                    self.logger.debug("Chat not initialized, initializing...")
-                    await self.start_chat()
+        failure = None
+        failure_type = None
+        
+        # Retry loop
+        for i in range(3): # Retry 3 times
+            try:
+                self.logger.debug(f"Message received: {message.content}")
+                # Typing indicator
+                async with message.channel.typing():
+                    # Check if the chat is initialized
+                    if not self.chat:
+                        self.logger.debug("Chat not initialized, initializing...")
+                        await self.start_chat()
 
-                # Generate the prompt
-                self.logger.debug("Generating prompt")
-                prompt = await self.generate_prompt(message)
+                    # Generate the prompt
+                    self.logger.debug("Generating prompt")
+                    prompt = await self.generate_prompt(message)
 
-                # Handle Attachments
-                self.logger.debug("Handling attachments")
-                content = await self.handle_attachments(message, prompt)
+                    # Handle Attachments
+                    self.logger.debug("Handling attachments")
+                    content = await self.handle_attachments(message, prompt)
 
-                # Send the message to the model
-                self.logger.debug(f"Sending message to gemini:\n{content}")
-                try:
-                    response = await self.chat.send_message_async(content)
-                except gemini_selling.ResourceExhausted:
-                    await message.channel.send(
-                        embed=discord.Embed(
-                            title="Rate Limit",
-                            description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
-                        ).set_footer(text="Resource Exhausted")
-                    )
-                    self.logger.warning("Resource exhausted")
-                    return
-                except gemini_selling.TooManyRequests:
-                    await message.channel.send(
-                        embed=discord.Embed(
-                            title="Rate Limit",
-                            description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
-                        ).set_footer(text="Too Many Requests")
-                    )
-                    self.logger.warning("Rate limited")
-                    return
-                except Exception as e:
-                    self.logger.error(f"Error sending message to gemini: {e}")
-                    await message.channel.send(
-                        embed=discord.Embed(
-                            title="Error Encountered",
-                            description=f"Forwarding your message to {self.core.NAME} failed. Please try again later.",
-                            color=discord.Color.red(),
+                    # Send the message to the model
+                    self.logger.debug(f"Sending message to gemini:\n{content}")
+                    try:
+                        response = await self.chat.send_message_async(content)
+                    except gemini_selling.ResourceExhausted:
+                        await message.channel.send(
+                            embed=discord.Embed(
+                                title="Rate Limit",
+                                description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
+                            ).set_footer(text="Resource Exhausted")
                         )
-                    )
-                    await self.core.bot.shell.log(
-                        f"Failed to send message to Gemini: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
-                        title="Message Send Error",
-                        cog="JerryGemini",
-                        msg_type="error",
-                    )
-                    return
-
-                # Debugging - Full response as JSON
-                if self.instance_config.get("debug", False):
-                    await message.channel.send(
-                        f"```json\n{json.dumps(response.to_dict(), indent=4)}```"
-                    )
-
-                # Process the response
-                try:
-                    self.logger.debug(f"Processing response: {response.text}")
-                except:
-                    self.logger.debug(f"Processing response (No text)")
-
-                try:
-                    await self.process_response(response, message)
-                except Exception as e:
-                    self.logger.error(f"Error processing response: {e}")
-                    await message.channel.send(
-                        embed=discord.Embed(
-                            title="Error Encountered",
-                            description=f"An error occurred while processing the response from {self.core.NAME}.",
-                            color=discord.Color.red(),
+                        self.logger.warning("Resource exhausted")
+                        return
+                    except gemini_selling.TooManyRequests:
+                        await message.channel.send(
+                            embed=discord.Embed(
+                                title="Rate Limit",
+                                description=f"{self.core.NAME} is tired and needs a break. Please try again later. {self.core.NAME} can only respond to a limited number of messages per minute. This number is not very high as {self.core.NAME} is a free service.",
+                            ).set_footer(text="Too Many Requests")
                         )
-                    )
-                    await self.core.bot.shell.log(
-                        f"Failed to process response: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
-                        title="Response Proccess Error",
-                        cog="JerryGemini",
-                        msg_type="error",
-                    )
+                        self.logger.warning("Rate limited")
+                        return
+                    except Exception as e:
+                        # Retry
+                        self.logger.error(f"Error sending message to gemini: {e}")
+                        failure = e
+                        failure_type = "gemini-send"
+                        continue
 
-        except Exception as e:
-            self.logger.error(f"Error handling message: {e}")
-            await message.channel.send(
-                embed=discord.Embed(
-                    title="Error Encountered",
-                    description=f"An error occurred while processing your message.",
-                    color=discord.Color.red(),
+                    # Debugging - Full response as JSON
+                    if self.instance_config.get("debug", False):
+                        await message.channel.send(
+                            f"```json\n{json.dumps(response.to_dict(), indent=4)}```"
+                        )
+
+                    # Process the response
+                    try:
+                        self.logger.debug(f"Processing response: {response.text}")
+                    except:
+                        self.logger.debug(f"Processing response (No text)")
+
+                    try:
+                        await self.process_response(response, message)
+                    except Exception as e:
+                        self.logger.error(f"Error processing response: {e}")
+                        await message.channel.send(
+                            embed=discord.Embed(
+                                title="Error Encountered",
+                                description=f"An error occurred while processing the response from {self.core.NAME}.",
+                                color=discord.Color.red(),
+                            )
+                        )
+                        await self.core.bot.shell.log(
+                            f"Failed to process response: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                            title="Response Proccess Error",
+                            cog="JerryGemini",
+                            msg_type="error",
+                        )
+                        
+                    break
+                
+                if failure:
+                    if failure_type == "gemini-send":
+                        await message.channel.send(
+                            embed=discord.Embed(
+                                title="Error Encountered",
+                                description=f"Forwarding your message to {self.core.NAME} failed. Please try again later.",
+                                color=discord.Color.red(),
+                            )
+                        )
+                        await self.core.bot.shell.log(
+                            f"Failed to send message to Gemini: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                            title="Message Send Error",
+                            cog="JerryGemini",
+                            msg_type="error",
+                        )
+
+            except Exception as e:
+                self.logger.error(f"Error handling message: {e}")
+                await message.channel.send(
+                    embed=discord.Embed(
+                        title="Error Encountered",
+                        description=f"An error occurred while processing your message.",
+                        color=discord.Color.red(),
+                    )
                 )
-            )
-            await self.core.bot.shell.log(
-                f"Failed to process incoming message: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
-                title="Message Proccess Error",
-                cog="JerryGemini",
-                msg_type="error",
-            )
+                await self.core.bot.shell.log(
+                    f"Failed to process incoming message: {e} \nChannel:\n({message.channel.mention} | {message.guild.id}/{message.channel.id})",
+                    title="Message Proccess Error",
+                    cog="JerryGemini",
+                    msg_type="error",
+                )
+                
+            break
 
     async def _model_system_request(self, request: str, message: discord.Message):
         """Send a system message to the model"""
