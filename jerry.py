@@ -318,32 +318,53 @@ class JerryGemini(commands.Cog):
         self.has_database_setup = True        
         
     # Fetch Message History
-    async def fetch_message_history(self, instance_id: int, limit: int = None) -> list:
+    async def fetch_message_history(self, limit: int = None, instance_id: int = None, fetch_all: bool = False):
         """Fetch the message history for an instance from the database ready to be injected into the model"""
+        self.logger.info(f"Fetching message history for instance {instance_id}" if instance_id else "Fetching message history across all instances")
+        
         # Setup the database
         await self.setup_database()
         
-        # Fetch the instance
-        instance = self.instances.get(instance_id)
-        if not instance:
-            self.logger.error(f"Instance not found: {instance_id}")
-            return
+        if not fetch_all:
+            # Fetch the instance
+            instance = self.instances.get(instance_id)
+            if not instance:
+                self.logger.error(f"Instance not found: {instance_id}")
+                return
         
-        # Grab Objects
-        database_schema = self.bot.db.data.get_schema(self.DATABASE_SCHEMA)
-        database_table = database_schema.get_table(self.DATABASE_TABLE)
+        # # Grab Objects
+        # database_schema = self.bot.db.data.get_schema(self.DATABASE_SCHEMA)
+        # database_table = database_schema.get_table(self.DATABASE_TABLE)
         
-        # Fetch the messages (matching the instance, sorted by timestamp (oldest first))
-        filters = {"instance_id": instance_id}
-        database_messages = await database_table.fetch(filters=filters, order="timestamp", limit=limit)
+        # # Fetch the messages (matching the instance, sorted by timestamp (oldest first))
+        # if fetch_all:
+        #     database_messages = await database_table.fetch(limit=limit, order="timestamp")
+        # else:
+        #     filters = {
+        #         "instance_id": instance_id,
+        #     }
+        #     database_messages = await database_table.fetch(filters=filters, order="timestamp", limit=limit)
+            
+        # Custom query cuz
+        query = f"""
+        SELECT * FROM (
+            SELECT * FROM {self.DATABASE_SCHEMA}.{self.DATABASE_TABLE}
+            {f"WHERE instance_id = {instance_id}" if instance_id else ""}
+            ORDER BY timestamp DESC 
+            {f"LIMIT {limit}" if (limit) else ""}
+        ) AS recent_messages
+        ORDER BY timestamp ASC;
+        """
+        self.logger.info(f"Querying database for recent messages")
+        database_messages = await self.bot.db.query(query)
         
         # Process the messages
         if not database_messages or len(database_messages) == 0:
-            self.logger.info(f"No messages found for instance {instance_id}")
+            self.logger.info(f"No messages found for instance {instance_id}" if instance_id else "No messages found across all instances")
             return []
         
         # Process the messages
-        self.logger.info(f"Processing {len(database_messages)} messages for instance {instance_id}")
+        self.logger.info(f"Processing {len(database_messages)} messages for instance {instance_id}" if instance_id else f"Processing {len(database_messages)} messages across all instances")
         messages = []
         for database_message in database_messages:
             # Fetch Parts
@@ -358,6 +379,13 @@ class JerryGemini(commands.Cog):
             # Confirm parts aren't empty
             if len(parts) == 0 or not parts:
                 continue
+            
+            # Add instance id
+            if fetch_all:
+                new_parts = []
+                for part in parts:
+                    new_parts.append(f"[In channel <#{database_message['instance_id']}>]\n\n{part}")
+                parts = new_parts
                 
             # Create the message data
             message_data = {
@@ -820,14 +848,23 @@ class JerryGeminiInstance:
 
         # Fetch history
         history = []
+        fetch_all = self.instance_config.get("history", {}).get("all_instances", False)
         if self.instance_config.get("history", {}) != {}:
             if self.instance_config.get("history", {}).get("type", "database") == "database":
                 self.logger.info("Fetching message history from database")
                 limit = self.instance_config.get("history", {}).get("limit", None)
+                try:
+                    limit = int(limit)
+                except ValueError:
+                    self.logger.error("Invalid limit value")
+                    limit = None
                 if limit == False:
                     limit = None
-                    
-                history = await self.core.fetch_message_history(self.channel_id, limit=limit)
+                
+                if fetch_all:
+                    history = await self.core.fetch_message_history(fetch_all=True, limit=limit)
+                else:
+                    history = await self.core.fetch_message_history(limit=limit, instance_id=self.channel_id)
             else:
                 self.logger.error("Unsupported history type")
 
