@@ -231,6 +231,9 @@ class JerryGemini(commands.Cog):
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         """Handle edited messages for JerryGemini"""
+        #! Triggered to often; disabled for now
+        return
+        
         if before.author == self.bot.user:
             return
 
@@ -621,9 +624,9 @@ instances:
 
 The user id of the member who sent the message is included in the request, feel free to use an @mention in place of their name. Mentions are formed like this: <@user id>. 
 
-You are here to be helpful as well as entertain others with your intellegence. You are currently in a discord channel. You are talking to members of the server. You are allowed to yap. A lot. Please do.
+You are here to be helpful as well as entertain others with your intellegence. You are currently in a discord channel. You are talking to members of the server. Responses should be lengthy and engaging, using your persona of an octopus.
 
-Respond in text, formatted as Disord markdown, or with emojis. You have also been given commands to carry out certain actions."""
+Respond in plain text, in a structured and organized format (use newlines to separate items) with proper grammar and punctuation. You can use emojis, but do not overuse them. Your responses are in markdown. Markdown links do not work, so use the full URL. """
 
     # Commands
     COMMANDS_DEFUALT = ["send", "reset", "sticker", "reaction", "panic"]
