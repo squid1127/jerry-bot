@@ -321,7 +321,7 @@ class JerryGemini(commands.Cog):
         self.has_database_setup = True        
         
     # Fetch Message History
-    async def fetch_message_history(self, limit: int = None, instance_id: int = None, fetch_all: bool = False):
+    async def fetch_message_history(self, limit: int = None, instance_id: int = None, fetch_all: bool = False, extra: dict = {}):
         """Fetch the message history for an instance from the database ready to be injected into the model"""
         self.logger.info(f"Fetching message history for instance {instance_id}" if instance_id else "Fetching message history across all instances")
         
@@ -349,6 +349,19 @@ class JerryGemini(commands.Cog):
         #     database_messages = await database_table.fetch(filters=filters, order="timestamp", limit=limit)
             
         # Custom query cuz
+        filter_config = extra.get("filter", {})
+        filter_sql = []
+        
+        filter_origin_user = filter_config.get("user", True)
+        filter_origin_model = filter_config.get("model", True)
+        if filter_origin_user and filter_origin_model:
+            pass
+        elif filter_origin_user:
+            filter_sql.append("origin = 'user'")
+        elif filter_origin_model:
+            filter_sql.append("origin = 'model'")
+
+        
         query = f"""
         SELECT * FROM (
             SELECT * FROM {self.DATABASE_SCHEMA}.{self.DATABASE_TABLE}
@@ -629,7 +642,7 @@ You are here to be helpful as well as entertain others with your intellegence. Y
 Respond in plain text, in a structured and organized format (use newlines to separate items) with proper grammar and punctuation. You can use emojis, but do not overuse them. Your responses are in markdown. Markdown links do not work, so use the full URL. """
 
     # Commands
-    COMMANDS_DEFUALT = ["send", "reset", "sticker", "reaction", "panic"]
+    COMMANDS_DEFUALT = ["send", "reset", "sticker", "reaction", "panic", "nothing"]
     # Commands as Params (v2)
     COMMANDS_PARAMS = {
         "reset": gemini.protos.FunctionDeclaration(
@@ -694,6 +707,10 @@ Respond in plain text, in a structured and organized format (use newlines to sep
                     ),
                 },
             ),
+        ),
+        "nothing": gemini.protos.FunctionDeclaration(
+            name="nothing",
+            description="Do nothing. This command is used to ignore the user's request.",
         ),
     }
 
@@ -863,11 +880,13 @@ class JerryGeminiInstance:
                     limit = None
                 if limit == False:
                     limit = None
+                    
+                history_config = self.instance_config.get("history", {})
                 
                 if fetch_all:
-                    history = await self.core.fetch_message_history(fetch_all=True, limit=limit)
+                    history = await self.core.fetch_message_history(fetch_all=True, limit=limit, extra=history_config)
                 else:
-                    history = await self.core.fetch_message_history(limit=limit, instance_id=self.channel_id)
+                    history = await self.core.fetch_message_history(limit=limit, instance_id=self.channel_id, extra=history_config)
             else:
                 self.logger.error("Unsupported history type")
 
