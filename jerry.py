@@ -938,13 +938,28 @@ class JerryGeminiInstance:
         # Handle reply
         if message.reference:
             # Fetch the reply
-            reply = await message.channel.fetch_message(message.reference.message_id)
+            forwarded = False
+            try:
+                reply = await message.channel.fetch_message(message.reference.message_id)
+            except discord.NotFound:
+                # Check if forwarded message
+                if message.reference.channel_id != message.channel.id:
+                    # Fetch the message from the other channel
+                    try:
+                        reply = await self.core.bot.get_channel(message.reference.channel_id).fetch_message(message.reference.message_id)
+                    except discord.NotFound:
+                        reply = None
+                    else:
+                        forwarded = True
+                        
             if reply:
-                prompt += f'\n\nIn reply to: {reply.author.display_name} (ID: {reply.author.id}), who said: \n"""{reply.content}"""'
+                prompt += f'\n\nIn reply to: {reply.author.display_name} (ID: {reply.author.id}), who said: \n"""{reply.content}"""' if not forwarded else f'\n\nForwarded message:\n"""{reply.content}"""'
                 if reply.embeds:
                     prompt += f"Message embeds:\n"
                     for embed in reply.embeds:
                         prompt += f"\n{await self.handle_embed(embed)}"
+                        
+
 
         # Add message content
         prompt += f'\n\n{"In response " if message.reference else ""}{message.author.display_name} (ID: {message.author.id}) said: \n"""{message.content}"""'
@@ -957,9 +972,22 @@ class JerryGeminiInstance:
             prompt += f"Message embeds:\n"
             for embed in message.embeds:
                 prompt += f"\n{await self.handle_embed(embed)}"
+        
+        # Handle POLLs
+        if message.poll:
+            prompt += f"\n\nPoll: {message.poll.question}\n"
+            for option in message.poll.answers:
+                prompt += f"\n- {option.text} ({option.emoji}) - {option.vote_count} votes | ID: {option.id}"
                 
+            prompt += "\n Poll information: "
+            if message.poll.multiple:
+                prompt += "Type: Select multiple"
+            else:
+                prompt += "Type: Single choice"
+            prompt += f"\nEnds: {message.poll.expires_at}"
+            prompt += f"\nTotal votes: {message.poll.total_votes}"
+
         return prompt
-                
 
     async def generate_prompt(self, message: discord.Message, interaction_type: str = None, **kwargs):
         """Generate the prompt for the chat"""
@@ -973,7 +1001,6 @@ class JerryGeminiInstance:
 
              # Generate the prompt message
             prompt += await self._generate_prompt_message(message)
-
 
             if interaction_type == "message_edit":
                 before = kwargs.get("before")
@@ -1283,6 +1310,7 @@ class JerryGeminiInstance:
                 # Notify the model
                 request = f"Failed to send a direct message to the user. The server may have direct messages disabled or the user may have blocked/denied messages from this bot."
                 await self._model_system_request(request, message)
+
         
         elif action == "panic":
             fields = []
