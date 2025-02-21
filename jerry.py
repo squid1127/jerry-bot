@@ -1192,45 +1192,53 @@ class JerryGeminiInstance:
                     message=message,
                 )
 
-    def split_text_by_sep(self, text: str, max_length: int = 2000, sep: str = None) -> list:
-        """Split text into chunks of max_length by a separator"""
-        
-        # Split the text by separator (maximize the length of the chunk)
-        chunks = text.split(sep)
-        processed_chunks = []
-        current_chunk = ""
-        for chunk in chunks:
-            if len(current_chunk) + len(chunk) <= max_length:
-                current_chunk += chunk
+    def split_message(self, message: str, char_limit: int = 2000) -> list:
+        """
+        Splits a given message into a list of segments, each of which does not exceed the specified character limit.
+        Args:
+            message (str): The input message to be split.
+            char_limit (int, optional): The maximum number of characters allowed in each segment. Defaults to 2750.
+        Returns:
+            list: A list of message segments, each of which is within the character limit.
+        """
+
+        # Split the input message into paragraphs based on newline
+        paragraphs = message.split("\n")
+        result = []
+        current_segment = ""
+
+        # Ensure paragraphs do not initially exceed the character limit
+        new_paragraphs = []
+        for para in paragraphs:
+            if len(para) > char_limit:
+                # Split into segments that are exactly the character limit (or less)
+                for i in range(0, len(para), char_limit):
+                    new_paragraphs.append(para[i : i + char_limit])
             else:
-                processed_chunks.append(current_chunk)
-                current_chunk = chunk
-                
-        # Append the last chunk
-        if current_chunk != "":
-            processed_chunks.append(current_chunk)
-        else:
-            return None
+                new_paragraphs.append(para)
 
-        return processed_chunks
+        # Join paragraphs into segments that are less than the character limit
+        for para in new_paragraphs:
+            # Check if adding the next paragraph exceeds the character limit
+            if (
+                len(current_segment) + len(para) + (1 if current_segment else 0)
+                <= char_limit
+            ):
+                # If it doesn't, add the paragraph to the current segment
+                if current_segment:
+                    current_segment += "\n" + para
+                else:
+                    current_segment = para
+            else:
+                # If it does exceed, save the current segment and start a new one
+                result.append(current_segment)
+                current_segment = para
 
-    def split_text(self, text: str, max_length: int = 2000) -> list:
-        """Split text into chunks of max_length"""
-        if len(text) <= max_length:
-            return [text]
-        
-        # Split the text by newline
-        result = self.split_text_by_sep(text, max_length, "\n")
-        if result is not None:
-            return result
-        
-        # Split the text by whitespace
-        result = self.split_text_by_sep(text, max_length, " ")
-        if result is not None:
-            return result
-        
-        # Split the text by character (last resort)
-        return [text[i:i+max_length] for i in range(0, len(text), max_length)]
+        # Append any remaining part of the message
+        if current_segment:
+            result.append(current_segment)
+
+        return result
     
     async def handle_action(self, action: str, args: dict, message: discord.Message):
         if action == "send":
@@ -1238,9 +1246,15 @@ class JerryGeminiInstance:
             if len(content) == 0 or content is None:
                 self.logger.warning("No message to send")
                 return
-            self.logger.debug(f"Sending message: {content}")
-            chunks = self.split_text(content)
-            for chunk in chunks:
+            try:
+                # Split the message
+                message_chunks = self.split_message(content)
+            except Exception as e:
+                self.logger.error(f"Error splitting message: {e}")
+                return
+        
+            # Send the message
+            for chunk in message_chunks:
                 await message.channel.send(chunk)
                 
         elif action == "sticker":
@@ -1292,7 +1306,7 @@ class JerryGeminiInstance:
             user = message.author
             try:
                 # Split the message
-                chunks = self.split_text(content)
+                chunks = self.split_message(content)
                 for chunk in chunks:
                     await user.send(chunk)
             except discord.errors.Forbidden:
