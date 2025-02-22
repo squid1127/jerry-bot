@@ -95,6 +95,9 @@ class Jerry(core.Bot):
         await self.add_cog(CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
         await self.add_cog(StaticCommands(self))
         await self.add_cog(VoiceChat(self))
+        
+        
+    JERRY_RED = 0xFF5C5C
 
 
 class JerryGemini(commands.Cog):
@@ -1998,8 +2001,12 @@ autoreply:
         
         if response is None:
             if edit:
-                await edit.delete()
-                self.replied_messages_cache.pop(before.id)
+                # await edit.delete()
+                # self.replied_messages_cache.pop(before.id)
+                
+                edit_edit = await edit.edit(content="Bro why did you edit your message 🤔🤨")
+                self.replied_messages_cache[after.id] = edit_edit
+                
             return
 
         elif isinstance(response, discord.Message):
@@ -2014,8 +2021,37 @@ autoreply:
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if message.id in self.replied_messages_cache:
-            await self.replied_messages_cache[message.id].delete()
-            self.replied_messages_cache.pop(message.id)
+            edit = self.replied_messages_cache[message.id]
+            
+            message_as_embed = discord.Embed(
+                description=message.content,
+                color=discord.Color.blurple(),
+            )
+            message_as_embed.set_author(
+                name=message.author.display_name,
+                icon_url=message.author.avatar.url
+            )
+            message_as_embed.set_footer(
+                text="Original Message"
+            )
+            
+            bots_message_as_embed = discord.Embed(
+                description=edit.content,
+                color=self.bot.JERRY_RED,
+            )
+            bots_message_as_embed.set_author(
+                name="Me",
+                icon_url=self.bot.user.avatar.url
+            )
+            bots_message_as_embed.set_footer(
+                text="My GOATED Response"
+            )
+            
+            edit_response = "Hey why did you delete this? 🤔"
+            
+            edit_edit = await edit.edit(content=edit_response, embeds=[message_as_embed, bots_message_as_embed])
+            
+            self.replied_messages_cache[message.id] = edit_edit
         
         
 
@@ -3447,7 +3483,7 @@ class StaticCommands(commands.Cog):
         embed = discord.Embed(
             title="Jerry Bot",
             description="I'm Jerry, a bot created by CubbScratchStudios. I'm designed as a server-specific bot, meaning I have features that are unique to each server I'm in. However, I also have some global features that are available in all servers.",
-            color=0xFF5C5C,
+            color=self.bot.JERRY_RED,
         )
 
         embed.add_field(
