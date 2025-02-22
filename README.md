@@ -21,8 +21,8 @@ If you still want to try out Jerry bot, you can set him up as a docker container
 
 - `JERRY_TOKEN`: Discord bot token
 - `JERRY_SHELL`: Channel ID for the bot shell
-- `JERRY_GEMINI_TOKEN`: Google Gemini API token
-- `JERRY_GEMINI_CHANNEL`: Channel ID for the Gemini AI Chatbot
+- ~~`JERRY_GEMINI_TOKEN`: Google Gemini API token~~ (Deprecated)
+- ~~`JERRY_GEMINI_CHANNEL`: Channel ID for the Gemini AI Chatbot~~ (Deprecated)
 - `POSTGRES_CONNECTION`: PostgreSQL connection string
 - `POSTGRES_PASSWORD`: PostgreSQL password (if needed)
 - `POSTGRES_POOL`: PostgreSQL pool size (Number of concurrent connections)
