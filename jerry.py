@@ -2288,7 +2288,7 @@ autoreply:
 
         elif response.get("random"):
             return await self._do_reponse(
-                message, random.choice(response["random"]), config=config
+                message, random.choice(response["random"]), config=config, edit=edit
             )
 
         elif response.get("type") == "file":
