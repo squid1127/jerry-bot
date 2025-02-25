@@ -47,6 +47,7 @@ import hashlib
 # System
 import os
 import sys
+import shutil
 
 # Core bot
 import core.squidcore as core  # Core bot (https://github.com/squid1127/squid-core)
@@ -95,8 +96,7 @@ class Jerry(core.Bot):
         await self.add_cog(CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
         await self.add_cog(StaticCommands(self))
         await self.add_cog(VoiceChat(self))
-        
-        
+
     JERRY_RED = 0xFF5C5C
 
 
@@ -1779,7 +1779,6 @@ class AutoReplyV2(commands.Cog):
             config_default=self.DEFAULT_CONFIG,
             config_do_cache=300,
             cache=True,
-            cache_clear_on_init=True,
         )
         self.files.init()
 
@@ -1788,11 +1787,25 @@ class AutoReplyV2(commands.Cog):
         self.auto_reply_cache_last_updated = 0
 
         self.replied_messages_cache = {}
+        
 
         # Command
         self.bot.shell.add_command(
             "autoreply", cog="AutoReplyV2", description="Manage Jerry's auto-reply"
         )
+        
+        # Load and verify the configuration
+        config = self.get_config()
+
+        self.logger.debug("Cfg: "+str(config))
+        
+        if config.get("invalid"):
+            self.logger.error("Invalid configuration: "+config["invalid"])
+            return
+        
+        if config.get("config", {}).get("wipe_image_cache_on_start", True):
+            self.clear_image_cache()
+            
 
     # Default auto-reply configuration
     DEFAULT_CONFIG = """# Default Config for the AutoReply cog
@@ -1826,7 +1839,17 @@ autoreply:
       text: Nuh-uh ❌
 
 """
-
+    def clear_image_cache(self):
+        """Clear the image cache"""
+        self.logger.info("Clearing image cache")
+        try:
+            shutil.rmtree(self.files.get_cache_dir())
+            os.makedirs(self.files.get_cache_dir())
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            self.logger.error(f"Error clearing image cache: {e}")
+    
     def verify_config(self, config: dict) -> tuple:
         """Verify the auto-reply configuration"""
         if not config:
@@ -1892,7 +1915,11 @@ autoreply:
         if response.get("type") == "file":
             if not (response.get("path") or response.get("url")):
                 return (False, "Response type is file, but no path or URL was provided")
-
+            
+        if response.get("type") == "reaction":
+            if not (response.get("emoji") or response.get("id")):
+                return (False, "Response type is reaction, but no emoji was provided")
+    
         if response.get("type") == "random" or response.get("random"):
             if response.get("random"):
                 for r in response["random"]:
@@ -1917,7 +1944,18 @@ autoreply:
 
         has_valid_keys = False
         for key in response.keys():
-            if key not in ["text", "type", "random", "vars", "path", "url", "bad"]:
+            if key not in [
+                "text",
+                "type",
+                "random",
+                "vars",
+                "path",
+                "url",
+                "bad",
+                "emoji",
+                "id",
+                "note",
+            ]:
                 return (False, f"Response key `{key}` is invalid")
             else:
                 has_valid_keys = True
@@ -1990,23 +2028,25 @@ autoreply:
         # Ignore messages edited by the bot
         if before.author == self.bot.user:
             return
-        
+
         # Check the message cache
         if before.id in self.replied_messages_cache:
-            edit:discord.Message = self.replied_messages_cache[before.id]
+            edit: discord.Message = self.replied_messages_cache[before.id]
         else:
             edit = None
 
         response = await self.process_message(after, edit)
-        
+
         if response is None:
             if edit:
                 # await edit.delete()
                 # self.replied_messages_cache.pop(before.id)
-                
-                edit_edit = await edit.edit(content="Bro why did you edit your message 🤔🤨")
+
+                edit_edit = await edit.edit(
+                    content="Bro why did you edit your message 🤔🤨"
+                )
                 self.replied_messages_cache[after.id] = edit_edit
-                
+
             return
 
         elif isinstance(response, discord.Message):
@@ -2017,43 +2057,37 @@ autoreply:
             return
 
         self.logger.debug(f"How did we get here? 🤔")
-        
+
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if message.id in self.replied_messages_cache:
             edit = self.replied_messages_cache[message.id]
-            
+
             message_as_embed = discord.Embed(
                 description=message.content,
                 color=discord.Color.blurple(),
             )
             message_as_embed.set_author(
-                name=message.author.display_name,
-                icon_url=message.author.avatar.url
+                name=message.author.display_name, icon_url=message.author.avatar.url
             )
-            message_as_embed.set_footer(
-                text="Original Message"
-            )
-            
+            message_as_embed.set_footer(text="Original Message")
+
             bots_message_as_embed = discord.Embed(
                 description=edit.content,
                 color=self.bot.JERRY_RED,
             )
             bots_message_as_embed.set_author(
-                name="Me",
-                icon_url=self.bot.user.avatar.url
+                name="Me", icon_url=self.bot.user.avatar.url
             )
-            bots_message_as_embed.set_footer(
-                text="My GOATED Response"
-            )
-            
+            bots_message_as_embed.set_footer(text="My GOATED Response")
+
             edit_response = "Hey why did you delete this? 🤔"
-            
-            edit_edit = await edit.edit(content=edit_response, embeds=[message_as_embed, bots_message_as_embed])
-            
+
+            edit_edit = await edit.edit(
+                content=edit_response, embeds=[message_as_embed, bots_message_as_embed]
+            )
+
             self.replied_messages_cache[message.id] = edit_edit
-        
-        
 
     async def process_message(
         self, message: discord.Message, edit: discord.Message = None
@@ -2255,7 +2289,11 @@ autoreply:
         return discord.File(path)
 
     async def _do_reponse(
-        self, message: discord.Message, response: dict, config: dict = None, edit: discord.Message = None
+        self,
+        message: discord.Message,
+        response: dict,
+        config: dict = None,
+        edit: discord.Message = None,
     ) -> Optional[discord.Message]:
         """Handle the auto-reply response"""
 
@@ -2351,6 +2389,25 @@ autoreply:
                         except:
                             pass
                     return await message.reply(file=file)
+
+        elif response.get("type") == "reaction":
+            if response.get("emoji"):
+                await message.add_reaction(response["emoji"])
+            elif response.get("id"):
+                try:
+                    emoji_id = int(response["id"])
+                except ValueError:
+                    self.logger.error(f"Invalid emoji ID: {response['id']}")
+                    return None
+                emoji = self.bot.get_emoji(emoji_id)
+                if emoji:
+                    await message.add_reaction(emoji)
+                else:
+                    self.logger.error(f"Failed to find emoji with ID {response['id']}")
+            else:
+                self.logger.error("Reaction response missing both emoji and id")
+
+            return None
 
         return None
 
