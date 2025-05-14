@@ -3512,10 +3512,11 @@ class StaticCommands(commands.Cog):
             cog="StaticCommands",
             description="Manage API keys",
         )
+        self.logger = logging.getLogger("jerry.staticcommands")
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print("[StaticCommands] Ready")
+        self.logger.info("Static commands ready")
 
     async def cog_status(self):
         return "Ready"
