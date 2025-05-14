@@ -10,7 +10,6 @@ RUN apk add --no-cache \
     musl-dev \
     libffi-dev \
     libheif-dev \
-    ffmpeg \
     python3-dev \
     build-base \
     pkgconfig \
