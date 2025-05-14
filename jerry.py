@@ -14,6 +14,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from typing import Optional, Literal  # For command params
 from datetime import timedelta, datetime  # For timeouts & timestamps
+from pytz import timezone  # For timezones
 from enum import Enum  # For enums (select menus)
 
 # Async Packages
@@ -158,6 +159,7 @@ class JerryGemini(commands.Cog):
 
         # Discord Config
         self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
+        self.tz = self.config.get("global", {}).get("timezone", "UTC")
 
         self.has_database_setup = False
 
@@ -751,6 +753,18 @@ Respond in plain text, in a structured and organized format (use newlines to sep
                 },
             ),
         ),
+        "memory_add": gemini.protos.FunctionDeclaration(
+            name="memory_add",
+            description="Save a string to the bot's memory. This will be injected into the prompt permanently. Use with caution. It is to be used for retaining basic information about users and their preferences. If a user asks you to remember something, use this command. Using sparingly as there is a memory limit.",
+            parameters=gemini_content.Schema(
+                type=gemini_content.Type.OBJECT,
+                properties={
+                    "content": gemini_content.Schema(
+                        type=gemini_content.Type.STRING,
+                    ),
+                },
+            ),
+        ),
         "nothing": gemini.protos.FunctionDeclaration(
             name="nothing",
             description="Do nothing. This command is used to ignore the user's request.",
@@ -988,6 +1002,13 @@ class JerryGeminiInstance:
     async def _generate_prompt_message(self, message: discord.Message) -> str:
         """Generate the prompt for the chat, specifically for messages"""
         prompt = ""
+        
+        # Determine local time
+        local_time = message.created_at.astimezone(
+            tz=timezone(self.core.tz)
+        ).strftime("%H:%M | %Y-%m-%d")
+        prompt += f"Current time: {local_time}\n"
+        
         # Handle reply
         if message.reference:
             # Fetch the reply
@@ -1140,8 +1161,15 @@ class JerryGeminiInstance:
         )
 
         # Download the file (overwrite if it exists)
+        if not isinstance(attachment.url, str) or not attachment.url:
+            self.logger.error(f"Invalid URL for attachment: {attachment.url}")
+            return ("Invalid URL", None)
+
         async with aiohttp.ClientSession() as session:
             async with session.get(attachment.url) as resp:
+                if resp.status != 200:
+                    self.logger.error(f"Failed to download file: {resp.status}")
+                    return (f"Failed to download file: {resp.status}", None)
                 with open(file_name, "wb") as f:
                     f.write(await resp.read())
 
@@ -1450,6 +1478,16 @@ class JerryGeminiInstance:
                     prompt = await self.generate_prompt(
                         message, interaction_type=interaction_type, **kwargs
                     )
+                    
+                    # Debugging - Send prompt
+                    if self.instance_config.get("debug", {}).get("prompt", False):
+                        await message.channel.send(
+                            embed=discord.Embed(
+                                title="Debug Prompt",
+                                description=prompt,
+                                color=discord.Color.blue(),
+                            )
+                        )
 
                     # Handle Attachments
                     self.logger.debug("Handling attachments")
@@ -1515,10 +1553,23 @@ class JerryGeminiInstance:
                         continue
 
                     # Debugging - Full response as JSON
-                    if self.instance_config.get("debug", False):
-                        await message.channel.send(
-                            f"```json\n{json.dumps(response.to_dict(), indent=4)}```"
+                    if self.instance_config.get("debug", {}).get("response", False):
+                        debug_output = json.dumps(
+                            response.to_dict(), indent=4, ensure_ascii=False
                         )
+                        
+                        if len(debug_output) > 1930:
+                            # Send as json file
+                            cache_dir = self.core.files.get_cache_dir()
+                            with open(f"{cache_dir}/debug_output.json", "w") as json_file:
+                                json.dump(response.to_dict(), json_file, indent=4, ensure_ascii=False)
+                            await message.channel.send(
+                                file=discord.File(os.path.join(cache_dir, "debug_output.json")),
+                            )
+                        else:
+                            await message.channel.send(
+                                f"```json\n{debug_output}```"
+                            )
 
                     # Process the response
                     try:
