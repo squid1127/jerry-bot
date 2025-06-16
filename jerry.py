@@ -770,13 +770,11 @@ Respond in plain text, in a structured and organized format (use newlines to sep
         ),
     }
 
-    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, a chatbot powered by Google's Generative AI. 
+    CHANNEL_DESCRIPTION = f"""Chat with {NAME}, the intelligent experimental octopus! Powered by Google's Generative AI.
 
-By talking in this channel, you agree to the respective terms and conditions & privacy policy of Google's Generative AI. 
+Your messages are processed for chat context and may help train the AI model (generally aggregated/anonymized). By chatting, you agree to Google's AI terms.
 
-Your conversation may be used by Google as training data to improve the AI model. Please do not share any personal or sensitive information. 
-
-If you have any concerns, please contact the server owner or an admin. For more information, visit https://ai.google.dev/gemini-api/docs/
+Please don't share personal or sensitive info. For concerns, contact server admin/owner.
 
 Commands:
     - /gemini-reset: Reset the chat
@@ -972,17 +970,18 @@ class JerryGeminiInstance:
 
         else:
             # Update the channel description
-            try:
-                channel: discord.TextChannel = self.core.bot.get_channel(
-                    self.channel_id
-                )
-                await channel.edit(
-                    topic=self.core.CHANNEL_DESCRIPTION,
-                )
-            except discord.Forbidden:
-                self.logger.error(
-                    "Failed to update channel description (Missing permissions)"
-                )
+            if self.instance_config.get("update_channel_description", True):
+                try:
+                    channel: discord.TextChannel = self.core.bot.get_channel(
+                        self.channel_id
+                    )
+                    await channel.edit(
+                        topic=self.core.CHANNEL_DESCRIPTION,
+                    )
+                except discord.Forbidden:
+                    self.logger.error(
+                        "Failed to update channel description (Missing permissions)"
+                    )
 
         return
 
@@ -1001,13 +1000,13 @@ class JerryGeminiInstance:
     async def _generate_prompt_message(self, message: discord.Message) -> str:
         """Generate the prompt for the chat, specifically for messages"""
         prompt = ""
-        
+
         # Determine local time
-        local_time = message.created_at.astimezone(
-            tz=timezone(self.core.tz)
-        ).strftime("%H:%M | %Y-%m-%d")
+        local_time = message.created_at.astimezone(tz=timezone(self.core.tz)).strftime(
+            "%H:%M | %Y-%m-%d"
+        )
         prompt += f"Current time: {local_time}\n"
-        
+
         # Handle reply
         if message.reference:
             # Fetch the reply
@@ -1477,7 +1476,7 @@ class JerryGeminiInstance:
                     prompt = await self.generate_prompt(
                         message, interaction_type=interaction_type, **kwargs
                     )
-                    
+
                     # Debugging - Send prompt
                     if self.instance_config.get("debug", {}).get("prompt", False):
                         await message.channel.send(
@@ -1556,19 +1555,26 @@ class JerryGeminiInstance:
                         debug_output = json.dumps(
                             response.to_dict(), indent=4, ensure_ascii=False
                         )
-                        
+
                         if len(debug_output) > 1930:
                             # Send as json file
                             cache_dir = self.core.files.get_cache_dir()
-                            with open(f"{cache_dir}/debug_output.json", "w") as json_file:
-                                json.dump(response.to_dict(), json_file, indent=4, ensure_ascii=False)
+                            with open(
+                                f"{cache_dir}/debug_output.json", "w"
+                            ) as json_file:
+                                json.dump(
+                                    response.to_dict(),
+                                    json_file,
+                                    indent=4,
+                                    ensure_ascii=False,
+                                )
                             await message.channel.send(
-                                file=discord.File(os.path.join(cache_dir, "debug_output.json")),
+                                file=discord.File(
+                                    os.path.join(cache_dir, "debug_output.json")
+                                ),
                             )
                         else:
-                            await message.channel.send(
-                                f"```json\n{debug_output}```"
-                            )
+                            await message.channel.send(f"```json\n{debug_output}```")
 
                     # Process the response
                     try:
@@ -1837,25 +1843,23 @@ class AutoReplyV2(commands.Cog):
         self.auto_reply_cache_last_updated = 0
 
         self.replied_messages_cache = {}
-        
 
         # Command
         self.bot.shell.add_command(
             "autoreply", cog="AutoReplyV2", description="Manage Jerry's auto-reply"
         )
-        
+
         # Load and verify the configuration
         config = self.get_config()
 
-        self.logger.debug("Cfg: "+str(config))
-        
+        self.logger.debug("Cfg: " + str(config))
+
         if config.get("invalid"):
-            self.logger.error("Invalid configuration: "+config["invalid"])
+            self.logger.error("Invalid configuration: " + config["invalid"])
             return
-        
+
         if config.get("config", {}).get("wipe_image_cache_on_start", True):
             self.clear_image_cache()
-            
 
     # Default auto-reply configuration
     DEFAULT_CONFIG = """# Default Config for the AutoReply cog
@@ -1889,6 +1893,7 @@ autoreply:
       text: Nuh-uh ❌
 
 """
+
     def clear_image_cache(self):
         """Clear the image cache"""
         self.logger.info("Clearing image cache")
@@ -1899,7 +1904,7 @@ autoreply:
             pass
         except Exception as e:
             self.logger.error(f"Error clearing image cache: {e}")
-    
+
     def verify_config(self, config: dict) -> tuple:
         """Verify the auto-reply configuration"""
         if not config:
@@ -1965,11 +1970,11 @@ autoreply:
         if response.get("type") == "file":
             if not (response.get("path") or response.get("url")):
                 return (False, "Response type is file, but no path or URL was provided")
-            
+
         if response.get("type") == "reaction":
             if not (response.get("emoji") or response.get("id")):
                 return (False, "Response type is reaction, but no emoji was provided")
-    
+
         if response.get("type") == "random" or response.get("random"):
             if response.get("random"):
                 for r in response["random"]:
