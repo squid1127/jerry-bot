@@ -7,9 +7,7 @@ Environment Variables
 ---------------------
 - JERRY_TOKEN: The Discord bot token for Jerry
 - JERRY_SHELL: The channel ID for the shell channel
-- POSTGRES_CONNECTION: The PostgreSQL connection string for the database
-- POSTGRES_PASSWORD: The PostgreSQL password for the database
-- POSTGRES_POOL: The PostgreSQL pool size for the database
+- PostgreSQL connection variables (refer to squidcore)
 
 """
 
@@ -37,8 +35,7 @@ token = os.getenv("JERRY_TOKEN")
 logger.info(f"Channel: {channel} | Token: {token}")
 
 jerry = Jerry(discord_token=token, shell_channel=channel)
-postgres_pool = os.getenv("POSTGRES_POOL") if os.getenv("POSTGRES_POOL") else 20
-jerry.add_db(os.getenv("POSTGRES_CONNECTION"), os.getenv("POSTGRES_PASSWORD"), int(postgres_pool))
+jerry.add_db(from_env=True)  # Add database from environment variables
 
 # Start the Jerry bot
 logger.info("Running Jerry Bot")
