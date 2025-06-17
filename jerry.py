@@ -1128,6 +1128,13 @@ class JerryGeminiInstance:
 
         processed_attachments = [prompt]
         for attachment in attachments:
+            # Check that attachment is valid
+            if not isinstance(attachment[0], discord.Attachment):
+                self.logger.error(
+                    f"Invalid attachment type: {type(attachment[0])}. Expected discord.Attachment."
+                )
+                continue
+            
             attachment_processed = await self._handle_attachment(*attachment)
             if attachment_processed[1]:
                 processed_attachments.append(attachment_processed[1])
@@ -1251,15 +1258,16 @@ class JerryGeminiInstance:
         for part in parts:
             if part.text:
                 parts_list.append(part.text)
-            if part.function_call:
-                function_call_data = {
-                    "name": part.function_call.name,
-                }
-                if part.function_call.args:
-                    function_call_data["args"] = dict(part.function_call.args)
-                parts_list.append(
-                    f"```Function Call\n{json.dumps(function_call_data, indent=4)}\n```"
-                )
+            # The model gets too confused
+            # if part.function_call:
+            #     function_call_data = {
+            #         "name": part.function_call.name,
+            #     }
+            #     if part.function_call.args:
+            #         function_call_data["args"] = dict(part.function_call.args)
+            #     parts_list.append(
+            #         f"```Function Call\n{json.dumps(function_call_data, indent=4)}\n```"
+            #     )
 
         await self.core.append_to_history(
             instance_id=self.channel_id,
@@ -1272,6 +1280,15 @@ class JerryGeminiInstance:
         response: gemini_generation_types.AsyncGenerateContentResponse,
         message: discord.Message,
     ):
+        """Process the response from the model"""
+        # Save the response model to the database if history is enabled
+        if self.instance_config.get("history", {}) != {}:
+            if (
+                self.instance_config.get("history", {}).get("type", "database")
+                == "database"
+            ):
+                self.logger.info("Saving response to database")
+                # Save the response model
         await self.save_response_model(response)
 
         # Iterate through parts
@@ -1424,12 +1441,16 @@ class JerryGeminiInstance:
             fields = []
             self.logger.warning("Panic mode activated")
             reason = args.get("reason")
+            mute = args.get("mute_user", False)
             if reason is not None:
                 fields.append({"name": "Reason", "value": reason})
 
             suggested_action = args.get("suggested_action")
             if suggested_action is not None:
                 fields.append({"name": "Suggested Action", "value": suggested_action})
+                
+            if mute:
+                mute_id = message.author.id
 
             fields.append(
                 {
@@ -1504,6 +1525,7 @@ class JerryGeminiInstance:
                                     plain_content.append(
                                         f"Warning: Attachment included is not saved to history."
                                     )
+                                    
                         else:
                             plain_content.append(content)
                         self.logger.info(f"Saving message to history: {plain_content}")
