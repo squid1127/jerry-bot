@@ -30,6 +30,7 @@ from datetime import timedelta, datetime
 # squid-core
 import core
 
+
 class JerryGemini(commands.Cog):
     """V2 | Chat with Jerry, powered by Google Gemini"""
 
@@ -86,6 +87,34 @@ class JerryGemini(commands.Cog):
             self.config.get("global", {}).get("ai", {}).get("temperature", 1.0)
         )
 
+        # Pro Model Config
+        if self.config.get("global", {}).get("pro", {}).get("enabled", False):
+            self.pro_model_token = (
+                self.config.get("global", {}).get("pro", {}).get("token", self.ai_token)
+            )
+            self.pro_model_model = (
+                self.config.get("global", {}).get("pro", {}).get("model", self.ai_model)
+            )
+            self.pro_model_top_p = (
+                self.config.get("global", {}).get("pro", {}).get("top_p", self.ai_top_p)
+            )
+            self.pro_model_top_k = (
+                self.config.get("global", {}).get("pro", {}).get("top_k", self.ai_top_k)
+            )
+            self.pro_model_temperature = (
+                self.config.get("global", {})
+                .get("pro", {})
+                .get("temperature", self.ai_temperature)
+            )
+            self.pro_model = True
+        else:
+            self.pro_model_token = None
+            self.pro_model_model = None
+            self.pro_model_top_p = None
+            self.pro_model_top_k = None
+            self.pro_model_temperature = None
+            self.pro_model = False
+
         # Discord Config
         self.emoji_default = self.config.get("global", {}).get("personal_emoji", "🐙")
         self.tz = self.config.get("global", {}).get("timezone", "UTC")
@@ -125,6 +154,42 @@ class JerryGemini(commands.Cog):
             )
 
         self.logger.info("Global configuration loaded")
+
+    async def query_pro_model(self, prompt: str) -> str:
+        """Query the Pro Model with a prompt and return the response"""
+
+        sys_prompt = "You are an advanced AI model. Your job is to respond to prompts provided by other AI models. Your responses should be detailed, accurate, and relevant to the prompt. You are not to engage in conversation or provide additional information beyond what is requested. Your responses should be in plain text format."
+
+        if not self.pro_model:
+            self.logger.warning("Pro model is not enabled")
+            return "Pro model is not enabled"
+
+        # Model configuration
+        generation_config = {
+            "top_p": self.ai_top_p,
+            "top_k": self.ai_top_k,
+            "temperature": self.ai_temperature,
+        }
+
+        model = gemini.GenerativeModel(
+            self.pro_model_model,
+            generation_config=generation_config,
+            safety_settings={
+                "HARASSMENT": "BLOCK_NONE",
+                "HATE": "BLOCK_NONE",
+                "SEXUAL": "BLOCK_NONE",
+                "DANGEROUS": "BLOCK_NONE",
+            },
+            system_instruction=sys_prompt,
+        )
+
+        response = await model.generate_content_async(prompt)
+
+        return (
+            response.text.strip()
+            if response and response.text
+            else "No response from Pro Model"
+        )
 
     # Incoming Messages
     @commands.Cog.listener()
@@ -694,6 +759,18 @@ Respond in plain text, in a structured and organized format (use newlines to sep
                 },
             ),
         ),
+        "pro_query": gemini.protos.FunctionDeclaration(
+            name="pro_query",
+            description="Send a query to the Google Gemini Pro Model. Use this command to query the Pro Model for further information. This feature is highly rate limited and should only be used when necessary. Inform the user that you are talking to the Pro Model and that they need to press an 'Approve' button to continue.",
+            parameters=gemini_content.Schema(
+                type=gemini_content.Type.OBJECT,
+                properties={
+                    "prompt": gemini_content.Schema(
+                        type=gemini_content.Type.STRING,
+                    ),
+                },
+            ),
+        ),
         "nothing": gemini.protos.FunctionDeclaration(
             name="nothing",
             description="Do nothing. This command is used to ignore the user's request.",
@@ -1064,7 +1141,7 @@ class JerryGeminiInstance:
                     f"Invalid attachment type: {type(attachment[0])}. Expected discord.Attachment."
                 )
                 continue
-            
+
             attachment_processed = await self._handle_attachment(*attachment)
             if attachment_processed[1]:
                 processed_attachments.append(attachment_processed[1])
@@ -1378,7 +1455,7 @@ class JerryGeminiInstance:
             suggested_action = args.get("suggested_action")
             if suggested_action is not None:
                 fields.append({"name": "Suggested Action", "value": suggested_action})
-                
+
             if mute:
                 mute_id = message.author.id
 
@@ -1397,8 +1474,149 @@ class JerryGeminiInstance:
                 fields=fields,
             )
 
+        elif action == "pro_query":
+            prompt = args.get("prompt")
+            if len(prompt) == 0 or prompt is None:
+                self.logger.warning("No prompt provided for Pro Query")
+                return
+
+            if not self.core.pro_model:
+                self.logger.warning("Pro Model is not enabled")
+                await message.channel.send(
+                    embed=discord.Embed(
+                        title="Pro Model Disabled",
+                        description="The Pro Model is currently disabled. Please try again later.",
+                        color=discord.Color.red(),
+                    )
+                )
+                self.logger.warning("Pro Model is not enabled")
+                await self._model_system_request(
+                    f"Pro Model is not enabled for this instance. Respond without using the Pro Model.",
+                    message=message,
+                )
+                return
+
+            await self.query_pro_model(
+                prompt=prompt,
+                message=message,
+            )
+            return
+
         else:
             self.logger.warning(f"Invalid action: {action}")
+
+    async def query_pro_model(self, prompt: str, message: discord.Message):
+        """Send a query to the Pro Model"""
+
+        class ProModelInteraction(discord.ui.View):
+            def __init__(
+                self,
+                core: JerryGemini,
+                instance: "JerryGeminiInstance",
+                message: discord.Message,
+                prompt: str,
+            ):
+                super().__init__(timeout=60)
+                self.core = core
+                self.instance = instance
+                self.message = message
+                self.logger = logging.getLogger(
+                    f"jerry.gemini.{instance.channel_id}.pro_model_interaction"
+                )
+                self.prompt = prompt
+
+            @discord.ui.button(label="Approve", style=discord.ButtonStyle.green)
+            async def approve(
+                self, interaction: discord.Interaction, button: discord.ui.Button
+            ):
+                """Approve the Pro Model query"""
+                await interaction.response.defer()
+
+                await interaction.message.edit(
+                    embed=discord.Embed(
+                        title="Processing Pro Model Query",
+                        description="Your Pro Query has been approved and is being processed. Please wait...",
+                        color=discord.Color.blue(),
+                    ),
+                    view=None,  # Remove the buttons
+                )
+
+                # Send the query to the Pro Model
+                try:
+                    self.logger.info(f"Processing Pro Query: {prompt}")
+
+                    response = await self.core.query_pro_model(prompt)
+
+                    self.logger.info(f"Pro Query response: {response}")
+
+                    await self.instance._model_system_request(
+                        f"Pro Query processed successfully: \n{response}\n[End of Pro Query]\nYou can now respond to the user with the Pro Model response.",
+                        message=self.message,
+                    )
+
+                    await interaction.message.edit(
+                        embed=discord.Embed(
+                            title="Query Completed",
+                            description=f"Your Pro Model query has been processed successfully.",
+                            color=discord.Color.green(),
+                        ).add_field(
+                            name="Prompt Used",
+                            value=self.prompt,
+                        ),
+                    )
+
+                except Exception as e:
+                    self.logger.error(f"Error processing Pro Query: {e}")
+                    await interaction.message.edit(
+                        embed=discord.Embed(
+                            title="Pro Query Error",
+                            description=f"An error occurred while processing your query: {e}",
+                            color=discord.Color.red(),
+                        ),
+                        view=None,  # Remove the buttons
+                    )
+                finally:
+                    self.stop()
+
+            @discord.ui.button(label="Deny", style=discord.ButtonStyle.red)
+            async def deny(
+                self, interaction: discord.Interaction, button: discord.ui.Button
+            ):
+                """Deny the Pro Model query"""
+                await interaction.response.defer()
+                # Edit the message to indicate denial
+                await interaction.message.edit(
+                    embed=discord.Embed(
+                        title="Pro Query Denied",
+                        description="The Pro Model query has been denied.",
+                        color=discord.Color.red(),
+                    ),
+                    view=None,  # Remove the buttons
+                )
+                await self.instance._model_system_request(
+                    f"Pro Model query denied by user {interaction.user.display_name} (ID: {interaction.user.id}). The user did not approve the use of the Pro Model for the query.",
+                    message=self.message,
+                )
+                self.stop()
+
+        # Notify the user
+        await message.channel.send(
+            embed=discord.Embed(
+                title="Pro Model Query",
+                description=f"You have requested a Pro Model query. Please approve or deny it below.",
+                color=discord.Color.green(),
+            ).add_field(
+                name="Requested Prompt",
+                value=prompt,
+            ),
+            view=ProModelInteraction(
+                core=self.core,
+                instance=self,
+                message=message,
+                prompt=prompt,
+            ),
+        )
+        return
 
     async def handle(
         self, message: discord.Message, interaction_type: str = "message", **kwargs
@@ -1455,7 +1673,7 @@ class JerryGeminiInstance:
                                     plain_content.append(
                                         f"Warning: Attachment included is not saved to history."
                                     )
-                                    
+
                         else:
                             plain_content.append(content)
                         self.logger.info(f"Saving message to history: {plain_content}")
