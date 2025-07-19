@@ -41,4 +41,13 @@ echo "Installing core bot packages..."
 pip install -r src/core/requirements.txt
 echo
 
+# Ensure env file exists
+if [ ! -f ".env" ]; then
+    echo "Creating .env file..."
+    touch .env
+    echo "Please configure your .env file with the necessary environment variables. (Refer to readme)"
+else
+    echo ".env file already exists. Nice!"
+fi
+
 echo "Jerry bot environment initialized!"
