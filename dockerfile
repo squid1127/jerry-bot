@@ -16,16 +16,16 @@ RUN apk add --no-cache \
     cargo
 
 # Copy only the requirements files first to leverage Docker cache
-COPY ./core/requirements.txt ./core/requirements.txt
+COPY ./src/core/requirements.txt ./src/core/requirements.txt
 COPY requirements.txt requirements.txt
 
 # Install Python dependencies
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r ./core/requirements.txt \
+    && pip install --no-cache-dir -r ./src/core/requirements.txt \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
 
 # Run app.py when the container launches
-CMD ["python", "app.py"]
+CMD ["python", "src/app.py"]

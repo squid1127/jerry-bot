@@ -170,5 +170,6 @@ tmp/
 db/
 msar/
 
-# Compose file for now
-compose.yml
+# Dockerignore
+.dockerignore
+# Ignore dockerignore as everything is already ignored in .gitignore
