@@ -1561,7 +1561,7 @@ class JerryGeminiInstance:
                             color=discord.Color.green(),
                         ).add_field(
                             name="Prompt Used",
-                            value=self.prompt,
+                            value=self.prompt if len(self.prompt) < 1024 else f"{self.prompt[:1020]}...",
                         ),
                     )
 
@@ -1607,7 +1607,7 @@ class JerryGeminiInstance:
                 color=discord.Color.green(),
             ).add_field(
                 name="Requested Prompt",
-                value=prompt,
+                value=prompt if len(prompt) < 1024 else f"{prompt[:1020]}...",
             ),
             view=ProModelInteraction(
                 core=self.core,
