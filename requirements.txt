@@ -5,7 +5,9 @@ google-api-core
 Pillow
 pyheif
 python-dotenv
-google-generativeai
+google-genai
 PyNaCl
 pillow-heif
 pytz
+voluptuous
+python-magic

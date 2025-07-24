@@ -1,3 +1,5 @@
+"""DEPRECATED: JerryGemini V2 - Google Gemini AI Chatbot"""
+
 # Packages
 import logging
 import json
