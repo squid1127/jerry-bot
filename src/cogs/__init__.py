@@ -13,7 +13,7 @@ from .information_channels import InformationChannels
 from .guild_stuff import GuildStuff
 
 # Gemini AI
-from .gemini import JerryGemini
+from .gemini import *
 
 # Auto-reply v2
 from .auto_reply import AutoReply
