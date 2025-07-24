@@ -682,3 +682,11 @@ autoreply:
 
 
 
+    async def cog_status(self) -> str:
+        """
+        Return the status of the cog.
+        """
+        config = self.get_config()
+        if config.get("invalid"):
+            return f"Error: {config.get('error', 'Unknown error')}"
+        return f"Ready with {len(config.get('autoreply', []))} auto-reply patterns"
