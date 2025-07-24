@@ -117,7 +117,7 @@ global:
   # AI Model Configuration
   ai:
     provider: gemini
-    api_key: "AIzaSyBQcPeJ4mSLgFoViHqnKF4Vn_6SmnttL98" # Replace with your actual API key (https://aistudio.google.com/apikey)
+    api_key: "wth" # Replace with your actual API key (https://aistudio.google.com/apikey)
     model: gemini-2.5-flash
     top_p: 0.95
     model_top_k: 40
