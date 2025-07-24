@@ -1,0 +1,11 @@
+name: jerry-bot
+services:
+  jerry-bot:
+    image: ghcr.io/squid1127/jerry-bot:main
+    container_name: jerry-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./store:/app/store
+      - ./communal:/app/communal
