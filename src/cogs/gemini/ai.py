@@ -60,6 +60,7 @@ class ChatInstance:
         self.logger.debug(f"Processing response: {response}")
         self.logger.info(f"Response from {response.source.value} to {query.source.value}: {response.text}")
         if not query.response_method:
+            self.logger.warning("No response method defined for query, skipping response handling.")
             return
 
         # Call the response method with the query and response
@@ -86,19 +87,24 @@ class ChatInstance:
 
         try:
             response = await method.run(method_call)
-            if response.response_model:
+            if response.response_model or response.response_model_query:
                 if response.response_user:
                     await self.do_response(query, response.response_user)
-                model_response = await self.chat_input(
-                    AIQuery(
-                        message=response.response_model,
-                        discord=(
-                            method_call.query.discord if method_call.query else None
-                        ),
-                        response_method=query.response_method,
-                        source=AIQuerySource.METHOD,
+                if response.response_model_query:
+                    model_response = await self.chat_input(
+                        response.response_model_query
                     )
-                )
+                else:
+                    model_response = await self.chat_input(
+                        AIQuery(
+                            message=response.response_model,
+                            discord=(
+                                method_call.query.discord if method_call.query else None
+                            ),
+                            response_method=query.response_method,
+                            source=AIQuerySource.METHOD,
+                        )
+                    )
                 if response.response_user:
                     model_response.insert(0, response.response_user)
                 return [model_response]
