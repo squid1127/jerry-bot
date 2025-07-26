@@ -3,6 +3,7 @@
 # Discord Types
 import discord
 import asyncio
+from io import BytesIO
 
 # Decorators
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ class AIResponse:
 
     text: str
     usage: dict = None
+    files: list["QueryAttachment"] = field(default_factory=list)
     function_calls: list["AIMethodCall"] = field(default_factory=list)
     embeds: list[dict] = field(
         default_factory=list
@@ -86,6 +88,8 @@ class QueryAttachment:
     filename: str = None
     content_type: str = None
     raw_data: bytes = None
+    buffered_data: BytesIO = None  # Buffered data for Discord
+    discord_use_buffered_data: bool = True
 
 
 @dataclass
@@ -132,6 +136,7 @@ class AIAgentResponse:
     """
 
     text: str
+    files: list[QueryAttachment] = field(default_factory=list)
 
 
 # Method Calls
@@ -169,3 +174,4 @@ class AIMethodResponse:
         None  # Output an AIResponse object if the method call was successful
     )
     response_model: str = None  # Return an output to the model rather than the user
+    response_model_query: AIQuery = None  # Return a query as an output to the model

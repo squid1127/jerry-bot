@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 # Internal imports
 from .ai_types import (
+    AIQuery,
     AIMethodStatus,
     AIQuerySource,
     AIResponse,
@@ -277,6 +278,16 @@ class AgentRunner(AIMethod):
                 )
             )
             response.text = file_response.response_model + "\n\n" + response.text
+            
+        query = None
+        if response.files:
+            query = AIQuery(
+                message=response.text,
+                source=AIQuerySource.METHOD,
+                attachments=response.files,
+                discord=method_call.query.discord if method_call.query and method_call.query.discord else None,
+                response_method= method_call.query.response_method if method_call.query else None,
+            )
 
         return AIMethodResponse(
             method_name=method_call.method_name,
@@ -286,7 +297,9 @@ class AgentRunner(AIMethod):
                 text="",
                 embeds=[embed],
                 source=AIQuerySource.METHOD,
+                files=response.files or [],
             ),
+            response_model_query=query,
         )
 
     @staticmethod

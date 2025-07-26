@@ -3,11 +3,13 @@
 # Packages
 from abc import ABC, abstractmethod
 import logging
+import random, mimetypes # Generate file names
 
 # Provider Packages
 import google.genai as genai
 from google.genai import types as gem_types
 from google.genai import errors as gem_errors
+from io import BytesIO
 
 # Internal Imports
 from .ai_types import (
@@ -338,6 +340,27 @@ class GeminiProvider(AIProvider):
                 self.logger.warning(
                     "Google search tool is enabled. This is an experimental feature and may not work as expected."
                 )
+                
+        if config.get("gemini_image_generation", False):
+            self.logger.warning(
+                "Image generation tool is enabled. This is an experimental feature and may not work as expected."
+            )
+            response_modalities = [
+                'IMAGE',
+                'TEXT',
+            ]
+        else:
+            response_modalities = None
+        
+        self.prompt = prompt
+        if config.get("disallow_system_instruction", False):
+            self.logger.warning(
+                "Disallowing system instruction in GeminiProvider. This may affect the model's behavior."
+            )
+            prompt = None
+            self.inject_prompt = True
+        else:
+            self.inject_prompt = False
 
         self.config = gem_types.GenerateContentConfig(
             safety_settings=safety_settings,
@@ -346,6 +369,7 @@ class GeminiProvider(AIProvider):
             top_k=model_top_k,
             system_instruction=prompt,
             tools=tools,
+            response_modalities=response_modalities,
         )
         self.agent_config = gem_types.GenerateContentConfig(
             safety_settings=safety_settings,
@@ -353,6 +377,7 @@ class GeminiProvider(AIProvider):
             top_p=model_top_p,
             top_k=model_top_k,
             tools=tools,
+            response_modalities=response_modalities,
         )
 
     def start_chat(self):
@@ -429,7 +454,15 @@ class GeminiProvider(AIProvider):
             self.logger.debug("Chat session initialized")
 
         try:
-            response = await self.session.send_message(await self.convert_query(query))
+            parts = await self.convert_query(query)
+            if self.inject_prompt:
+                parts.insert(
+                    0,
+                    gem_types.Part.from_text(
+                        text=self.prompt or ConfigDefaults.PROMPT.value
+                    ),
+                )
+            response = await self.session.send_message(parts, **kwargs)
         except gem_errors.ClientError as e:
 
             self.logger.error(f"Error sending message to Gemini: {e}")
@@ -501,14 +534,38 @@ class GeminiProvider(AIProvider):
         Returns:
             AIResponse: The response from the Gemini AI model.
         """
-        self.agent_config.system_instruction = query.system_prompt if query.system_prompt else ""
+        if self.inject_prompt:
+            query.prompt = (
+                self.prompt + "\n" + query.prompt
+            )
+        else:
+            self.agent_config.system_instruction = query.system_prompt if query.system_prompt else ""
+        
         response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=query.prompt,
             config=self.agent_config
         )
-        return AIAgentResponse(text=response.text)
-
+        # Handle image generation
+        files = []
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                # Process inline image data
+                files.append(
+                    QueryAttachment(
+                        filename=f"gemini_file_{random.randint(1000, 9999)}{mimetypes.guess_extension(part.inline_data.mime_type) or 'bin'}",
+                        content_type=part.inline_data.mime_type,
+                        buffered_data=BytesIO(part.inline_data.data),
+                        raw_data=part.inline_data.data,
+                        discord_use_buffered_data=True,
+                        attachment_id=None,  # No ID for inline data
+                    )
+                )
+                
+                self.logger.info(
+                    f"Received inline image data: {files[-1].filename} ({files[-1].content_type})"
+                )
+        return AIAgentResponse(text=response.text, files=files)
 
 # Register Providers
 ProviderRegistry.register_provider(GeminiProvider)

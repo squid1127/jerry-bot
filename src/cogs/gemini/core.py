@@ -114,7 +114,7 @@ class JerryGemini(commands.Cog):
             f"Processing query in channel {channel.id} (#{channel.name} / {channel.guild.name})"
         )
         instance: ChatInstance = self.instances[channel.id]
-        
+
         # Pass response_method to the instance
         query.response_method = self.do_response
 
@@ -125,7 +125,7 @@ class JerryGemini(commands.Cog):
                 query=query,
             )
 
-        #* Now handled by the instance
+        # * Now handled by the instance
         # self.logger.debug(f"Received response from ChatInstance {instance.channel_id}")
         # for response in responses:
         #     if not isinstance(response, AIResponse):
@@ -140,6 +140,15 @@ class JerryGemini(commands.Cog):
     ):
         channel = discord_objects.channel
         user = discord_objects.member
+
+        # Debug logging
+        self.logger.info(
+            f"Sending response to channel {channel.id}/#{channel.name} ({channel.guild.name})"
+        )
+        self.logger.info(
+            f"Response has {'text' if response.text else 'no text'} {'embeds' if response.embeds else 'no embeds'} {'files' if response.files else 'no files'}"
+        )
+        self.logger.info(f"Source: {response.source.value}")
 
         # Send the response back to the channel
         if response.text:
@@ -176,6 +185,32 @@ class JerryGemini(commands.Cog):
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send embeds in channel {channel.id}: {e}")
                 # Optionally, handle the error (e.g., log it, notify the user, etc.)
+
+        if response.files:
+            # If there are files, send them as attachments
+            for file in response.files:
+                try:
+                    self.logger.info(
+                        f"Sending file {file.filename} in channel {channel.id} ({file.content_type}) "
+                    )
+                    # Ensure the file has
+                    fp = (
+                        file.buffered_data
+                        if file.discord_use_buffered_data
+                        else file.raw_data
+                    )
+                    await channel.send(
+                        content="",
+                        file=discord.File(
+                            fp=fp,
+                            filename=file.filename,
+                        ),
+                    )
+                except discord.HTTPException as e:
+                    self.logger.error(
+                        f"Failed to send file {file.filename} in channel {channel.id}: {e}"
+                    )
+                    # Optionally, handle the error (e.g., log it, notify the user, etc.)
 
     # Message Event Listener
     @commands.Cog.listener()
@@ -344,7 +379,7 @@ class JerryGemini(commands.Cog):
                     msg_type="info",
                 )
                 return
-            
+
             if sub_command == "query":
                 # Usage: gemini query <channel_id> <source> <query>
                 parts = command.query.split(" ", 3)
@@ -358,7 +393,7 @@ class JerryGemini(commands.Cog):
                 channel_id = int(parts[1])
                 source = parts[2].lower()
                 query_text = parts[3]
-                
+
                 if not channel_id in self.instances:
                     await command.log(
                         f"Channel {channel_id} not found in active instances.",
@@ -366,12 +401,12 @@ class JerryGemini(commands.Cog):
                         msg_type="error",
                     )
                     return
-                
+
                 await self._manual_query(
                     channel_id=channel_id,
                     source=source,
                     query_text=query_text,
-                    command=command
+                    command=command,
                 )
 
     async def cog_status(self) -> str:
@@ -386,7 +421,7 @@ class JerryGemini(commands.Cog):
             return f"Failed to load: {self.config.error}"
         else:
             return "Initializing..."
-        
+
     async def _detailed_status(self) -> str:
         """
         Returns a detailed status of the JerryGemini cog.
@@ -409,7 +444,7 @@ class JerryGemini(commands.Cog):
             return f"Failed to load: {self.config.error}"
         else:
             return "Initializing..."
-        
+
     async def _manual_query(
         self, channel_id: int, source: str, query_text: str, command: core.ShellCommand
     ):
@@ -441,7 +476,12 @@ class JerryGemini(commands.Cog):
                 display_name=command.message.author.display_name,
                 mention=command.message.author.mention,
             ),
-            discord=AIQueryDiscordRefrences(channel=channel, guild=channel.guild, member=command.message.author, message=command.message),
+            discord=AIQueryDiscordRefrences(
+                channel=channel,
+                guild=channel.guild,
+                member=command.message.author,
+                message=command.message,
+            ),
         )
 
         # Process the query
