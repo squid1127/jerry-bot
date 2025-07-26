@@ -58,7 +58,7 @@ class ChatInstance:
             response (AIResponse): The response from the AI model.
         """
         self.logger.debug(f"Processing response: {response}")
-        self.logger.info(f"Response from {response.source.value} to {query.source.value}: {response.text}")
+        self.logger.debug(f"Response from {response.source.value} to {query.source.value}: {response.text}")
         if not query.response_method:
             self.logger.warning("No response method defined for query, skipping response handling.")
             return

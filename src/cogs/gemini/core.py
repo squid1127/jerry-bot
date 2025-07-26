@@ -142,13 +142,13 @@ class JerryGemini(commands.Cog):
         user = discord_objects.member
 
         # Debug logging
-        self.logger.info(
+        self.logger.debug(
             f"Sending response to channel {channel.id}/#{channel.name} ({channel.guild.name})"
         )
-        self.logger.info(
+        self.logger.debug(
             f"Response has {'text' if response.text else 'no text'} {'embeds' if response.embeds else 'no embeds'} {'files' if response.files else 'no files'}"
         )
-        self.logger.info(f"Source: {response.source.value}")
+        self.logger.debug(f"Source: {response.source.value}")
 
         # Send the response back to the channel
         if response.text:
