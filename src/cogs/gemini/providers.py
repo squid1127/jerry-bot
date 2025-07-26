@@ -536,7 +536,10 @@ class GeminiProvider(AIProvider):
         """
         if self.inject_prompt:
             query.prompt = (
-                self.prompt + "\n" + query.prompt
+                query.system_prompt + "\n" + query.prompt
+            )
+            self.logger.info(
+                f"Injected prompt into agent query: {query.prompt}"
             )
         else:
             self.agent_config.system_instruction = query.system_prompt if query.system_prompt else ""
