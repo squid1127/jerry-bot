@@ -18,6 +18,8 @@ class GuildStuff(commands.Cog):
         name="server",
         description="[Experimental] Get information about this guild (server)",
     )
+    @app_commands.guild_only()
+    @app_commands.guild_install()
     async def guild_info(self, interaction: discord.Interaction):
         self.logger.info(f"Guild info requested for {interaction.guild.name}")
         guild = interaction.guild
