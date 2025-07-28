@@ -602,7 +602,7 @@ class JerryGemini(commands.Cog):
             for part in parts:
                 if part:
                     try:
-                        if parts.index(part) == len(parts) - 1 and response.embeds:
+                        if parts.index(part) == len(parts) - 1 and response.embeds and len(response.embeds) > 0:
                             # If it's the last part, send it as a normal message
                             await interaction.followup.send(
                                 part,
@@ -619,6 +619,14 @@ class JerryGemini(commands.Cog):
                         self.logger.error(
                             f"Failed to send message in channel {discord_objects.channel.id}: {e}"
                         )
+        elif response.embeds and len(response.embeds) > 0:
+            for embed in response.embeds:
+                try:
+                    await interaction.followup.send(embed=discord.Embed.from_dict(embed))
+                except discord.HTTPException as e:
+                    self.logger.error(
+                        f"Failed to send embed in channel {discord_objects.channel.id}: {e}"
+                    )
 
         if response.files:
             # If there are files, send them as attachments
