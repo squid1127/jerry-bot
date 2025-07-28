@@ -75,6 +75,7 @@ class AIQueryDiscordRefrences:
     member: discord.Member = None
     channel: discord.TextChannel = None
     guild: discord.Guild = None
+    interaction: discord.Interaction = None
 
 
 @dataclass

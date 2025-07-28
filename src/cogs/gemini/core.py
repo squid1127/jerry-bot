@@ -79,14 +79,20 @@ class JerryGemini(commands.Cog):
         )
 
     async def chat_input(
-        self, channel: discord.TextChannel, user: discord.User, query: AIQuery
+        self,
+        channel: discord.TextChannel,
+        user: discord.User,
+        query: AIQuery,
+        command_mode: bool = False,
     ):
         """
         Sends a chat message to the AI model and receives a response.
 
         Args:
             channel (discord.TextChannel): The channel where the message is sent.
+            user (discord.User): The user who sent the message.
             query (AIQuery): The query to send to the AI model.
+            command_mode (bool): Whether the chat is in command mode.
         """
         if self.config.status != ConfigStatus.LOADED:
             return
@@ -95,19 +101,41 @@ class JerryGemini(commands.Cog):
             return  # Invalid channel type, expected discord.TextChannel
 
         # Ensure the channel is in the list of channels to handle
-        if channel.id not in self.channel_list:
+        if (channel.id not in self.channel_list) and not command_mode:
             self.logger.debug(f"Channel {channel.id} not in channel list, ignoring")
             return
 
         # Ensure the channel has an instance
         if channel.id not in self.instances:
             self.logger.info(
-                f"Creating new chat instance for channel {channel.id} (#{channel.name} / {channel.guild.name})"
+                f"Initializing new chat instance for channel {channel.id} (#{channel.name} / {channel.guild.name})"
             )
-            self.instances[channel.id] = ChatInstance(
-                config=self.config.config["instances"][channel.id],
-                id=channel.id,
-            )
+            if command_mode:
+                # If in command mode, reset the instance to start a new chat
+                self.logger.info(
+                    f"Resetting chat instance for channel {channel.id} (#{channel.name} / {channel.guild.name})"
+                )
+                command_id = self.config.config["global"].get(
+                    "jerry_command_instance_id"
+                )
+                command_config = self.config.config["instances"].get(command_id)
+                if not (command_config and command_id):
+                    raise ValueError(
+                        "Jerry command instance ID not set in config. Please set 'jerry_command_instance_id' in the global config."
+                    )
+                self.logger.info(f"Creating command-based chat instance")
+                self.instances[channel.id] = ChatInstance(
+                    config=command_config,
+                    id=channel.id,
+                )
+            else:
+                self.logger.info(
+                    f"Creating new chat instance for channel {channel.id} (#{channel.name} / {channel.guild.name})"
+                )
+                self.instances[channel.id] = ChatInstance(
+                    config=self.config.config["instances"][channel.id],
+                    id=channel.id,
+                )
 
         # Pass the query to instance
         self.logger.debug(
@@ -119,11 +147,12 @@ class JerryGemini(commands.Cog):
         query.response_method = self.do_response
 
         # TODO: Add try except for handling AIProvider errors
-        async with channel.typing():
-            self.logger.debug(f"Sending query to ChatInstance {instance.channel_id}")
-            responses: AIResponse = await instance.chat_input(
-                query=query,
-            )
+        if not command_mode:
+            await channel.typing()  # Indicate that the bot is typing
+        self.logger.debug(f"Sending query to ChatInstance {instance.channel_id}")
+        responses: AIResponse = await instance.chat_input(
+            query=query,
+        )
 
         # * Now handled by the instance
         # self.logger.debug(f"Received response from ChatInstance {instance.channel_id}")
@@ -138,6 +167,13 @@ class JerryGemini(commands.Cog):
     async def do_response(
         self, response: AIResponse, discord_objects: AIQueryDiscordRefrences
     ):
+        if discord_objects.interaction is not None:
+            self.logger.info(f"Using interaction mode")
+            await self.do_response_interaction(
+                response=response, discord_objects=discord_objects
+            )
+            return
+
         channel = discord_objects.channel
         user = discord_objects.member
 
@@ -323,7 +359,7 @@ class JerryGemini(commands.Cog):
         name="gemini-reset",
         description="[Jerry Gemini] Start a new conversation with Jerry by giving him dementia.",
     )
-    @app_commands.guild_only() # Only can be used in guilds its installed in
+    @app_commands.guild_only()  # Only can be used in guilds its installed in
     @app_commands.guild_install()
     async def gemini_reset(self, interaction: discord.Interaction):
         """
@@ -488,3 +524,116 @@ class JerryGemini(commands.Cog):
 
         # Process the query
         await self.chat_input(channel=channel, user=self.bot.user, query=query)
+
+    # ask jerry command
+    @app_commands.command(
+        name="ask-jerry",
+        description="[Jerry Gemini] [Experimental] Ask Jerry a question and get a response.",
+    )
+    @app_commands.describe(query="Message to send to Jerry. Follow ups are allowed.")
+    async def ask_jerry(self, interaction: discord.Interaction, query: str):
+        """
+        Asks Jerry a question and gets a response.
+
+        Args:
+            interaction (discord.Interaction): The interaction that triggered the command.
+            query (str): The question to ask Jerry.
+        """
+        if not interaction.channel:
+            await interaction.response.send_message(
+                "This command can only be used in text channels.",
+                ephemeral=True,
+            )
+            return
+        if self.config.status != ConfigStatus.LOADED or not self.config.config["global"].get("jerry_command_instance_id"):
+            await interaction.response.send_message(
+                "This command is not configured by the bot administrator.",
+                ephemeral=True,
+            )
+            return
+        
+
+        await interaction.response.defer(ephemeral=False)
+
+        query = AIQuery(
+            message=query,
+            source=AIQuerySource.USER,
+            author=AIQueryUserAuthor(
+                id=interaction.user.id,
+                username=interaction.user.name,
+                display_name=interaction.user.display_name,
+                mention=interaction.user.mention,
+            ),
+            discord=AIQueryDiscordRefrences(
+                interaction=interaction,
+                member=interaction.user,
+            ),
+        )
+
+        await self.chat_input(
+            channel=interaction.channel,
+            user=interaction.user,
+            query=query,
+            command_mode=True,
+        )
+
+    async def do_response_interaction(
+        self, response: AIResponse, discord_objects: AIQueryDiscordRefrences
+    ):
+        """
+        Handles a response and handles it with an interaction.
+        Args:
+            response (AIResponse): The response to handle.
+            discord_objects (AIQueryDiscordRefrences): The Discord objects related to the response.
+        """
+        interaction = discord_objects.interaction
+        if interaction is None:
+            self.logger.error("No interaction found in discord_objects")
+            return
+        if response.text:
+            parts = ResponseTools.apply_length_limit(response.text, max_length=2000)
+            for part in parts:
+                if part:
+                    try:
+                        if parts.index(part) == len(parts) - 1 and response.embeds:
+                            # If it's the last part, send it as a normal message
+                            await interaction.followup.send(
+                                part,
+                                embeds=[
+                                    discord.Embed.from_dict(embed)
+                                    for embed in response.embeds
+                                ],
+                            )
+                            return  # Skip sending the embeds again
+                        else:
+                            # Otherwise, send it as a normal message
+                            await interaction.followup.send(part)
+                    except discord.HTTPException as e:
+                        self.logger.error(
+                            f"Failed to send message in channel {discord_objects.channel.id}: {e}"
+                        )
+
+        if response.files:
+            # If there are files, send them as attachments
+            for file in response.files:
+                try:
+                    self.logger.info(
+                        f"Sending file {file.filename} in channel {discord_objects.channel.id} ({file.content_type}) "
+                    )
+                    # Ensure the file has
+                    fp = (
+                        file.buffered_data
+                        if file.discord_use_buffered_data
+                        else file.raw_data
+                    )
+                    await interaction.followup.send(
+                        content="",
+                        file=discord.File(
+                            fp=fp,
+                            filename=file.filename,
+                        ),
+                    )
+                except discord.HTTPException as e:
+                    self.logger.error(
+                        f"Failed to send file {file.filename} in channel {discord_objects.channel.id}: {e}"
+                    )

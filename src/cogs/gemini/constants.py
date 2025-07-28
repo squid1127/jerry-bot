@@ -68,6 +68,7 @@ class ConfigFileDefaults:
                 Required("ai"): CONFIG_SCHEMA_AI,
                 Optional("prompt", default={}): CONFIG_SCHEMA_PROMPT,
                 Optional("capabilities", default=[]): All(list, [str]),
+                Optional("jerry_command_instance_id", default=None): int,
             },
             # Agents (Extra callable models)
             Required("agents"): dict[
