@@ -3,6 +3,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import logging
+import aiohttp
+import bs4
 
 # squid-core
 import core
@@ -14,12 +16,14 @@ class StaticCommands(commands.Cog):
     def __init__(self, bot: core.Bot):
         self.bot = bot
 
-        self.bot.shell.add_command(
-            "api",
-            cog="StaticCommands",
-            description="Manage API keys",
-        )
+        # self.bot.shell.add_command( Nothing uses shell commands yet
+        #     "api",
+        #     cog="StaticCommands",
+        #     description="Manage API keys",
+        # )
         self.logger = logging.getLogger("jerry.staticcommands")
+        
+        self.dev_excuses = "http://developerexcuses.com/"
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -45,56 +49,10 @@ class StaticCommands(commands.Cog):
         await interaction.response.send_message(f"Pong! 🏓\nLatency: {latency:.2f}ms")
 
     @app_commands.command(
-        name="purge",
-        description="Purge messages from a channel",
-    )
-    @app_commands.describe(
-        limit="The number of messages to delete",
-    )
-    async def purge_command(self, interaction: discord.Interaction, limit: int = None):
-        # Check if user has permission
-        if not interaction.channel.permissions_for(interaction.user).manage_messages:
-            await interaction.response.send_message(
-                "You don't have permission to delete messages", ephemeral=True
-            )
-            return
-
-        if limit is not None and (limit > 100 or limit < 1):
-            await interaction.response.send_message(
-                "The limit cannot exceed 100", ephemeral=True
-            )
-            return
-
-        await interaction.response.send_message(
-            f"Purging {limit if limit is not None else 'all'} messages... Beware of rate limits!",
-            ephemeral=True,
-        )
-
-        # Purge messages
-        try:
-            if limit is None:
-                await interaction.channel.purge()
-            else:
-                await interaction.channel.purge(limit=limit)
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "I don't have permission to delete messages", ephemeral=True
-            )
-            return
-        except Exception as e:
-            await self.bot.shell.log(
-                f"A purge command failed: {e}", "StaticCommands", msg_type="error"
-            )
-            await interaction.followup.send(
-                "An error occurred while purging messages", ephemeral=True
-            )
-
-        await interaction.followup.send("Messages purged", ephemeral=True)
-
-    @app_commands.command(
         name="help-jerry",
         description="Get help with Jerry",
     )
+    @app_commands.guild_install()
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Jerry Bot",
@@ -127,5 +85,26 @@ More to come soon!""",
         )
 
         await interaction.response.send_message(embed=embed)
-
-
+    
+    @app_commands.command(
+        name="my-code-sucks",
+        description="Helps you with your stupid code",
+    )
+    async def my_code_sucks_command(self, interaction: discord.Interaction):
+        """Gives you a random excuse for your code not working"""
+        # Request headers
+        headers = {
+            "User-Agent": "JerryBot/1.0",
+            "Accept": "text/plain",
+        }
+        await interaction.response.defer(thinking=True)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(self.dev_excuses, headers=headers) as response:
+                if response.status == 200:
+                    html = await response.text()
+                    soup = bs4.BeautifulSoup(html, "html.parser")
+                    excuse_tag = soup.find("center")
+                    excuse = excuse_tag.find("a").text if excuse_tag and excuse_tag.find("a") else "No excuse found."
+                    await interaction.followup.send(f"||*{excuse}*||")
+                else:
+                    await interaction.followup.send("Sorry, I can't help you. It's just that bad. :P")

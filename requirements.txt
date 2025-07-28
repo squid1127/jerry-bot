@@ -11,3 +11,4 @@ pillow-heif
 pytz
 voluptuous
 python-magic
+beautifulsoup4

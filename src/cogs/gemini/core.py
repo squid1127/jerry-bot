@@ -323,6 +323,8 @@ class JerryGemini(commands.Cog):
         name="gemini-reset",
         description="[Jerry Gemini] Start a new conversation with Jerry by giving him dementia.",
     )
+    @app_commands.guild_only() # Only can be used in guilds its installed in
+    @app_commands.guild_install()
     async def gemini_reset(self, interaction: discord.Interaction):
         """
         Resets the conversation with Jerry by giving him dementia.
