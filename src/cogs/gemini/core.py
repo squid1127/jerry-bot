@@ -360,7 +360,7 @@ class JerryGemini(commands.Cog):
         description="[Jerry Gemini] Start a new conversation with Jerry by giving him dementia.",
     )
     @app_commands.guild_only()  # Only can be used in guilds its installed in
-    @app_commands.guild_install()
+    # @app_commands.guild_install() Can also work on user installs
     async def gemini_reset(self, interaction: discord.Interaction):
         """
         Resets the conversation with Jerry by giving him dementia.
@@ -539,7 +539,7 @@ class JerryGemini(commands.Cog):
             interaction (discord.Interaction): The interaction that triggered the command.
             query (str): The question to ask Jerry.
         """
-        if not interaction.channel:
+        if interaction.channel is None:
             await interaction.response.send_message(
                 "This command can only be used in text channels.",
                 ephemeral=True,
@@ -548,6 +548,13 @@ class JerryGemini(commands.Cog):
         if self.config.status != ConfigStatus.LOADED or not self.config.config["global"].get("jerry_command_instance_id"):
             await interaction.response.send_message(
                 "This command is not configured by the bot administrator.",
+                ephemeral=True,
+            )
+            return
+        instances = self.config.config.get("instances", {})
+        if interaction.channel.id in instances.keys():
+            await interaction.response.send_message(
+                "This command cannot be used in a Jerry Gemini chat channel.",
                 ephemeral=True,
             )
             return
