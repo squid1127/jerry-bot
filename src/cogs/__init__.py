@@ -17,3 +17,6 @@ from .gemini import *
 
 # Auto-reply v2
 from .auto_reply import AutoReply
+
+# Simple Updatre
+from .simple_update import SimpleUpdate

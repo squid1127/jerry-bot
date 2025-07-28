@@ -12,3 +12,4 @@ pytz
 voluptuous
 python-magic
 beautifulsoup4
+aiofiles
