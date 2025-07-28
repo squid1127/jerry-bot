@@ -13,13 +13,13 @@ class SimpleUpdate(commands.Cog):
 
     def __init__(self, bot: core.Bot):
         self.bot = bot
-        
+
         self.bot.shell.add_command(
             "update",
             cog="SimpleUpdate",
             description="Update JerryBot to the latest version. Uses a portainer webhook URL.",
         )
-        
+
         self.files = self.bot.filebroker.configure_cog(  # Filebroker
             "SimpleUpdate",
             config_dir=True,
@@ -31,10 +31,11 @@ class SimpleUpdate(commands.Cog):
         if command.name == "update":
             if command.query:
                 # Set the update URL
-                async with aiofiles.open(self.cache_file, 'w') as f:
+                async with aiofiles.open(self.cache_file, "w") as f:
                     await f.write(json.dumps({"url": command.query}))
                 await command.log(
                     f"Update URL set to `{command.query}`. Use `update` (no query) to apply the update.",
+                    title="URL Set",
                 )
             else:
                 # Read the update URL from the cache file
@@ -42,12 +43,13 @@ class SimpleUpdate(commands.Cog):
                     await command.log(
                         "No update URL set. Use `update <url>` to set the update URL.",
                         msg_type="error",
+                        title="No URL Set",
                     )
                     return
-                
-                async with aiofiles.open(self.cache_file, 'r') as f:
+
+                async with aiofiles.open(self.cache_file, "r") as f:
                     data = await f.read()
-                
+
                 try:
                     update_data = json.loads(data)
                     url = update_data.get("url")
@@ -55,6 +57,7 @@ class SimpleUpdate(commands.Cog):
                     await command.log(
                         "Invalid update data. Please set a valid URL using `update <url>`.",
                         msg_type="error",
+                        title="Invalid Data",
                     )
                     return
 
@@ -62,18 +65,24 @@ class SimpleUpdate(commands.Cog):
                     await command.log(
                         "No update URL set. Use `update <url>` to set the update URL.",
                         msg_type="error",
+                        title="No URL Set",
                     )
                     return
 
                 # Perform the update
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url) as response:
-                        if response.status == 200:
+                        if response.status in range(200, 299):
                             content = await response.text()
                             # Here you would typically apply the update, e.g., by writing to files
-                            await command.log(f"Update triggered from {url}.", msg_type="success")
+                            await command.log(
+                                f"Update triggered from {url}.",
+                                msg_type="success",
+                                title="Update Triggered",
+                            )
                         else:
                             await command.log(
                                 f"Failed to fetch update from {url}. Status code: {response.status}",
                                 msg_type="error",
+                                title="Update Failed",
                             )
