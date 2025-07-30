@@ -151,6 +151,7 @@ class AIMethodCall:
     arguments: dict = field(default_factory=dict)
     query: AIQuery = None  # The query that triggered the method call (for context)
     method_config: dict = field(default_factory=dict)  # Configuration for the method
+    response_method: callable = None  # Method to call for live response handling
 
 
 class AIMethodStatus(Enum):

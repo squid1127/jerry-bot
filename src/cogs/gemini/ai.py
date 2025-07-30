@@ -10,7 +10,7 @@ import core
 
 # Internal Imports
 from .constants import ConfigFileDefaults, ConfigDefaults
-from .ai_types import AIMethodCall, AIResponse, AIQuery, AIQuerySource, AIMethodStatus
+from .ai_types import AIMethodCall, AIResponse, AIQuery, AIQuerySource, AIMethodResponse
 from .providers import AIProvider, ProviderRegistry
 from .methods import AIMethod, AIMethodRegistry
 
@@ -58,13 +58,57 @@ class ChatInstance:
             response (AIResponse): The response from the AI model.
         """
         self.logger.debug(f"Processing response: {response}")
-        self.logger.debug(f"Response from {response.source.value} to {query.source.value}: {response.text}")
+        self.logger.debug(
+            f"Response from {response.source.value} to {query.source.value}: {response.text}"
+        )
         if not query.response_method:
-            self.logger.warning("No response method defined for query, skipping response handling.")
+            self.logger.warning(
+                "No response method defined for query, skipping response handling."
+            )
             return
 
         # Call the response method with the query and response
         await query.response_method(discord_objects=query.discord, response=response)
+
+    async def do_method_response(
+        self, method_call: AIMethodCall, response: AIMethodResponse
+    ) -> list[AIResponse]:
+        """
+        Handle the response from a method call and return the appropriate AIResponse.
+        Args:
+            method_call (AIMethodCall): The method call that was executed.
+            response (AIMethodResponse): The response from the method call.
+        Returns:
+            list[AIResponse]: A list of AIResponse objects based on the method response.
+        """
+        self.logger.debug(f"Handling method response: {response}")
+        if response.response_model or response.response_model_query:
+            if response.response_user:
+                await self.do_response(method_call.query, response.response_user)
+            if response.response_model_query:
+                model_response = await self.chat_input(response.response_model_query)
+            else:
+                model_response = await self.chat_input(
+                    AIQuery(
+                        message=response.response_model,
+                        discord=(
+                            method_call.query.discord if method_call.query else None
+                        ),
+                        response_method=method_call.query.response_method,
+                        source=AIQuerySource.METHOD,
+                    )
+                )
+            if response.response_user:
+                model_response.insert(0, response.response_user)
+            return [model_response]
+
+        self.logger.info(f"Method {method_call.method_name} executed successfully")
+        if response.response_user:
+            await self.do_response(method_call.query, response.response_user)
+            return [response.response_user]
+        return [
+            AIResponse(text="", source=AIQuerySource.METHOD, method_call=method_call)
+        ]
 
     async def do_method(
         self, method_call: AIMethodCall, query: AIQuery
@@ -82,53 +126,31 @@ class ChatInstance:
         method = AIMethodRegistry.get_method(method_call.method_name)
         method_config = self.config["methods_config"].get(method_call.method_name, {})
         method_call.method_config = method_config
+        method_call.response_method = self.do_method_response
         if not method:
             raise ValueError(f"Method not found: {method_call.method_name}")
 
         try:
             response = await method.run(method_call)
-            if response.response_model or response.response_model_query:
-                if response.response_user:
-                    await self.do_response(query, response.response_user)
-                if response.response_model_query:
-                    model_response = await self.chat_input(
-                        response.response_model_query
-                    )
-                else:
-                    model_response = await self.chat_input(
-                        AIQuery(
-                            message=response.response_model,
-                            discord=(
-                                method_call.query.discord if method_call.query else None
-                            ),
-                            response_method=query.response_method,
-                            source=AIQuerySource.METHOD,
-                        )
-                    )
-                if response.response_user:
-                    model_response.insert(0, response.response_user)
-                return [model_response]
-
-            self.logger.info(f"Method {method.name} executed successfully")
-            if response.response_user:
-                await self.do_response(query, response.response_user)
-                return [response.response_user]
-            return [
-                AIResponse(
-                    text="", source=AIQuerySource.METHOD, method_call=method_call
+            if isinstance(response, AIMethodResponse):
+                return await self.do_method_response(method_call, response)
+            elif isinstance(response, list):
+                # If the method returns a list of AIResponse objects, return them directly
+                return response
+            else:
+                raise ValueError(
+                    f"Method {method_call.method_name} returned an unexpected type: {type(response)}"
                 )
-            ]
+            
 
         except Exception as e:
             self.logger.error(f"Error executing method {method.name}: {e}")
             self.logger.error(traceback.format_exc())
 
-            ai_responses = await self.chat_input( 
+            ai_responses = await self.chat_input(
                 AIQuery(
                     message=f"Error executing method {method.name}: {e}",
-                    discord=(
-                        method_call.query.discord if method_call.query else None
-                    ),
+                    discord=(method_call.query.discord if method_call.query else None),
                     response_method=query.response_method,
                     source=AIQuerySource.METHOD,
                 )

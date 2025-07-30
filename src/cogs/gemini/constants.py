@@ -33,7 +33,7 @@ You are currently in a discord channel <#{instance_id}>, so you can use discord 
     # Agents
     AGENT_PROMPT = """You are an LLM agent receiving a prompts from an AI model. Your task is to respond to the prompt to the best of your ability. If you are not capable of responding, say so as the response. Your response should be formatted in standard markdown."""
     AGENT_METHOD = "agent.run"
-    AGENT_INTRODUCTION = f"Below, you are given AI agents that you can use to perform specific tasks, using the {AGENT_METHOD} method. Each agent has a name, description, and a prompt that you can use to interact with it. You can use the agent.run method to run the agent with the given prompt. Please ensure you have explicit consent from the user before running an agent. Agents are as follows:\n"
+    AGENT_INTRODUCTION = f"Below, you are given AI agents that you can use to perform specific tasks, using the {AGENT_METHOD} method. Each agent has a name, description, and a prompt that you can use to interact with it. You can use the agent.run method to run the agent with the given prompt. Please ensure you have explicit consent from the user before running an agent. When passing in a prompt from the user, reformat it to be a proper llm prompt. Do as best as you can to return the majority of the agents response to the user, analyzing and modifying as needed. Image-based outputs are automatically sent to the user. Agents are as follows:\n\n"
 
 
 # Default configuration file contents for JerryGemini
