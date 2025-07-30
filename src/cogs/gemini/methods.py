@@ -19,6 +19,7 @@ from .ai_types import (
 )
 from .prompts import ResponseTools
 from .providers import AIProvider, ProviderRegistry
+from .constants import ConfigDefaults
 
 
 # Method-related imports
@@ -93,7 +94,9 @@ class AIMethod(ABC):
         pass
 
     @abstractmethod
-    async def run(self, method_call: AIMethodCall) -> AIMethodResponse:
+    async def run(
+        self, method_call: AIMethodCall
+    ) -> AIMethodResponse | list[AIResponse]:
         """
         Abstract method to run the AI method. Must be implemented by subclasses.
 
@@ -102,6 +105,7 @@ class AIMethod(ABC):
 
         Returns:
             AIMethodResponse: The response object containing the result of the method call.
+            list[AIResponse]: A list of AIResponse objects if applicable. This implies that all responses were already handled by the method.
         """
         pass
 
@@ -182,7 +186,7 @@ class AgentRunner(AIMethod):
     ]
 
     @staticmethod
-    async def run(method_call: AIMethodCall) -> AIMethodResponse:
+    async def run(method_call: AIMethodCall) -> list[AIResponse] | AIMethodResponse:
         """
         Runs the agent with the provided query.
 
@@ -192,6 +196,7 @@ class AgentRunner(AIMethod):
         Returns:
             AIMethodResponse: The response object indicating success or failure.
         """
+        responses = []
         config = method_call.method_config.get("agents", {}).get(
             method_call.arguments["agent"]
         )
@@ -205,13 +210,40 @@ class AgentRunner(AIMethod):
         logger.info(
             f"Running agent {method_call.arguments['agent']} with prompt: {method_call.arguments['prompt']}"
         )
-
-        if config.get("image_output", False):
-            return AIMethodResponse(
-                method_name=method_call.method_name,
-                status=AIMethodStatus.FAILED,
-                response_model="This agent requires an image output, which is not supported yet.",
+        embed = {
+            "author": {
+                "name": config.get("friendly_name", "AI Agent"),
+                "icon_url": config.get("icon_url", ""),
+            },
+            "description": "Running agent...This may take a while.",
+            "fields": [
+                {
+                    "name": "Prompt",
+                    "value": (
+                        method_call.arguments["prompt"]
+                        if len(method_call.arguments["prompt"]) < 1024
+                        else method_call.arguments["prompt"][:1021] + "..."
+                    ),
+                    "inline": False,
+                }
+            ],
+            "color": 0x278DF2,
+        }
+        responses.extend(
+            await method_call.response_method(
+                method_call,
+                AIMethodResponse(
+                    method_name=method_call.method_name,
+                    status=AIMethodStatus.SUCCESS,
+                    response_user=AIResponse(
+                        text="",
+                        embeds=[embed],
+                        source=AIQuerySource.METHOD,
+                    ),
+                ),
             )
+        )
+
         try:
             provider = AgentRunner.initialize_provider(config)
         except ValueError as e:
@@ -247,18 +279,18 @@ class AgentRunner(AIMethod):
                 "name": config.get("friendly_name", "AI Agent"),
                 "icon_url": config.get("icon_url", ""),
             },
-            "description": f"Agent successfully executed",
-            "fields": [
-                {
-                    "name": "Prompt",
-                    "value": (
-                        method_call.arguments["prompt"]
-                        if len(method_call.arguments["prompt"]) < 1024
-                        else method_call.arguments["prompt"][:1021] + "..."
-                    ),
-                    "inline": False,
-                }
-            ],
+            "description": "Agent successfully executed.",
+            # "fields": [
+            #     {
+            #         "name": "Prompt",
+            #         "value": (
+            #             method_call.arguments["prompt"]
+            #             if len(method_call.arguments["prompt"]) < 1024
+            #             else method_call.arguments["prompt"][:1021] + "..."
+            #         ),
+            #         "inline": False,
+            #     }
+            # ],
             "color": 0x52FF83,  # Green color for success
         }
 
@@ -278,29 +310,41 @@ class AgentRunner(AIMethod):
                 )
             )
             response.text = file_response.response_model + "\n\n" + response.text
-            
+
         query = None
         if response.files:
             query = AIQuery(
                 message=response.text,
                 source=AIQuerySource.METHOD,
                 attachments=response.files,
-                discord=method_call.query.discord if method_call.query and method_call.query.discord else None,
-                response_method= method_call.query.response_method if method_call.query else None,
+                discord=(
+                    method_call.query.discord
+                    if method_call.query and method_call.query.discord
+                    else None
+                ),
+                response_method=(
+                    method_call.query.response_method if method_call.query else None
+                ),
             )
 
-        return AIMethodResponse(
-            method_name=method_call.method_name,
-            status=AIMethodStatus.SUCCESS,
-            response_model=response.text,
-            response_user=AIResponse(
-                text="",
-                embeds=[embed],
-                source=AIQuerySource.METHOD,
-                files=response.files or [],
-            ),
-            response_model_query=query,
+        responses.extend(
+            await method_call.response_method(
+                method_call,
+                AIMethodResponse(
+                    method_name=method_call.method_name,
+                    status=AIMethodStatus.SUCCESS,
+                    response_model=response.text,
+                    response_user=AIResponse(
+                        text="",
+                        embeds=[embed],
+                        source=AIQuerySource.METHOD,
+                        files=response.files or [],
+                    ),
+                    response_model_query=query,
+                ),
+            )
         )
+        return responses
 
     @staticmethod
     def initialize_provider(config: dict) -> AIProvider:
