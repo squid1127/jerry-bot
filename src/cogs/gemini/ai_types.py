@@ -9,20 +9,26 @@ from io import BytesIO
 from dataclasses import dataclass, field
 from enum import Enum
 
-
-# Responses
-class AIResponseSource(Enum):
+# Source
+class AISource(Enum):
     """
-    Enum for the source of the AI response.
+    Enum for the source of the AI query.
     """
 
-    LLM = "llm"
-    SYSTEM = "system"
     USER = "user"
+    SYSTEM = "system"
+    MODEL = "model"
     AGENT = "agent"
     METHOD = "method"
+    
+    @classmethod
+    def values(cls):
+        """
+        Returns the values of the enum as a list.
+        """
+        return [member.value for member in cls]
 
-
+# Responses
 @dataclass
 class AIResponse:
     """
@@ -37,20 +43,11 @@ class AIResponse:
         default_factory=list
     )  # Assuming embeds are represented as dicts
     method_call: "AIMethodCall" = None  # The method call that triggered this response
-    source: AIResponseSource = AIResponseSource.LLM
+    source: AISource = AISource.MODEL  # The source of the response (e.g., model, agent, method)
 
 
 # Query Types
-class AIQuerySource(Enum):
-    """
-    Enum for the source of the AI query.
-    """
 
-    USER = "user"
-    SYSTEM = "system"
-    MODEL = "model"
-    AGENT = "agent"
-    METHOD = "method"
 
 
 @dataclass
@@ -106,7 +103,7 @@ class AIQuery:
         default_factory=list
     )  # Assuming embeds are represented as dicts
     attachments: list[QueryAttachment] = field(default_factory=list)
-    source: AIQuerySource = AIQuerySource.USER
+    source: AISource = AISource.USER
     author: AIQueryUserAuthor = field(default_factory=AIQueryUserAuthor)
     is_reply: bool = False  # Indicates if this query is a reply to another message
     reply: "AIQuery" = None  # Reference to another AIQuery if this is a reply
@@ -177,3 +174,19 @@ class AIMethodResponse:
     )
     response_model: str = None  # Return an output to the model rather than the user
     response_model_query: AIQuery = None  # Return a query as an output to the model
+
+
+# Memory Representation of AI Queries and Responses
+@dataclass
+class MemoryHistoryItem:
+    """
+    Represents a memory item for AI queries and responses.
+    This is used for storing chat history in MongoDB.
+    """
+
+    chat_id: str
+    channel_id: str
+    source: AISource
+    content: list[str]  # List of text parts from the AIQuery or AIResponse
+    user_id: str = None  # Associated user ID if applicable
+    raw: dict = field(default_factory=dict)  # Raw data from database for additional context

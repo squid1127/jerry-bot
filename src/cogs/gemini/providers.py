@@ -14,13 +14,13 @@ from io import BytesIO
 # Internal Imports
 from .ai_types import (
     AIResponse,
-    AIResponseSource,
+    AISource,
     AIQuery,
     AIMethodCall,
-    AIQuerySource,
     AIAgentQuery,
     QueryAttachment,
     AIAgentResponse,
+    MemoryHistoryItem,
 )
 from .constants import ConfigFileDefaults, ConfigDefaults
 from .prompts import QueryToTextConverter
@@ -77,9 +77,19 @@ class AIProvider(ABC):
         pass
 
     @abstractmethod
-    def start_chat(self):
+    def start_chat(self, history: list[MemoryHistoryItem] = None):
         """
-        Initlialize a provider-specific chat session. This should prepare the provider for handling chat interactions.
+        Initialize a provider-specific chat session. This should prepare the provider for handling chat interactions. History can be provided to pre-populate the session.
+        """
+        pass
+    
+    @abstractmethod
+    async def chat_active(self) -> bool:
+        """
+        Check if the chat session is active.
+
+        Returns:
+            bool: True if the chat session is active, False otherwise.
         """
         pass
 
@@ -216,7 +226,7 @@ class DebugProvider(AIProvider):
         return AIResponse(
             text="",
             embeds=[embed],
-            source=AIQuerySource.SYSTEM,
+            source=AISource.SYSTEM,
         )
 
     async def agent_input(self, query: AIAgentQuery, **kwargs) -> AIResponse:
@@ -379,17 +389,56 @@ class GeminiProvider(AIProvider):
             tools=tools,
             response_modalities=response_modalities,
         )
+        
+    def history_to_content(self, history: list[MemoryHistoryItem]) -> list[gem_types.Content]:
+        """
+        Convert a list of MemoryHistoryItem objects to Gemini Content objects.
 
-    def start_chat(self):
+        Args:
+            history (list[MemoryHistoryItem]): The chat history to convert.
+
+        Returns:
+            list[gem_types.Content]: A list of Gemini Content objects representing the chat history.
+        """
+        contents = []
+        for item in history:
+            contents.append(
+                gem_types.Content(
+                    role="model" if item.source == AISource.MODEL.value else "user",
+                    parts=[
+                        gem_types.Part.from_text(text=part)
+                        for part in item.content
+                    ]
+                )
+            )
+        return contents
+
+    def start_chat(self, history: list[MemoryHistoryItem] = None):
         """
         Start a chat session with the Gemini AI model.
         This method prepares the provider for handling chat interactions.
         """
+        if history:
+            self.logger.info(f"Starting chat session with history ({len(history)} items).")
+            contents = self.history_to_content(history)
+        else:
+            self.logger.info("Starting chat session without history.")
+            contents = []
 
         self.session = self.client.aio.chats.create(
             model=self.model,
             config=self.config,
+            history=contents,
         )
+        
+    def chat_active(self) -> bool:
+        """
+        Check if the chat session is active.
+
+        Returns:
+            bool: True if the chat session is active, False otherwise.
+        """
+        return self.session is not None
 
     async def file_to_part(self, attachment: QueryAttachment) -> list[gem_types.Part]:
         """
@@ -450,8 +499,9 @@ class GeminiProvider(AIProvider):
             AIResponse: The response from the Gemini AI model.
         """
         if not self.session:
-            self.start_chat()
-            self.logger.debug("Chat session initialized")
+            raise RuntimeError(
+                "Chat session not started. Call start_chat() before sending messages."
+            )
 
         try:
             parts = await self.convert_query(query)
@@ -467,11 +517,11 @@ class GeminiProvider(AIProvider):
 
             self.logger.error(f"Error sending message to Gemini: {e}")
 
-            if query.source == AIQuerySource.USER:
+            if query.source == AISource.USER:
                 return await self.chat_input(
                     AIQuery(
                         message="ERROR: Failed to process user input: " + str(e),
-                        source=AIQuerySource.SYSTEM,
+                        source=AISource.SYSTEM,
                     )
                 )
 
@@ -491,7 +541,7 @@ class GeminiProvider(AIProvider):
                         ],
                     },
                 ],
-                source=AIResponseSource.SYSTEM,
+                source=AISource.SYSTEM,
             )
 
         # text = response.text or ""

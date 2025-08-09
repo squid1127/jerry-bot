@@ -1,7 +1,7 @@
 """Provides a way to generate system and message prompts for plain text AI models."""
 
 from .constants import ConfigDefaults
-from .ai_types import AIQuery, AIQuerySource
+from .ai_types import AIQuery, AISource, AIResponse, AISource
 
 
 class SystemPromptGenerator:
@@ -137,7 +137,7 @@ class QueryToTextConverter:
         """
         parts = []
 
-        if query.source == AIQuerySource.USER:
+        if query.source == AISource.USER:
             if query.reaction:
                 metadata = "**Reaction to Message**\n"
                 metadata += f" - Reaction: {query.reaction}\n"
@@ -162,12 +162,12 @@ class QueryToTextConverter:
             if query.message:
                 parts.append(query.message)
 
-        elif query.source == AIQuerySource.SYSTEM:
+        elif query.source == AISource.SYSTEM:
             payload = "**System Message**\n"
             payload += query.message
             parts.append(payload)
 
-        elif query.source == AIQuerySource.METHOD:
+        elif query.source == AISource.METHOD:
             payload = "**Response from Function Call**\n"
             if query.message:
                 payload += query.message + "\n"
@@ -179,7 +179,29 @@ class QueryToTextConverter:
                 parts.append(embed_text)
 
         return parts
+    
+    @staticmethod
+    def convert_response(response: AIResponse) -> list[str]:
+        """
+        Convert an AIResponse object to a list of text parts.
 
+        Args:
+            response (AIResponse): The AIResponse object to convert.
+
+        Returns:
+            list[str]: A list of text prompts derived from the AIResponse.
+        """
+        parts = []
+
+        if response.text:
+            parts.append(response.text)
+
+        if response.embeds:
+            embed_text = QueryToTextConverter.convert_embeds(response.embeds)
+            if embed_text:
+                parts.append(embed_text)
+
+        return parts
 
 class ResponseTools:
     """

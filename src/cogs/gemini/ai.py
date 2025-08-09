@@ -10,9 +10,10 @@ import core
 
 # Internal Imports
 from .constants import ConfigFileDefaults, ConfigDefaults
-from .ai_types import AIMethodCall, AIResponse, AIQuery, AIQuerySource, AIMethodResponse
+from .ai_types import AIMethodCall, AIResponse, AIQuery, AISource, AIMethodResponse
 from .providers import AIProvider, ProviderRegistry
 from .methods import AIMethod, AIMethodRegistry
+from .memory import MemoryManager
 
 # Logging
 logger = logging.getLogger("jerry.JerryGemini.ai")
@@ -24,15 +25,17 @@ class ChatInstance:
     Generic chat instance class for handling chat sessions. Relies on the AIProvider to interact with the AI model.
     """
 
-    def __init__(self, config: dict, id: int):
+    def __init__(self, config: dict, id: int, memory: MemoryManager):
         """
         Args:
             config (dict): Configuration dictionary for the chat instance.
             id (int): Unique identifier for the chat instance, typically the channel ID.
+            memory (MemoryManager): The memory manager instance for handling memory operations.
         """
-
         self.channel_id = id
         self.config = config
+        self.memory = memory
+        self.do_memory = self.config.get("memory", {}).get("type") == "database"
         self.initialize_provider()
         self.logger = logging.getLogger(f"jerry.JerryGemini.chat.{self.channel_id}")
 
@@ -57,6 +60,12 @@ class ChatInstance:
             query (AIQuery): The query object containing the message and other parameters.
             response (AIResponse): The response from the AI model.
         """
+        # Save the response to memory
+        if self.do_memory:
+            await self.memory.save_history(
+                response, chat_id=self.channel_id, channel_id=self.channel_id
+            )
+        
         self.logger.debug(f"Processing response: {response}")
         self.logger.debug(
             f"Response from {response.source.value} to {query.source.value}: {response.text}"
@@ -69,6 +78,25 @@ class ChatInstance:
 
         # Call the response method with the query and response
         await query.response_method(discord_objects=query.discord, response=response)
+        
+    async def start_chat(self, reset: bool = False) -> None:
+        """
+        Start a chat session with the AI provider. This method will apply message history and prepare the provider for interaction.
+        
+        Args:
+            reset (bool): Whether to reset/clear the chat history before starting the session.
+        """
+        self.logger.info(f"Starting chat session for channel {self.channel_id}")
+        history = []
+        if self.do_memory:
+            if reset:
+                self.logger.info("Resetting chat history")
+                await self.memory.clear_history(chat_id=self.channel_id, channel_id=self.channel_id)
+            else:
+                self.logger.info("Loading chat history")
+                history = await self.memory.load_history(chat_id=self.channel_id, channel_id=self.channel_id)
+                
+        self.provider.start_chat(history=history)
 
     async def do_method_response(
         self, method_call: AIMethodCall, response: AIMethodResponse
@@ -95,7 +123,7 @@ class ChatInstance:
                             method_call.query.discord if method_call.query else None
                         ),
                         response_method=method_call.query.response_method,
-                        source=AIQuerySource.METHOD,
+                        source=AISource.METHOD,
                     )
                 )
             if response.response_user:
@@ -107,7 +135,7 @@ class ChatInstance:
             await self.do_response(method_call.query, response.response_user)
             return [response.response_user]
         return [
-            AIResponse(text="", source=AIQuerySource.METHOD, method_call=method_call)
+            AIResponse(text="", source=AISource.METHOD, method_call=method_call)
         ]
 
     async def do_method(
@@ -152,7 +180,7 @@ class ChatInstance:
                     message=f"Error executing method {method.name}: {e}",
                     discord=(method_call.query.discord if method_call.query else None),
                     response_method=query.response_method,
-                    source=AIQuerySource.METHOD,
+                    source=AISource.METHOD,
                 )
             )
             return ai_responses
@@ -168,6 +196,15 @@ class ChatInstance:
         Returns:
             list[AIResponse]: The response from the AI model.
         """
+        if not self.provider.chat_active():
+            self.logger.info("Chat session is not active, starting a new session.")
+            await self.start_chat()
+
+        if self.do_memory:
+            await self.memory.save_history(
+                query, chat_id=self.channel_id, channel_id=self.channel_id
+            )
+        
         self.logger.debug(f"Sending query: {query}")
         response = await self.provider.chat_input(query, **kwargs)
         self.logger.debug(f"Received response: {response}")
