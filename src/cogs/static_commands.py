@@ -108,3 +108,4 @@ More to come soon!""",
                     await interaction.followup.send(f"||*{excuse}*||")
                 else:
                     await interaction.followup.send("Sorry, I can't help you. It's just that bad. :P")
+                    

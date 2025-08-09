@@ -3,14 +3,8 @@
 # Static commands
 from .static_commands import StaticCommands
 
-# CSS Sticker Pack
-from .stickers import CubbScratchStudiosStickerPack
-
 # Information channels
 from .information_channels import InformationChannels
-
-# Guild stuff
-from .guild_stuff import GuildStuff
 
 # Gemini AI
 from .gemini import *
@@ -20,3 +14,6 @@ from .auto_reply import AutoReply
 
 # Simple Updatre
 from .simple_update import SimpleUpdate
+
+# Stickers
+from .stickers import Stickers
