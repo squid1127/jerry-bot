@@ -5,7 +5,6 @@ from typing import Optional as TypingOptional
 from enum import Enum
 from voluptuous import Schema, Required, Optional, All, Length, Range, ALLOW_EXTRA
 
-
 # Config Defaults
 class ConfigDefaults(Enum):
     """Default configuration values for JerryGemini."""
@@ -102,6 +101,10 @@ class ConfigFileDefaults:
                             Optional("prompt", default=False): bool,
                             Optional("response", default=False): bool,
                         },
+                        Optional("memory", default={"type": "internal"}): {
+                            Optional("type", default="internal"): str,  # Memory type (internal, db, etc.)
+
+                        }
                     }
                 ),
             ],
@@ -124,13 +127,12 @@ global:
     model_top_k: 40
     model_temperature: 2.0
 
-  # Emoji for the bot
-  personal_emoji: "<:jerry:12345>" # App-specific emoji ID for Jerry
-
   # Global Prompt
   prompt:
     default: true # Use the default prompt (Jerry)
     extra: Global information for the bot
+    # Emoji for the bot
+    personal_emoji: "<:jerry:12345>" # App-specific emoji ID for Jerry
     
 # Agents (Extra callable models)
 agents:
@@ -148,7 +150,7 @@ instances:
   123456: # Replace with the actual channel ID
     prompt:
       extra: Put instance-specific instructions here. This will be stacked on top of the global prompt.
-    personal_emoji: "<:jerry:123456>" # Server-specific emoji ID for Jerry
+        personal_emoji: "<:jerry:123456>" # Server-specific emoji ID for Jerry
     capabilities:
       - hide-seek
       - files

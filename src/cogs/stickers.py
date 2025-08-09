@@ -280,7 +280,6 @@ class Stickers(commands.Cog):
                 f"Sticker pack path {self.assets_path} does not exist, creating it."
             )
             os.makedirs(self.assets_path, exist_ok=True)
-            return
 
         if self.bot.memory.mongo_db is None:
             self.logger.error("MongoDB is not connected. Cannot load stickers.")

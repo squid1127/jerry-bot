@@ -35,12 +35,12 @@ from .ai_types import (
     AIQueryUserAuthor,
     AIResponse,
     AIQuery,
-    AIMethodCall,
-    AIQuerySource,
+    AISource,
     AIQueryDiscordRefrences,
 )
 from .files import FileProcessor
 from .prompts import ResponseTools
+from .memory import MemoryManager
 
 
 class JerryGemini(commands.Cog):
@@ -77,6 +77,14 @@ class JerryGemini(commands.Cog):
         self.logger.info(
             f"Loaded {len(self.channel_list)} channels from config: {', '.join(map(str, self.channel_list))}"
         )
+
+        self.memory = MemoryManager(self.bot.memory)
+
+    async def cog_load(self):
+        """
+        Async initialization method for the JerryGemini cog. (Mainly memory initialization)
+        """
+        await self.memory.init()
 
     async def chat_input(
         self,
@@ -127,6 +135,7 @@ class JerryGemini(commands.Cog):
                 self.instances[channel.id] = ChatInstance(
                     config=command_config,
                     id=channel.id,
+                    memory=self.memory
                 )
             else:
                 self.logger.info(
@@ -135,6 +144,7 @@ class JerryGemini(commands.Cog):
                 self.instances[channel.id] = ChatInstance(
                     config=self.config.config["instances"][channel.id],
                     id=channel.id,
+                    memory=self.memory
                 )
 
         # Pass the query to instance
@@ -274,7 +284,7 @@ class JerryGemini(commands.Cog):
 
         query = AIQuery(
             message=message.content,
-            source=AIQuerySource.USER,
+            source=AISource.USER,
             author=AIQueryUserAuthor(
                 id=message.author.id,
                 username=message.author.name,
@@ -296,7 +306,7 @@ class JerryGemini(commands.Cog):
             original_message = message.reference.resolved
             query.reply = AIQuery(
                 message=original_message.content,
-                source=AIQuerySource.USER,
+                source=AISource.USER,
                 author=AIQueryUserAuthor(
                     id=original_message.author.id,
                     username=original_message.author.name,
@@ -338,7 +348,7 @@ class JerryGemini(commands.Cog):
         query = AIQuery(
             reaction=reaction.emoji,
             message=reaction.message.content,
-            source=AIQuerySource.USER,
+            source=AISource.USER,
             author=AIQueryUserAuthor(
                 id=user.id,
                 username=user.name,
@@ -361,7 +371,10 @@ class JerryGemini(commands.Cog):
     )
     @app_commands.guild_only()  # Only can be used in guilds its installed in
     # @app_commands.guild_install() Can also work on user installs
-    async def gemini_reset(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        clear="[DB Mode] Clear the chat history before starting a new conversation."
+    )
+    async def gemini_reset(self, interaction: discord.Interaction, clear: bool = False):
         """
         Resets the conversation with Jerry by giving him dementia.
         """
@@ -374,12 +387,13 @@ class JerryGemini(commands.Cog):
 
         await interaction.response.defer(ephemeral=False)
         instance: ChatInstance = self.instances[interaction.channel_id]
-        instance.provider.start_chat()
+        await instance.start_chat(reset=clear)
+        forgotten = (not instance.do_memory) or (clear and instance.do_memory)
         self.logger.info(f"Resetting conversation in channel {interaction.channel_id}")
         await interaction.followup.send(
             embed=discord.Embed(
                 title="Conversation Reset",
-                description="New chat session started. Jerry has forgotten everything D:",
+                description="New chat session started. Jerry has forgotten everything D:" if forgotten else "Chat session reloaded. Use clear=True to erase history.",
                 color=discord.Color.red(),
             ),
             ephemeral=True,
@@ -507,7 +521,7 @@ class JerryGemini(commands.Cog):
         # Create the AIQuery object
         query = AIQuery(
             message=query_text,
-            source=AIQuerySource(source.lower()),
+            source=AISource(source.lower()),
             author=AIQueryUserAuthor(
                 id=command.message.author.id,
                 username=command.message.author.name,
@@ -545,7 +559,9 @@ class JerryGemini(commands.Cog):
                 ephemeral=True,
             )
             return
-        if self.config.status != ConfigStatus.LOADED or not self.config.config["global"].get("jerry_command_instance_id"):
+        if self.config.status != ConfigStatus.LOADED or not self.config.config[
+            "global"
+        ].get("jerry_command_instance_id"):
             await interaction.response.send_message(
                 "This command is not configured by the bot administrator.",
                 ephemeral=True,
@@ -558,13 +574,12 @@ class JerryGemini(commands.Cog):
                 ephemeral=True,
             )
             return
-        
 
         await interaction.response.defer(ephemeral=False)
 
         query = AIQuery(
             message=query,
-            source=AIQuerySource.USER,
+            source=AISource.USER,
             author=AIQueryUserAuthor(
                 id=interaction.user.id,
                 username=interaction.user.name,
@@ -602,7 +617,11 @@ class JerryGemini(commands.Cog):
             for part in parts:
                 if part:
                     try:
-                        if parts.index(part) == len(parts) - 1 and response.embeds and len(response.embeds) > 0:
+                        if (
+                            parts.index(part) == len(parts) - 1
+                            and response.embeds
+                            and len(response.embeds) > 0
+                        ):
                             # If it's the last part, send it as a normal message
                             await interaction.followup.send(
                                 part,
@@ -622,7 +641,9 @@ class JerryGemini(commands.Cog):
         elif response.embeds and len(response.embeds) > 0:
             for embed in response.embeds:
                 try:
-                    await interaction.followup.send(embed=discord.Embed.from_dict(embed))
+                    await interaction.followup.send(
+                        embed=discord.Embed.from_dict(embed)
+                    )
                 except discord.HTTPException as e:
                     self.logger.error(
                         f"Failed to send embed in channel {discord_objects.channel.id}: {e}"

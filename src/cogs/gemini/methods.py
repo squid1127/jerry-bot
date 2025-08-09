@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from .ai_types import (
     AIQuery,
     AIMethodStatus,
-    AIQuerySource,
+    AISource,
     AIResponse,
     AIMethodCall,
     AIMethodResponse,
@@ -238,7 +238,7 @@ class AgentRunner(AIMethod):
                     response_user=AIResponse(
                         text="",
                         embeds=[embed],
-                        source=AIQuerySource.METHOD,
+                        source=AISource.METHOD,
                     ),
                 ),
             )
@@ -315,7 +315,7 @@ class AgentRunner(AIMethod):
         if response.files:
             query = AIQuery(
                 message=response.text,
-                source=AIQuerySource.METHOD,
+                source=AISource.METHOD,
                 attachments=response.files,
                 discord=(
                     method_call.query.discord
@@ -337,7 +337,7 @@ class AgentRunner(AIMethod):
                     response_user=AIResponse(
                         text="",
                         embeds=[embed],
-                        source=AIQuerySource.METHOD,
+                        source=AISource.METHOD,
                         files=response.files or [],
                     ),
                     response_model_query=query,
@@ -468,7 +468,7 @@ class DiscordSendMessage(AIMethod):
             status=AIMethodStatus.SUCCESS,
             response_user=AIResponse(
                 text=method_call.arguments["message"],
-                source=AIQuerySource.MODEL,
+                source=AISource.MODEL,
             ),
         )
 
@@ -684,7 +684,7 @@ class SpaceBinPost:
             response_user=AIResponse(
                 text="",
                 embeds=[embed],
-                source=AIQuerySource.METHOD,
+                source=AISource.METHOD,
             ),
         )
 
