@@ -1,676 +1,608 @@
-# Packages
+"""
+[Revision 2] Stickers module for Jerry bot.
+Allows the bot to manage and serve stickers from a specific pack.
+"""
+
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+import aiofiles
 import logging
+import hashlib
 import os
-import asyncio
-import re
-import fuzzywuzzy
-from PIL import Image
-import pyheif
 
-# squid-core
-import core
+from dataclasses import dataclass
 
-class StickerEphemeralView(discord.ui.View):
-    def __init__(self, sticker_file: str, core: "CubbScratchStudiosStickerPack"):
-        super().__init__()
+import core as squidcore
+
+logger = logging.getLogger("jerry.stickers")
+
+
+class StickersMongo:
+    """Schema constants"""
+
+    COLLECTION_NAME = "jerry.stickers"
+    SCHEMA = {
+        "$jsonSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "required": True, "unique": True},
+                "description": {"type": "string", "default": ""},
+                "file_path": {"type": "string", "required": True},
+                "sha256": {"type": "string", "required": True},
+            },
+        }
+    }
+    COLLECTION_SEARCH_INDEX = [
+        ("name", "text"),
+        ("description", "text"),
+    ]
+    COLLECTION_SEARCH_INDEX_WEIGHT = {
+        "name": 10,
+        "description": 5,
+    }
+
+
+@dataclass
+class Sticker:
+    """Data class for a sticker."""
+
+    name: str
+    description: str
+    sha256: str
+    tags: list = None
+    file_path: str = None
+    attachment: discord.Attachment = None
+
+
+class StickerAddConfirmView(discord.ui.View):
+    """Confirmation view for adding a sticker."""
+
+    def __init__(
+        self,
+        interaction: discord.Interaction,
+        sticker_name: str,
+        sticker_description: str,
+        sticker_file: discord.Attachment,
+        core: "Stickers",
+    ):
+        super().__init__(timeout=60)
+        self.interaction = interaction
+        self.sticker_name = sticker_name
+        self.sticker_description = sticker_description
         self.sticker_file = sticker_file
         self.core = core
-        self.logger = core.logger
 
-    @discord.ui.button(label="Send✅", style=discord.ButtonStyle.primary)
-    async def send(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.logger.info(f"Confirming sending sticker {self.sticker_file}")
-        await interaction.response.send_message("Sending sticker...", ephemeral=True)
-        try:
-            file = discord.File(self.sticker_file)
-        except Exception as e:
-            self.logger.info(f"Error getting sticker: {e}")
-            await interaction.followup.send(
-                f"Error sending sticker: {e}", ephemeral=True
+    @discord.ui.button(label="Confirm ✅", style=discord.ButtonStyle.green)
+    async def confirm_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """Handle the confirmation button click."""
+        output = await self.core.add_sticker_to_db(
+            self.sticker_name,
+            self.sticker_description,
+            self.sticker_file,
+        )
+        await interaction.response.send_message(
+            output,
+            ephemeral=True,
+        )
+        await self.interaction.delete_original_response()
+        self.stop()
+
+    @discord.ui.button(label="Cancel ❌", style=discord.ButtonStyle.red)
+    async def cancel_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """Handle the cancel button click."""
+        await interaction.response.send_message(
+            "Sticker addition cancelled.", ephemeral=True
+        )
+        await self.interaction.delete_original_response()
+        self.stop()
+
+
+class StickerSearchView(discord.ui.View):
+    """View for searching stickers."""
+
+    def __init__(
+        self,
+        interaction: discord.Interaction,
+        core: "Stickers",
+        stickers: list[Sticker] = None,
+    ):
+        super().__init__(timeout=60)
+        self.interaction = interaction
+        self.core = core
+        self.stickers = stickers or []
+        self.add_item(StickerSelect(self.stickers))
+
+    async def on_timeout(self):
+        """Disable the select menu when the view times out."""
+        for item in self.children:
+            if isinstance(item, discord.ui.Select):
+                item.disabled = True
+        await self.interaction.edit_original_response(view=self)
+        await super().on_timeout()
+
+
+class StickerSelect(discord.ui.Select):
+    def __init__(self, stickers: list[Sticker]):
+        options = [
+            discord.SelectOption(
+                label=sticker.name,
+                description=sticker.description or "No description provided.",
+                value=sticker.name,
+                emoji="🟢" if sticker.file_path else "❌",
             )
-            return
-        await interaction.message.channel.send(file=file)
+            for sticker in stickers
+        ]
+        self.stickers = stickers
+        super().__init__(placeholder="Select a sticker...", options=options)
 
+    async def callback(self, interaction: discord.Interaction):
+        """Handle the sticker selection."""
+        await interaction.response.defer(ephemeral=True)
 
-class CubbScratchStudiosStickerPack(commands.Cog):
-    def __init__(self, bot: core.Bot, directory: str):
-        self.bot = bot
-        self.directory = directory
-
-        self.bot.shell.add_command(
-            "csss",
-            cog="CubbScratchStudiosStickerPack",
-            description="Manage the CubbScratchStudios sticker pack",
+        selected_sticker_name = self.values[0]
+        selected_sticker = next(
+            (
+                sticker
+                for sticker in self.stickers
+                if sticker.name == selected_sticker_name
+            ),
+            None,
         )
 
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-
-        self.stickers = {}
-
-        self.table = None
-        self.missing = []
-        self.unindexed = []
-
-        self.logger = logging.getLogger("jerry.css_sticker_pack")
-
-    # Constants
-    SCHEMA = "css"
-    TABLE = "stickers"
-    TABLE_QUERY = f"""
-    CREATE SCHEMA IF NOT EXISTS {SCHEMA};
-    
-    CREATE TABLE IF NOT EXISTS {SCHEMA}.{TABLE} (
-        id SERIAL PRIMARY KEY,
-        format TEXT NOT NULL CHECK (format IN ('slime', 'slime-text', 'icon', 'icon-text', 'banner', 'wallpaper', 'other')),
-        slime TEXT NOT NULL,
-        name TEXT NOT NULL,
-        file TEXT NOT NULL UNIQUE,
-        description TEXT
-    );
-    """
-
-    @commands.Cog.listener()
-    async def on_ready(self):
-        # Wait for database to be ready
-        if not hasattr(self.bot, "db"):
-            self.logger.info("Waiting for database to be ready")
-            while not hasattr(self.bot, "db"):
-                await asyncio.sleep(1)
-        if not isinstance(self.bot.db, core.DatabaseCore):
-            self.logger.info("Database not ready")
-            while not isinstance(self.bot.db, core.DatabaseCore):
-                await asyncio.sleep(1)
-
-        self.db: core.DatabaseCore = self.bot.db
-        await self.db.wait_until_ready()
-
-        # Create table
-        self.logger.info("Checking database table")
-        try:
-            await self.db.execute(self.TABLE_QUERY)
-        except Exception as e:
-            self.logger.error(f"Error creating table: {e}")
+        if not selected_sticker:
+            await interaction.followup.send(
+                "❌ Sticker not found.",
+                ephemeral=True,
+            )
             return
 
-        self.schema = self.db.data.get_schema(self.SCHEMA)
-        self.table: core.DatabaseTable = self.schema.get_table(self.TABLE)
+        # Create a view to handle sending or DMing the sticker
+        view = StickerGetView(interaction, selected_sticker)
+        await interaction.followup.send(
+            content="",
+            view=view,
+            file=discord.File(selected_sticker.file_path),
+            embed=discord.Embed(
+                title=selected_sticker.name,
+                description=selected_sticker.description or "No description provided.",
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
 
-        self.logger.info("Indexing stickers")
-        await self.index()
-        self.logger.info("Successfully initialized")
+
+class StickerGetView(discord.ui.View):
+    """View when using the sticker command to get a sticker."""
+
+    def __init__(self, interaction: discord.Interaction, sticker: Sticker):
+        super().__init__(timeout=60)
+        self.interaction = interaction
+        self.sticker = sticker
+
+    # Send the sticker to the channel
+    @discord.ui.button(label="Send Here", style=discord.ButtonStyle.green)
+    async def send_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """Handle the send button click."""
+        await interaction.response.defer(ephemeral=True)
+        if self.sticker.file_path:
+            channel = interaction.channel or interaction.user.dm_channel
+            if channel is None:
+                await interaction.followup.send(
+                    "❌ Could not find a channel associated with this interaction. Please try again later. (Bot should be installed in this location.)",
+                    ephemeral=True,
+                )
+                return
+            try:
+                await channel.send(
+                    "",
+                    file=discord.File(self.sticker.file_path),
+                )
+                await interaction.followup.send(
+                    "✅",
+                    ephemeral=True,
+                )
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "❌ Missing permissions to send files in this channel. Ensure the bot is installed in this channel and has the required permissions.",
+                    ephemeral=True,
+                )
+                return
+        else:
+            await interaction.followup.send(
+                "❌ Sticker file not found. If this is an error, please contact the bot admins.",
+                ephemeral=True,
+            )
+
+    # DM the sticker to the user
+    @discord.ui.button(label="DM Me", style=discord.ButtonStyle.blurple)
+    async def dm_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """Handle the DM button click."""
+        await interaction.response.defer(ephemeral=True)
+        if self.sticker.file_path:
+            try:
+                await interaction.user.send(
+                    "",
+                    file=discord.File(self.sticker.file_path),
+                )
+                await interaction.followup.send(
+                    "✅ Sticker sent to your DMs.",
+                    ephemeral=True,
+                )
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "❌ Could not send you a DM. Please check your privacy settings.",
+                    ephemeral=True,
+                )
+        else:
+            await interaction.followup.send(
+                "❌ Sticker file not found. If this is an error, please contact the bot admins.",
+                ephemeral=True,
+            )
+
+    # On timeout, disable the buttons
+    async def on_timeout(self):
+        """Disable the buttons when the view times out."""
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
+        await self.interaction.edit_original_response(view=self)
+        await super().on_timeout()
+
+
+class Stickers(commands.Cog):
+    """A cog for managing and serving stickers in the Jerry bot."""
+
+    def __init__(self, bot: squidcore.Bot):
+        self.bot = bot
+        self.files = self.bot.filebroker.configure_cog(
+            "Stickers",
+            perm=True,
+        )
+        self.assets_path = self.files.get_perm_dir()
+        self.logger = logging.getLogger("jerry.stickers")
+
+        self.stickers_collection = None
+
+    async def cog_load(self):
+        """Load the sticker pack."""
+        if not os.path.exists(self.assets_path):
+            self.logger.warning(
+                f"Sticker pack path {self.assets_path} does not exist, creating it."
+            )
+            os.makedirs(self.assets_path, exist_ok=True)
+            return
+
+        if self.bot.memory.mongo_db is None:
+            self.logger.error("MongoDB is not connected. Cannot load stickers.")
+            return
+
+        existing_collections = await self.bot.memory.mongo_db.list_collection_names()
+        if StickersMongo.COLLECTION_NAME not in existing_collections:
+            self.logger.info("Creating stickers collection in MongoDB.")
+            await self.bot.memory.mongo_db.create_collection(
+                StickersMongo.COLLECTION_NAME
+            )
+            await self.bot.memory.mongo_db[StickersMongo.COLLECTION_NAME].create_index(
+                StickersMongo.COLLECTION_SEARCH_INDEX,
+                weights=StickersMongo.COLLECTION_SEARCH_INDEX_WEIGHT,
+                name="sticker_search_index",
+            )
+        self.stickers_collection = self.bot.memory.mongo_db[
+            StickersMongo.COLLECTION_NAME
+        ]
 
     async def cog_status(self):
-        if self.table:
-            string = "Ready"
-            if self.missing:
-                string += f"\n{len(self.missing)} entries missing from directory"
-            if self.unindexed:
-                string += f"\n{len(self.unindexed)} files not in database"
-            return string
+        return "Ready"
+
+    async def add_sticker_to_db(
+        self,
+        sticker_name: str,
+        sticker_description: str,
+        sticker_file: discord.Attachment,
+    ) -> str:
+        """Add a sticker to the MongoDB collection."""
+        output_message = ""
+
+        file = await sticker_file.read()
+        extension = sticker_file.filename.split(".")[-1].lower()
+        sha256_hash = hashlib.sha256(file).hexdigest()
+
+        # Generate a unique file path
+        file_path = os.path.join(self.assets_path, f"{sha256_hash}.{extension}")
+        if not os.path.exists(file_path):
+            async with aiofiles.open(file_path, "wb") as f:
+                await f.write(file)
+
         else:
-            return "Not initialized"
-
-    async def apple_to_better(self, file_path: str):
-        """Convert heic/heif files to png"""
-        self.logger.debug(f"Converting Apple Type Image to PNG: {file_path}")
-        new_path = file_path.replace(".heic", ".png").replace(".heif", ".png")
-
-        if os.path.exists(new_path):
-            self.logger.debug(f"File {new_path} already exists, skipping")
-            return new_path
-
-        try:
-            apple_image = pyheif.read(file_path)
-            image = Image.frombytes(
-                apple_image.mode,
-                apple_image.size,
-                apple_image.data,
-                "raw",
-                apple_image.mode,
-                apple_image.stride,
+            self.logger.warning(
+                f"Sticker file {file_path} already exists. Skipping file write."
             )
+            output_message += f"Warning: This sticker's file already exists in storage. Is this a duplicate? Hash 👇\n||SHA256: {sha256_hash}||\n"
 
-            image.save(new_path)
+        # Prepare the sticker document
+        sticker_doc = {
+            "name": sticker_name,
+            "description": sticker_description,
+            "file_path": file_path,
+            "sha256": sha256_hash,
+            "tags": [],
+        }
+        # Check if the sticker already exists
+        existing_sticker = await self.stickers_collection.find_one(
+            {"name": sticker_name}
+        )
+        if existing_sticker:
+            self.logger.warning(
+                f"Sticker '{sticker_name}' already exists in the database. Skipping addition."
+            )
+            return (
+                output_message
+                + f"A sticker with the name '{sticker_name}' already exists in the database, please choose a different name."
+            ).strip()
 
-        except Exception as e:
-            self.logger.error(f"Error converting {file_path} to PNG: {e}")
+        # Insert the sticker into the collection
+        result = await self.stickers_collection.insert_one(sticker_doc)
+        if result.acknowledged:
+            self.logger.info(
+                f"Sticker '{sticker_name}' added successfully with ID {result.inserted_id}."
+            )
+        else:
+            self.logger.error(
+                f"Failed to add sticker '{sticker_name}' to the database."
+            )
+            return "Failed to add sticker to the database."
+
+        return (
+            output_message + f"Sticker '{sticker_name}' added successfully! ✅"
+        ).strip()
+
+    async def get_sticker_by_name(self, sticker_name: str) -> Sticker | None:
+        """Retrieve a sticker by its name."""
+        sticker = await self.stickers_collection.find_one({"name": sticker_name})
+        if not sticker:
+            self.logger.error(f"Sticker '{sticker_name}' not found in the database.")
             return None
 
-        self.logger.info(f"Converted {file_path} to PNG: {new_path}")
-        return new_path
-
-    async def index(self):
-        """Index all stickers in the directory and check if they are in the database"""
-        self.logger.info("Indexing stickers")
-        data = await self.table.fetch()
-        unindexed = []
-        missing = []
-
-        # Optimize file paths & convert Apple type images
-        self.logger.info("Optimizing file paths")
-        while True:
-            interrupted = False
-            files = os.listdir(self.directory)
-            for file in files:
-                if ":Zone.Identifier" in file:
-                    self.logger.debug(f"Skipping file with Zone.Identifier: {file}")
-                    continue
-
-                if file.endswith(".heic") or file.endswith(".heif"):
-                    new_path = await self.apple_to_better(f"{self.directory}/{file}")
-                    if new_path:
-                        os.remove(f"{self.directory}/{file}")
-                        interrupted = True
-
-                # Replace spaces with underscores
-                if " " in file:
-                    self.logger.debug(f"Replacing spaces in file {file}")
-                    new_file = file.replace(" ", "_")
-                    try:
-                        self.logger.debug(
-                            f"Rename {self.directory}/{file} to {self.directory}/{new_file}"
-                        )
-                        os.rename(
-                            f"{self.directory}/{file}", f"{self.directory}/{new_file}"
-                        )
-                    except PermissionError:
-                        self.logger.error(
-                            f"Unable to rename file {file} due to permission error (space)"
-                        )
-                    except FileNotFoundError:
-                        self.logger.error(
-                            f"Unable to rename file {file} due to file not found (space)"
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Error renaming file {file}: {e} (space)")
-                    interrupted = True
-                    continue
-
-                # Replace other special characters
-                if re.search(r"[^a-zA-Z0-9_.-]", file):
-                    new_file = re.sub(r"[^a-zA-Z0-9_.-]", "_", file)
-                    try:
-                        self.logger.debug(
-                            f"Rename {self.directory}/{file} to {self.directory}/{new_file}"
-                        )
-                        os.rename(
-                            f"{self.directory}/{file}", f"{self.directory}/{new_file}"
-                        )
-                    except PermissionError:
-                        self.logger.error(
-                            f"Unable to rename file {file} due to permission error (special characters)"
-                        )
-                    except FileNotFoundError:
-                        self.logger.error(
-                            f"Unable to rename file {file} due to file not found (special characters)"
-                        )
-                    except Exception as e:
-                        self.logger.error(
-                            f"Error renaming file {file}: {e} (special characters)"
-                        )
-                    interrupted = True
-                    continue
-
-            if not interrupted:
-                self.logger.info("File paths optimized")
-                break
-            self.logger.debug("Some files were optimized, checking again")
-
-        # Get all files in the directory (again)
-        files = os.listdir(self.directory)
-
-        # Remove Zone.Identifier files
-        files = [file for file in files if ":Zone.Identifier" not in file]
-
-        # Convert database data to a dictionary
-        database_files = {}
-        for entry in data:
-            database_files[entry["file"]] = entry
-
-        # Check if each file is in the database
-        self.logger.info(f"Checking {len(files)} files")
-        for file in files:
-            self.logger.debug(f"Checking file {file}")
-
-            if file not in database_files:
-                self.logger.debug(f"File {file} not in database")
-                unindexed.append(file)
-                continue
-
-            self.logger.debug(
-                f"File {file} found in database as '{database_files[file]['slime']}/{database_files[file]['name']}'"
+        file_path = sticker.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            self.logger.error(
+                f"File for sticker '{sticker_name}' not found at {file_path}."
             )
-            data.pop(data.index(database_files[file]))
+            return None
 
-        self.logger.info(f"Done checking files")
+        file = discord.File(file_path)
 
-        self.logger.info(f"{len(unindexed)} files not in database")
-        self.logger.info(f"{len(data)} entries missing from directory")
-
-        for entry in data:
-            missing.append(entry["file"])
-
-        self.missing = missing
-        self.unindexed = unindexed
-
-        return True
-
-    async def shell_callback(self, command: core.ShellCommand):
-        if command.name == "csss":
-            # Enter interactive mode
-            if command.query != "":
-                await command.log(
-                    "Subcommands are not supported",
-                    title="Subcommands Error",
-                    msg_type="error",
-                )
-                return
-
-            # Enter interactive mode
-            self.logger.info("Entering interactive shell")
-            await command.log("Entering interactive shell", title="Sticker Manager")
-
-            self.bot.shell.interactive_mode = ("CubbScratchStudiosStickerPack", "cssss")
-
-            await self._interactive(command, init=True)
-
-        if command.name == "cssss":
-            await self._interactive(command)
-
-    async def _interactive(self, command: core.ShellCommand, init=False):
-        """Interactive shell for managing the sticker pack"""
-        self.logger.info("Interactive shell -> " + command.query)
-        query = command.query
-        if init or query == "return":
-            self._interactive_view = "main"
-            self._interactive_index_subview = "uninitialized"
-            query = "_init"
-
-        # Views
-        if self._interactive_view == "main":
-
-            if query == "missing":
-                self._interactive_view = "missing"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-            elif query == "unindexed":
-                self._interactive_view = "unindexed"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-            elif query == "refresh":
-                await command.raw("Refreshing database and directory...")
-                await self.index()
-                await command.raw("Refreshed")
-            elif query == "help":
-                await command.raw(
-                    "Commands:\n- missing - Manage entries registered in the database but missing from the directory\n- unindexed - Manage files in the directory not registered in the database\n- refresh - Refresh the database and directory\n- exit - Exit the shell\n- return - Return to the main menu"
-                )
-                return
-
-            response = "### CubbScratchStudios Sticker Pack 🪄\n\n"
-
-            if self.missing:
-                response += f"{len(self.missing)} entries missing from directory. Use 'missing' to review them.\n"
-            if self.unindexed:
-                response += f"{len(self.unindexed)} files not in database. Use 'unindexed' to review them.\n"
-
-            response += "\nType 'exit' to exit the shell.\nType 'return' to return to the main menu.\nType 'help' to see commands."
-
-            await command.raw(response)
-            return
-
-        if self._interactive_view == "unindexed":
-            # Reindex files
-            if query == "_init" or query == "refresh":
-                await command.raw("Reindexing files...")
-                await self.index()
-                await command.raw("Reindexing complete")
-
-            elif query == "list":
-                response = "### Unindexed Files\n"
-                for file in self.unindexed:
-                    response += f"- {file}\n"
-                await command.raw(response)
-                return
-
-            elif query == "index" or query == "wizard":
-                await command.raw("Indexing all files...")
-                self._interactive_view = "index"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-
-            elif query in ["remove", "delete", "rm"]:
-                self._interactive_view = "remove_unindexed"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-
-            if len(self.unindexed) == 0:
-                await command.raw("Nice! All files are indexed! 🎉\nReturning...")
-                self._interactive_view = "main"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-            await command.raw(
-                f"### Unindexed files: {len(self.unindexed)}\nType 'list' to list them\nType 'wizard' to index them one by one\nType 'remove' to remove them all and mirror the database"
-            )
-            return
-
-        if self._interactive_view == "remove_unindexed":
-            if query == "y" or query == "yes":
-                await command.raw("Removing all unindexed files...")
-                for file in self.unindexed:
-                    try:
-                        os.remove(f"{self.directory}/{file}")
-                    except Exception as e:
-                        await command.raw(f"Error removing file {file}: {e}")
-                await command.raw("All unindexed files removed, refreshing...")
-                self._interactive_view = "unindexed"
-                command.query = "refresh"
-                await self._interactive(command)
-                return
-
-            elif query == "n" or query == "no":
-                await command.raw("Operation cancelled")
-                self._interactive_view = "unindexed"
-                command.query = "_init"
-                await self._interactive(command)
-                return
-
-            await command.raw(
-                f"Are you sure you want to remove all unindexed files? (yes/no) This will irreversibly delete {len(self.unindexed)} files"
-            )
-
-            return
-
-        if self._interactive_view == "index":
-            # Index files
-            if query == "_init":
-                await command.raw(
-                    "### File Wizard 🪄\nLet's index some files! 📁\nNote: It is suggested that you have a list of currently indexed files as there might be duplicates.\n\n**Quick Actions**\n- rm - Delete the current file and move on the the next one\n- reset - Made a mistake in entering everything? Use reset to start over"
-                )
-                self._interactive_index_subview = "main"
-                await asyncio.sleep(2)
-
-            elif query == "refresh":
-                await command.raw("Indexing files...")
-                await self.index()
-                await command.raw("Indexing complete")
-
-            elif query == "reset":
-                await command.raw("Oops, let's try that again!")
-                self._interactive_index_subview = "main"
-                command.query = "__init"
-                await self._interactive(command)
-                return
-            elif query == "rm":
-                # Delete the file
-                await command.raw("Removing file...")
-                try:
-                    os.remove(f"{self.directory}/{self.unindexed[0]}")
-                except Exception as e:
-                    await command.raw(f"Error removing file: {e}")
-                else:
-                    await command.raw("File removed, refreshing...")
-
-                self._interactive_index_subview = "main"
-                command.query = "refresh"
-                await self._interactive(command)
-                return
-
-            # One file at a time
-            if self._interactive_index_subview == "main":
-                current = self.unindexed[0]
-                current_path = f"{self.directory}/{current}"
-                self._interactive_current_data = {
-                    "file": current,
-                }
-                try:
-                    attachment = discord.File(current_path)
-                    await command.raw(f"### File Wizard 🪄", file=attachment)
-                    await command.raw(
-                        f"**Name**: {current}\n**Size**: {os.path.getsize(current_path) / 1024:.2f} KB\n**Dimensions**: {Image.open(current_path).size}"
-                    )
-                except Exception as e:
-                    await command.raw(
-                        f"Error displaying file: {e}, please try again later"
-                    )
-                    self._interactive_index_subview = "main"
-                    self.unindexed.pop(0)
-                    await self._interactive(command)
-                    return
-
-                self._interactive_index_subview = "format"
-                command.query = "__init"
-                await self._interactive(command)
-                return
-            if self._interactive_index_subview == "format":
-                if query in [
-                    "slime",
-                    "slime-text",
-                    "icon",
-                    "icon-text",
-                    "banner",
-                    "wallpaper",
-                    "other",
-                ]:
-                    await command.raw(f"Format: {query}")
-                    self._interactive_current_data["format"] = query
-
-                    self._interactive_index_subview = "slime"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-
-                await command.raw(
-                    "What type of sticker is this? (slime, slime-text, icon, icon-text, banner, wallpaper, other)"
-                )
-                return
-
-            if self._interactive_index_subview == "slime":
-                if query and query != "__init":
-                    await command.raw(f"Slime: {query}")
-                    self._interactive_current_data["slime"] = query.lower()
-
-                    self._interactive_index_subview = "name"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-
-                await command.raw("What slime is this sticker for?")
-                return
-
-            if self._interactive_index_subview == "name":
-                if query and query != "__init":
-                    await command.raw(f"Name: {query}")
-                    self._interactive_current_data["name"] = query
-
-                    self._interactive_index_subview = "description"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-
-                await command.raw(
-                    "What should this sticker be called? (e.g. 'pay attention')"
-                )
-                return
-
-            if self._interactive_index_subview == "description":
-                if query == "skip":
-                    await command.raw("Description skipped")
-                    self._interactive_current_data["description"] = None
-
-                    self._interactive_index_subview = "confirm"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-                if query and query != "__init":
-                    await command.raw(f"Description: {query}")
-                    self._interactive_current_data["description"] = query
-
-                    self._interactive_index_subview = "confirm"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-
-                await command.raw(
-                    "Describe the sticker (optional; type 'skip' to skip)"
-                )
-                return
-
-            if self._interactive_index_subview == "confirm":
-                if query == "yes":
-                    await command.raw("Adding sticker to database...")
-                    try:
-                        await self.table.insert(
-                            data=self._interactive_current_data,
-                        )
-
-                    except Exception as e:
-                        await command.raw(f"Error adding sticker to database: {e}")
-                        await command.raw("Please try again later")
-                        self._interactive_index_subview = "main"
-                        self.unindexed.pop(0)
-                        await self._interactive(command)
-                        return
-
-                    await command.raw("Sticker added to database, onto the next one!")
-
-                    self._interactive_index_subview = "main"
-                    self.unindexed.pop(0)
-                    command.query = "_next"
-                    await self._interactive(command)
-                    return
-
-                elif query == "edit":
-                    await command.raw("Starting over...")
-                    self._interactive_index_subview = "main"
-                    command.query = "__init"
-                    await self._interactive(command)
-                    return
-
-                summary = "### Summary\n"
-                summary += f"File: {self._interactive_current_data['file']}\n"
-                summary += f"Format: {self._interactive_current_data['format']}\n"
-                summary += f"Name: {self._interactive_current_data['slime']}/{self._interactive_current_data['name']}\n"
-                summary += f"Description: {self._interactive_current_data.get('description', 'None')}\n"
-
-                summary += (
-                    "Would you like to add this sticker to the database? (yes|edit)"
-                )
-                await command.raw(summary)
-
-                return
-
-            return
-
-        self.logger.warning("Interactive shell view not found")
-        await command.raw(
-            "Woah, how did you get here? Let's go back home. (View not found)"
+        return Sticker(
+            name=sticker["name"],
+            description=sticker.get("description", ""),
+            file_path=sticker.get("file_path", ""),
+            sha256=sticker.get("sha256", ""),
+            tags=sticker.get("tags", []),
+            attachment=None,  # Attachments are not used in this context
         )
-        self._interactive_view = "main"
-        await self._interactive(command)
-        return
+
+    async def search_stickers(self, query: str) -> list[Sticker]:
+        """Search for stickers by name or description."""
+        if not query:
+            return []
+
+        search_query = {"$text": {"$search": query}}
+        score = {"score": {"$meta": "textScore"}}
+
+        stickers = []
+        async for sticker in (
+            self.stickers_collection.find(search_query, score)
+            .sort([("score", {"$meta": "textScore"})])
+            .limit(20)
+        ):
+            file_path = sticker.get("file_path")
+            if file_path and os.path.exists(file_path):
+                stickers.append(
+                    Sticker(
+                        name=sticker["name"],
+                        description=sticker.get("description", ""),
+                        file_path=file_path,
+                        sha256=sticker.get("sha256", ""),
+                        tags=sticker.get("tags", []),
+                    )
+                )
+            else:
+                self.logger.warning(
+                    f"File for sticker '{sticker['name']}' not found at {file_path}."
+                )
+
+        return stickers
+
+    async def get_categories(self) -> list[str]:
+        """Get a list of sticker categories."""
+        categories = set()
+        async for sticker in self.stickers_collection.find({}):
+            if "/" in sticker["name"]:
+                category = sticker["name"].split("/")[0]
+                categories.add(category)
+        return sorted(categories)
+    
+    @app_commands.command(
+        name="sticker-help",
+        description="Get help on how to use the sticker commands.",
+    )
+    async def sticker_help(self, interaction: discord.Interaction):
+        """Provide help on how to use the sticker commands."""
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="Sticker Commands Help",
+                description=(
+                    "A curated sticker pack for Jerry bot.\n"
+                ),
+                color=self.bot.JERRY_RED,
+            ).add_field(
+                name="Sticker Categories",
+                value=", ".join(await self.get_categories()) or "No categories found.",
+                inline=False,
+            ).add_field(
+                name="Commands",
+                value=(
+                    "Use `/sticker <category/name>` to retrieve a sticker by its name. (eg: minecraft/fish). You can also search for stickers by name or description.\n"
+                    "Use `/sticker-force <category/name>` to forcefully send a sticker to the channel or DM. Where bot is not installed. (Contact bot admins to install the bot as a user integration)\n"
+                    "Use `/sticker-add` to add a new sticker (Jerry bot admins only)."
+                ),
+                inline=False
+            ).add_field(
+                name="Adding Stickers",
+                value=(
+                    "This sticker pack is curated by the Jerry bot team. If you have suggestions for new stickers, please contact the bot admins."
+                ),
+                inline=False
+            ),
+            ephemeral=True,
+        )
 
     @app_commands.command(
         name="sticker",
-        description="Get a sticker from the CubbScratchStudios sticker pack!",
+        description="Grab a sticker from jerry's sticker database. (Supports search)",
     )
-    # Parameters
     @app_commands.describe(
-        sticker="The name of the sticker to get; Powered by FuzzyWuzzy",
-        override_includes="Include stickers that are not slime or slime-text (disable default types)",
+        sticker="Sticker name or search query (formatted as category/name, e.g., minecraft/fish)."
     )
-    async def sticker_command(
-        self,
-        interaction: discord.Interaction,
-        sticker: str,
-        override_includes: bool = False,
-    ):
-        include_types = ["slime", "slime-text"]
+    async def sticker(self, interaction: discord.Interaction, sticker: str):
+        """Retrieve a sticker by name."""
 
-        self.logger.info(f"Sticker requested: {sticker}")
+        await interaction.response.defer(ephemeral=True)
 
-        if not self.table:
-            await interaction.response.send_message(
-                "An error occurred while initializing the sticker pack", ephemeral=True
-            )
-
-        # Get sticker from database
-        if not "/" in sticker:
-            sticker = sticker + "/main"
-
-        data = await self.table.fetch()
-        stickers = {}
-        for entry in data:
-            stickers[entry["slime"] + "/" + entry["name"]] = entry
-
-        stickers_as_list = list(stickers.keys())
-
-        # Fuzzy search
-        self.logger.info(f"Searching for sticker {sticker}")
-        while True:
-            matches = fuzzywuzzy.process.extract(sticker, stickers_as_list, limit=1)
-
-            entry = stickers[matches[0][0]]
-            if entry["format"] in include_types or override_includes:
-                break
-
-            stickers_as_list.pop(stickers_as_list.index(matches[0][0]))
-
-        self.logger.info(f"Matches: {matches}")
-
-        if not matches:
-            await interaction.response.send_message("Sticker not found", ephemeral=True)
-            return
-
-        if matches[0][1] < 80:
-            await interaction.response.send_message(
-                f"Sticker not found; did you mean {matches[0][0]}?", ephemeral=True
-            )
-            return
-
-        # Send sticker suggestion
-        sticker_data = stickers[matches[0][0]]
-
-        # Send sticker
-        sticker_path = f"{self.directory}/{sticker_data['file']}"
-        try:
-            attachment = discord.File(sticker_path)
-            await interaction.response.send_message(
-                f"I found sticker '{sticker_data['slime']}/{sticker_data['name']}'! 🪄\n## About\n*{sticker_data.get('description','No description provided')}*",
-                file=attachment,
-                ephemeral=True,
-                view=StickerEphemeralView(sticker_path, self),
-            )
-        except FileNotFoundError:
-            if sticker in self.missing:
-                await self.bot.shell.log(
-                    f"A user requested a sticker that is missing: {sticker_data['file']} ({sticker_data['slime']}/{sticker_data['name']})",
-                    "CubbScratchStudiosStickerPack",
-                    msg_type="error",
-                )
-                await interaction.response.send_message(
-                    "Sticker registered but could not be found",
+        sticker_file = await self.get_sticker_by_name(sticker)
+        if sticker_file is None:
+            # await interaction.followup.send(
+            #     f"Sticker '{sticker}' not found. �",
+            #     ephemeral=True,
+            # )
+            # return
+            stickers = await self.search_stickers(sticker)
+            if not stickers:
+                await interaction.followup.send(
+                    "",
+                    embed=discord.Embed(
+                        description=f"Sticker '{sticker}' not found. Please check the name or try searching for a different sticker.",
+                        color=self.bot.JERRY_RED,
+                    ).set_footer(
+                        text="Tip: Use /sticker-help to find sticker categories."
+                    ),
                     ephemeral=True,
                 )
-            else:
-                await self.bot.shell.log(
-                    f"Error loading sticker: {sticker_data['file']} ({sticker_data['slime']}/{sticker_data['name']})",
-                    "CubbScratchStudiosStickerPack",
-                    msg_type="error",
-                )
-                await interaction.response.send_message(
-                    "Error loading sticker", ephemeral=True
-                )
-        except Exception as e:
-            await interaction.response.send_message(
-                f"Error loading sticker: {e}", ephemeral=True
+                return
+            # If no exact match, show search results
+            view = StickerSearchView(interaction, self, stickers)
+            await interaction.followup.send(
+                "",
+                embed=discord.Embed(
+                    description="No exact match found. Below are some similar stickers:",
+                    color=self.bot.JERRY_RED,
+                ).set_footer(
+                    text="Tip: Use /sticker-help to find sticker categories."
+                ),
+                ephemeral=True,
+                view=view,
             )
+            return
+
+        # Apply the view to the interaction
+        view = StickerGetView(interaction, sticker_file)
+        await interaction.followup.send(
+            file=discord.File(sticker_file.file_path),
+            embed=discord.Embed(
+                title=f"{sticker_file.name}",
+                description=sticker_file.description or "No description provided.",
+                color=self.bot.JERRY_RED,
+            ),
+            ephemeral=True,
+            view=view,
+        )
+
+    @app_commands.command(
+        name="sticker-force",
+        description="Forcefully send a sticker to the channel or DM. (Works anywhere)",
+    )
+    @app_commands.describe(sticker="The name of the sticker to send.")
+    async def sticker_force(self, interaction: discord.Interaction, sticker: str):
+        """Forcefully send a sticker to the channel or DM."""
+
+        await interaction.response.defer(ephemeral=False)
+        sticker_file = await self.get_sticker_by_name(sticker)
+        if sticker_file is None:
+            await interaction.followup.send(
+                f"Sticker '{sticker}' not found. �",
+            )
+            return
+        
+        # Check if the file exists
+        if sticker_file.file_path and os.path.exists(sticker_file.file_path):
+            try:
+                await interaction.followup.send(
+                    "",
+                    file=discord.File(sticker_file.file_path),
+                )
+            except Exception as e:
+                await interaction.followup.send(
+                    f"❌ Failed to send sticker: {e}",
+                )
+                return
+        else:
+            await interaction.followup.send(
+                "❌ Sticker file not found. This means that the bot admins are selling D:"
+            )
+            return
+
+    @app_commands.command(
+        name="sticker-add",
+        description="[Admin Only] Add a sticker to the pack.",
+    )
+    @app_commands.describe(
+        sticker_name="The name of the sticker. This should be formatted as catagory/name (eg: minecraft/fish).",
+        sticker_description="A description for the sticker.",
+        sticker_file="The file of the sticker to add.",
+    )
+    async def add_sticker(
+        self,
+        interaction: discord.Interaction,
+        sticker_name: str,
+        sticker_description: str,
+        sticker_file: discord.Attachment,
+    ):
+        """Add a sticker to the pack."""
+        if not await self.bot.permissions.interaction_check(
+            interaction, squidcore.PermissionLevel.ADMIN
+        ):
+            return
+        await interaction.response.defer(ephemeral=True)
+
+        await interaction.followup.send(
+            "",
+            file=await sticker_file.to_file(
+                filename=sticker_file.filename,
+            ),
+            ephemeral=True,
+            view=StickerAddConfirmView(
+                interaction, sticker_name, sticker_description, sticker_file, self
+            ),
+            embed=discord.Embed(
+                title="Image Preview 🖼️",
+                color=self.bot.JERRY_RED,
+            )
+            .add_field(
+                name="Sticker Name",
+                value=sticker_name,
+            )
+            .add_field(
+                name="Description",
+                value=sticker_description or "No description provided.",
+            ),
+        )

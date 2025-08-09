@@ -12,6 +12,7 @@ Environment Variables
 """
 
 from jerry import Jerry # Jerry bot
+from core.squidcore.memory import Memory # Memory management
 
 # environment variables
 from dotenv import load_dotenv
@@ -27,15 +28,14 @@ logger.info("Running Jerry Bot")
 logger.info("Loading environment variables")
 load_dotenv()
 
-logger.info(f" Environment Variables Loaded (Hashed: {Jerry.hash_config(None, os.environ)})")
+logger.info(f" Environment Variables Loaded")
 
 channel = int(os.getenv("JERRY_SHELL"))
 token = os.getenv("JERRY_TOKEN")
 
 logger.info(f"Channel: {channel} | Token: {token}")
 
-jerry = Jerry(discord_token=token, shell_channel=channel)
-jerry.add_db(from_env=True)  # Add database from environment variables
+jerry = Jerry(discord_token=token, shell_channel=channel, memory=Memory(from_env=True, redis=True, mongo=True))
 
 # Start the Jerry bot
 logger.info("Running Jerry Bot")

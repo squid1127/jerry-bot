@@ -37,15 +37,13 @@ class Jerry(core.Bot):
         self,
         discord_token: str,
         shell_channel: int,
+        memory: core.Memory = None,
         **kwargs,
     ):
         # Initialize the bot
         super().__init__(
-            token=discord_token, name="jerry", shell_channel=shell_channel, **kwargs
+            token=discord_token, name="jerry", shell_channel=shell_channel, memory=memory, **kwargs
         )
-
-        # Load cogs
-        asyncio.run(self.load_cogs())
 
         # Confgure random status
         statuses = [
@@ -56,11 +54,12 @@ class Jerry(core.Bot):
 
     # Load cogs
     async def load_cogs(self):
+        await super().load_cogs()
         await self.add_cog(cogs.JerryGemini(self))
         await self.add_cog(cogs.AutoReply(self))
-        await self.add_cog(cogs.GuildStuff(self))
         await self.add_cog(cogs.InformationChannels(self, "store/info_channels.yaml"))
-        await self.add_cog(cogs.CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
+        # await self.add_cog(cogs.CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
+        await self.add_cog(cogs.Stickers(self))
         await self.add_cog(cogs.StaticCommands(self))
         await self.add_cog(cogs.SimpleUpdate(self))
 
