@@ -18,7 +18,6 @@ import core as squidcore
 
 logger = logging.getLogger("jerry.stickers")
 
-
 class StickersMongo:
     """Schema constants"""
 
@@ -43,6 +42,22 @@ class StickersMongo:
         "description": 5,
     }
 
+class StickerErrors:
+    class StickerNotFound(Exception):
+        """Exception raised when a sticker is not found in the database."""
+        pass
+    class StickerAlreadyExists(Exception):
+        """Exception raised when a sticker already exists in the database."""
+        pass
+    class InitError(Exception):
+        """Exception raised when there is an error initializing the stickers module."""
+        pass
+    class NotReady(Exception):
+        """Exception raised when the stickers module is not ready."""
+        pass
+    class FileMissing(Exception):
+        """Exception raised when the sticker file is missing."""
+        pass
 
 @dataclass
 class Sticker:
@@ -605,3 +620,45 @@ class Stickers(commands.Cog):
                 value=sticker_description or "No description provided.",
             ),
         )
+
+    async def get_sticker(
+        self, sticker_name: str
+    ) -> Sticker | None:
+        """
+        Externally callable method to get a sticker by name.
+        
+        Args:
+            sticker_name (str): The name of the sticker to retrieve.
+        """
+        sticker = await self.get_sticker_by_name(sticker_name)
+        if not sticker:
+            raise StickerErrors.StickerNotFound(
+                f"Sticker '{sticker_name}' not found in the database."
+            )
+            
+        if sticker.file_path and os.path.exists(sticker.file_path):
+            return sticker
+        else:
+            raise StickerErrors.FileMissing(
+                f"Sticker file for '{sticker_name}' not found at {sticker.file_path}."
+            )
+            
+    async def get_sticker_file(
+        self, sticker_name: str
+    ) -> discord.File | None:
+        """
+        Externally callable method to get a sticker file by name.
+        
+        Args:
+            sticker_name (str): The name of the sticker to retrieve.
+        """
+        sticker = await self.get_sticker(sticker_name)
+        if not sticker:
+            return None
+        
+        if os.path.exists(sticker.file_path):
+            return discord.File(sticker.file_path)
+        else:
+            raise StickerErrors.FileMissing(
+                f"Sticker file for '{sticker_name}' not found at {sticker.file_path}."
+            )
