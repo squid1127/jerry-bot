@@ -15,8 +15,12 @@ This bot is still not intended for public use. This just exists so I don't forge
 
 This cog allows you to set up automatic replies to specific messages. You can define pairs of trigger phrases and responses.
 
+### Filters
+
+Filters are used to ignore certain messages based on their context, such as channel, guild, user, or role. This allows you to prevent the bot from responding in specific situations.
+
 ```yaml
-filters: # Filters to ignore certain messages
+filters:
   - type: "ignore" # Ignore messages within a specific channel
     channel: "1234567890123456789" #! Must be a string, not an integer
 
@@ -26,16 +30,27 @@ filters: # Filters to ignore certain messages
     guild: "1234"
     user: "1234"
     role: "1234"
+```
 
-# Variables for use in responses, to reuse common phrases or patterns
+### Response Variables
+
+Variables are used to define reusable phrases or patterns that can be referenced in responses. This allows you to maintain consistency and avoid repetition in your replies.
+
+```yaml
 vars:
   generic_gaslighting:
     random:
       - text: "Lies, all lies"
       - text: "Prove it"
       - text: "Sure you did"
-    merge: true
+    merge: true # Merge this variable into the response context, defaults to replacing the response context
+```
 
+### Autoreply
+
+This section defines the automatic replies that the bot will send when it detects specific trigger phrases in messages. Messages are matched using regular expressions, allowing for flexible pattern matching.
+
+```yaml
 autoreply:
   # Nuh-uh and Yuh-uh
   - regex: "nuh+[\\W_]*h?uh" # Use regex to match message content (not case sensitive)
@@ -73,6 +88,19 @@ autoreply:
         - text: "But you told me you did tho 🤔"
         - text: "What are you talking about, you totally did do that"
       var: generic_gaslighting
+```
+
+#### Response Object
+
+A response object can contain various fields to customize the bot's reply:
+
+```yaml
+response:
+  text: "Your reply text here" # Text response
+  sticker: "sticker_name" # Use a sticker from the sticker cog
+  reaction: "reaction_emoji" # Add a reaction to the message (emoji name or ID)
+  var: "variable_name" # Use a variable defined in the vars section
+  merge: true # Merge this variable into the response context, defaults to replacing the response context
 ```
 
 ## Stickers
