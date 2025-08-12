@@ -56,7 +56,7 @@ class Jerry(core.Bot):
     async def load_cogs(self):
         await super().load_cogs()
         await self.add_cog(cogs.JerryGemini(self))
-        await self.add_cog(cogs.InformationChannels(self, "store/info_channels.yaml"))
+        await self.add_cog(cogs.InformationChannels(self))
         # await self.add_cog(cogs.CubbScratchStudiosStickerPack(self, "communal/css_stickers"))
         await self.add_cog(cogs.Stickers(self))
         await self.add_cog(cogs.StaticCommands(self))
