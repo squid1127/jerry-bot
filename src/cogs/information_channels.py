@@ -585,6 +585,8 @@ class InformationChannels(commands.Cog):
     #         app_commands.Choice(name="Config", value="config"),
     #     ]
     # )
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def information_channel(
         self,
         interaction: discord.Interaction,
