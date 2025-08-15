@@ -7,7 +7,7 @@ Environment Variables
 ---------------------
 - JERRY_TOKEN: The Discord bot token for Jerry
 - JERRY_SHELL: The channel ID for the shell channel
-- PostgreSQL connection variables (refer to squidcore)
+- Memory db connections (see readme or squidcore)
 
 """
 
@@ -33,7 +33,7 @@ logger.info(f" Environment Variables Loaded")
 channel = int(os.getenv("JERRY_SHELL"))
 token = os.getenv("JERRY_TOKEN")
 
-logger.info(f"Channel: {channel} | Token: {token}")
+logger.info(f"Channel: {channel}, Token: {'***' if token else 'Not provided'}")
 
 jerry = Jerry(discord_token=token, shell_channel=channel, memory=Memory(from_env=True, redis=True, mongo=True))
 
