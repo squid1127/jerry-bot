@@ -604,6 +604,99 @@ class DiscordSendTextAttachment(AIMethod):
             response_model=f"Text attachment '{file_name}' sent successfully.",
         )
 
+class DiscordGetProfile:
+    """Method to get a Discord user's profile information."""
+    name = "discord.get_profile"
+    description = "Retrieves a Discord user's profile information. (Implicit consent required) Returns: User profile information | Error message"
+    arguments = [
+        AIMethodParameter(
+            name="user_id",
+            param_type=str,
+            description="The ID of the user whose profile information to retrieve.",
+            required=True,
+        ),
+    ]
+    
+    async def run(method_call: AIMethodCall) -> AIMethodResponse:
+        user_id = method_call.arguments.get("user_id")
+        if not user_id:
+            return AIMethodResponse(
+                method_name=method_call.method_name,
+                status=AIMethodStatus.FAILED,
+                response_model="User ID is required.",
+            )
+
+        channel = method_call.query.discord.channel
+        logger.info(f"Retrieving profile information for user {user_id} in channel {channel.id}")
+
+        try:
+            user = await channel.guild.fetch_member(user_id)
+        except discord.NotFound:
+            return AIMethodResponse(
+                method_name=method_call.method_name,
+                status=AIMethodStatus.FAILED,
+                response_model="User not found.",
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve user profile: {e}")
+            return AIMethodResponse(
+                method_name=method_call.method_name,
+                status=AIMethodStatus.FAILED,
+                response_model="Failed to retrieve user profile.",
+            )
+
+        # Format as text
+        output = f"User Profile Information:\n"
+        output += f"ID: {user.id}\n"
+        output += f"Username: {user.name}\n"
+        if user.display_name:
+            output += f"Display Name: {user.display_name}\n"
+        # if user.status:
+        #     output += f"Status: ({user.status.value})\n"
+        if user.mutual_guilds:
+            output += f"Mutual Guilds (with bot): {', '.join(guild.name for guild in user.mutual_guilds)}\n"
+        if user.activities:
+            output += f"Activities: {', '.join(activity.name for activity in user.activities)}\n"
+        output += f"Bot: {'Yes' if user.bot else 'No'}\n"
+        if user.global_name:
+            output += f"Global Name: {user.global_name}\n"
+        
+        
+        # User-facing description
+        description = f"**ID:** {user.id}\n"
+        if user.global_name:
+            description += f"**Global Name:** {user.global_name}\n"
+        # if user.display_name:
+        #     description += f"**Display Name:** {user.display_name}\n"
+        description += f"**Username:** {user.name}\n"
+        if user.bot:
+            description += f"**Bot:** Yes\n"
+        if user.mutual_guilds:
+            description += f"**Mutual Guilds:** {len(user.mutual_guilds)} Guilds\n"
+
+        # Simplified embed for user
+        embed = {
+            "author": {
+                "name": user.display_name or user.name,
+                "icon_url": user.avatar.url if user.avatar else None
+            },
+            "description": description,
+            "footer": {
+                "text": f"Info sent to Jerry"
+            },
+            "color": user.color.value if user.color else discord.Color.dark_gray().value,
+        }
+
+        return AIMethodResponse(
+            method_name=method_call.method_name,
+            status=AIMethodStatus.SUCCESS,
+            response_model=output,
+            response_user=AIResponse(
+                text="",
+                embeds=[embed],
+                source=AISource.METHOD,
+            ),
+        )
 
 class SpaceBinPost:
     """
@@ -717,5 +810,6 @@ AIMethodRegistry.register_method(DiscordAddReaction)
 AIMethodRegistry.register_method(DiscordSendMessage)
 AIMethodRegistry.register_method(DiscordSendDirectMessage)
 AIMethodRegistry.register_method(DiscordSendTextAttachment)
+AIMethodRegistry.register_method(DiscordGetProfile)
 AIMethodRegistry.register_method(SpaceBinPost)
 AIMethodRegistry.register_method(ThisWillError)
