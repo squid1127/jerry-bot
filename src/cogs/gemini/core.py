@@ -300,32 +300,98 @@ class JerryGemini(commands.Cog):
             embeds=embeds,
         )
 
-        if message.reference and message.reference.resolved:
-            # If the message is a reply, set the is_reply flag and reference the original message
-            query.is_reply = True
-            original_message = message.reference.resolved
-            query.reply = AIQuery(
-                message=original_message.content,
-                source=AISource.USER,
-                author=AIQueryUserAuthor(
-                    id=original_message.author.id,
-                    username=original_message.author.name,
-                    display_name=original_message.author.display_name,
-                    mention=original_message.author.mention,
-                ),
-                discord=AIQueryDiscordRefrences(
-                    message=original_message,
-                    channel=original_message.channel,
-                    member=original_message.author,
-                    guild=original_message.guild,
-                ),
-                embeds=[embed.to_dict() for embed in original_message.embeds],
-            )
+        #! AI Generated lol
+        if message.reference:
+            # Handle message replies with failsafe for invalid references
+            try:
+                # First check if the reference is resolved
+                if message.reference.resolved:
+                    original_message = message.reference.resolved
+                    self.logger.debug(f"Processing reply to resolved message {original_message.id}")
+                else:
+                    # Try to fetch the message manually if not resolved
+                    self.logger.debug(f"Attempting to fetch unresolved reference {message.reference.message_id}")
+                    if message.reference.channel_id and message.reference.message_id:
+                        channel = self.bot.get_channel(message.reference.channel_id)
+                        if channel and hasattr(channel, 'fetch_message'):
+                            original_message = await channel.fetch_message(message.reference.message_id)
+                            self.logger.debug(f"Successfully fetched unresolved message {original_message.id}")
+                        else:
+                            raise ValueError("Cannot access referenced channel or channel doesn't support message fetching")
+                    else:
+                        raise ValueError("Message reference missing channel_id or message_id")
+
+                # Validate the original message before processing
+                if original_message and hasattr(original_message, 'author') and hasattr(original_message, 'content'):
+                    query.is_reply = True
+                    query.reply = AIQuery(
+                        message=original_message.content or "",  # Handle empty content
+                        source=AISource.USER,
+                        author=AIQueryUserAuthor(
+                            id=original_message.author.id,
+                            username=original_message.author.name,
+                            display_name=original_message.author.display_name,
+                            mention=original_message.author.mention,
+                        ),
+                        discord=AIQueryDiscordRefrences(
+                            message=original_message,
+                            channel=original_message.channel,
+                            member=original_message.author,
+                            guild=original_message.guild,
+                        ),
+                        embeds=[embed.to_dict() for embed in original_message.embeds] if original_message.embeds else [],
+                    )
+                    self.logger.debug(f"Successfully processed reply to message {original_message.id}")
+                else:
+                    raise ValueError("Original message is invalid or missing required attributes")
+
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+                # Handle Discord API errors
+                self.logger.warning(f"Failed to fetch referenced message {message.reference.message_id}: {e}")
+                query.is_reply = True
+                query.reply = AIQuery(
+                    message="[Referenced message unavailable - may have been deleted or bot lacks permissions]",
+                    source=AISource.SYSTEM,
+                    author=AIQueryUserAuthor(
+                        id=0,
+                        username="System",
+                        display_name="System",
+                        mention="@System",
+                    ),
+                    discord=AIQueryDiscordRefrences(
+                        channel=message.channel,
+                        guild=message.guild,
+                        member=message.author,
+                    ),
+                    embeds=[],
+                )
+            except (ValueError, AttributeError, Exception) as e:
+                # Handle other errors (malformed references, missing attributes, etc.)
+                self.logger.warning(f"Invalid message reference in message {message.id}: {e}")
+                query.is_reply = True
+                query.reply = AIQuery(
+                    message="[Referenced message is invalid or malformed]",
+                    source=AISource.SYSTEM,
+                    author=AIQueryUserAuthor(
+                        id=0,
+                        username="System",
+                        display_name="System", 
+                        mention="@System",
+                    ),
+                    discord=AIQueryDiscordRefrences(
+                        channel=message.channel,
+                        guild=message.guild,
+                        member=message.author,
+                    ),
+                    embeds=[],
+                )
+        #! [End]
 
         if message.attachments and len(message.attachments) > 0:
             await FileProcessor.process_files(
                 query=query, attachments=message.attachments
             )
+
 
         await self.chat_input(channel=message.channel, user=message.author, query=query)
 
