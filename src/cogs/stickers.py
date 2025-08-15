@@ -226,7 +226,7 @@ class StickerGetView(discord.ui.View):
                 )
             except discord.Forbidden:
                 await interaction.followup.send(
-                    "❌ Missing permissions to send files in this channel. Ensure the bot is installed in this channel and has the required permissions.",
+                    "❌ Missing permissions to send files in this channel. Ensure the bot is installed in this channel and has the required permissions.\n\n**Tip:** Avoid this issue by using reply mode or /sticker-force",
                     ephemeral=True,
                 )
                 return
@@ -263,6 +263,35 @@ class StickerGetView(discord.ui.View):
                 "❌ Sticker file not found. If this is an error, please contact the bot admins.",
                 ephemeral=True,
             )
+            
+    @discord.ui.button(label="Reply Mode")
+    async def reply_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        """Handle the reply button click."""
+        await interaction.response.defer(ephemeral=True)
+        if self.sticker.file_path:
+            try:
+                await interaction.followup.send(
+                    "",
+                    file=discord.File(self.sticker.file_path),
+                    ephemeral=False,
+                )
+                await interaction.followup.send(
+                    "✅",
+                    ephemeral=True,
+                )
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "❌ Interaction failed. Please check your privacy settings.",
+                    ephemeral=True,
+                )
+        else:
+            await interaction.followup.send(
+                "❌ Sticker file not found. If this is an error, please contact the bot admins.",
+                ephemeral=True,
+            )
+        
 
     # On timeout, disable the buttons
     async def on_timeout(self):
@@ -384,7 +413,7 @@ class Stickers(commands.Cog):
         """Retrieve a sticker by its name."""
         sticker = await self.stickers_collection.find_one({"name": sticker_name})
         if not sticker:
-            self.logger.error(f"Sticker '{sticker_name}' not found in the database.")
+            self.logger.info(f"Requested sticker, '{sticker_name}' not found in the database.")
             return None
 
         file_path = sticker.get("file_path")
