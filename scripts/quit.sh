@@ -1,23 +1,30 @@
-#! /bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
 # Take down the docker compose services for Jerry bot
-echo "Building Jerry bot Docker image..."
-DOCKERCOMPOSE_FILE="docker-compose.yml"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
 
+echo "Stopping Jerry bot docker compose services..."
+COMPOSE_FILE="docker-compose.yml"
 
-# Check if Dockerfile exists
-if [ ! -f "$DOCKERFILE" ]; then
-    echo "Error: Dockerfile not found!"
+trap 'echo "[quit] Error on line ${LINENO}. Aborting." >&2' ERR
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker is not installed or not in PATH" >&2
+    exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+    echo "Error: docker compose plugin not available" >&2
     exit 1
 fi
 
-# Remove the stack if it exists
-if docker compose -f "$DOCKERCOMPOSE_FILE" ps | grep -q "$NAME"; then
-    echo "Removing existing stack..."
-    docker compose -f "$DOCKERCOMPOSE_FILE" down
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to remove existing stack."
-        exit 1
-    fi
-else
-    echo "No existing stack found."
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    echo "Error: compose file '${COMPOSE_FILE}' not found in repo root: ${REPO_ROOT}" >&2
+    exit 1
 fi
+
+# Bring down services regardless of current state
+docker compose -f "${COMPOSE_FILE}" down
+echo "Compose services have been stopped."
