@@ -1,39 +1,49 @@
-#! /bin/bash
-# Build docker image for Jerry bot
-echo "Building Jerry bot Docker image..."
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Build docker image and run docker compose for Bot
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
+echo "Building bot Docker image..."
 DOCKERFILE="dockerfile"
 IMAGE_NAME="ghcr.io/squid1127/jerry-bot:main"
-DOCKERCOMPOSE="docker-compose.yml"
+COMPOSE_FILE="docker-compose.yml"
+
+trap 'echo "[build] Error on line ${LINENO}. Aborting." >&2' ERR
+
+# Check prerequisites
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: docker is not installed or not in PATH" >&2
+    exit 1
+fi
+
+# Compose is bundled as `docker compose` with recent Docker versions
+if ! docker compose version >/dev/null 2>&1; then
+    echo "Error: docker compose plugin not available" >&2
+    exit 1
+fi
 
 # Check if Dockerfile exists
-if [ ! -f "$DOCKERFILE" ]; then
-    echo "Error: Dockerfile not found!"
+if [ ! -f "${DOCKERFILE}" ]; then
+    echo "Error: Dockerfile '${DOCKERFILE}' not found!" >&2
     exit 1
 fi
 
 # Build the Docker image
-docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" .
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to build Docker image."
-    exit 1
-fi
+docker build -t "${IMAGE_NAME}" -f "${DOCKERFILE}" .
 
-# Remove the stack if it exists
-if docker compose -f "$DOCKERCOMPOSE" ps | grep -q "$IMAGE_NAME"; then
-    echo "Removing existing stack..."
-    docker compose -f "$DOCKERCOMPOSE" down
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to remove existing stack."
-        exit 1
-    fi
+# Bring down any existing stack for this compose file
+if [ -f "${COMPOSE_FILE}" ]; then
+    echo "Bringing down any existing compose stack..."
+    docker compose -f "${COMPOSE_FILE}" down || true
 else
-    echo "No existing stack found."
+    echo "Warning: compose file '${COMPOSE_FILE}' not found; skipping compose down/up."
 fi
 
-# Start the Docker compose services
-echo "Starting Jerry bot Docker compose services..."
-docker compose -f "$DOCKERCOMPOSE" up
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to start Docker compose services."
-    exit 1
+# Start the Docker compose services (foreground)
+if [ -f "${COMPOSE_FILE}" ]; then
+    echo "Starting bot services with docker compose..."
+    docker compose -f "${COMPOSE_FILE}" up
 fi
