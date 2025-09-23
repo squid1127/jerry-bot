@@ -13,3 +13,6 @@ voluptuous
 python-magic
 beautifulsoup4
 aiofiles
+discord.py[voice]
+mutagen
+spotdl
