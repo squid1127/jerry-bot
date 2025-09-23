@@ -552,9 +552,9 @@ class VoiceChannel(commands.Cog):
         """Import songs using spotdl. Returns log output as a list of strings."""
         output = []
 
-        # Config
-        if self.spotdl_client is None:
-            raise RuntimeError("SpotDl integration is disabled.")
+        # # Config
+        # if self.spotdl_client is None:
+        #     raise RuntimeError("SpotDl integration is disabled.")
 
         # Determine target directory
         dir = dir
