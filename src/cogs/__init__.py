@@ -17,3 +17,6 @@ from .simple_update import SimpleUpdate
 
 # Stickers
 from .stickers import Stickers
+
+# Voice Channel
+from .vc import VoiceChannel
