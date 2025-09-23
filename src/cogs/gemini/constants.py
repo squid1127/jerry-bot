@@ -3,7 +3,7 @@
 from typing import Dict, Any
 from typing import Optional as TypingOptional
 from enum import Enum
-from voluptuous import Schema, Required, Optional, All, Length, Range, ALLOW_EXTRA
+from voluptuous import Schema, Required, Optional, All, Length, Range, Any, ALLOW_EXTRA
 
 # Config Defaults
 class ConfigDefaults(Enum):
@@ -67,7 +67,7 @@ class ConfigFileDefaults:
                 Required("ai"): CONFIG_SCHEMA_AI,
                 Optional("prompt", default={}): CONFIG_SCHEMA_PROMPT,
                 Optional("capabilities", default=[]): All(list, [str]),
-                Optional("jerry_command_instance_id", default=None): int,
+                Optional("jerry_command_instance_id", default=None): Any(int, None),
             },
             # Agents (Extra callable models)
             Required("agents"): dict[
@@ -113,7 +113,6 @@ class ConfigFileDefaults:
 
     DEFAULT_CONFIG_CONTENTS = """# Configuration for JerryGemini
 global:
-
   # Time zone
   timezone: "America/New_York" # Replace with your desired timezone
   time_in_prompt: true # Include time in the prompt allowing the bot to use the current time in its responses
@@ -129,36 +128,38 @@ global:
 
   # Global Prompt
   prompt:
+    name: Jerry # Name of the bot
     default: true # Use the default prompt (Jerry)
     extra: Global information for the bot
     # Emoji for the bot
     personal_emoji: "<:jerry:12345>" # App-specific emoji ID for Jerry
-    
+
 # Agents (Extra callable models)
 agents:
-    gemini-pro:
-        description: "Pro version of Gemini with advanced capabilities."
-        ai:
-        provider: gemini
-        model: gemini-2.5-pro
-        top_p: 0.95
-        model_top_k: 40
-        model_temperature: 1.0
-    
+  gemini-pro:
+    description: "Pro version of Gemini with advanced capabilities."
+    ai:
+    provider: gemini
+    model: gemini-2.5-pro
+    top_p: 0.95
+    model_top_k: 40
+    model_temperature: 1.0
+
 # Instances (Channels)
 instances:
   123456: # Replace with the actual channel ID
     prompt:
-      extra: Put instance-specific instructions here. This will be stacked on top of the global prompt.
-        personal_emoji: "<:jerry:123456>" # Server-specific emoji ID for Jerry
+      extra: # Put instance-specific instructions here. This will be stacked on top of the global prompt.
+      personal_emoji: "<:jerry:123456>" # Server-specific emoji ID for Jerry
     capabilities:
       - hide-seek
       - files
       - dm
       - memory_add
       - pro_query
-      
+
     # debug:
     #   prompt: true
     #   response: true
+
     """
