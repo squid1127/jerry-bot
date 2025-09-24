@@ -56,13 +56,14 @@ class SearchView(View):
         self.stop()
         try:
             if canceled:
-                view = discord.ui.View().add_item(
-                    discord.ui.Button(
-                        label="Canceled",
-                        style=discord.ButtonStyle.gray,
-                        disabled=True,
-                    )
-                )
+                # view = discord.ui.View().add_item(
+                #     discord.ui.Button(
+                #         label="Canceled",
+                #         style=discord.ButtonStyle.gray,
+                #         disabled=True,
+                #     )
+                # )
+                view = None
             else:
                 view = None
             await self.interaction.edit_original_response(
