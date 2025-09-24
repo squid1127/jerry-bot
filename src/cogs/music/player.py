@@ -371,6 +371,14 @@ class PlayerInstance:
             PlayerState.IDLE
         )  # Allow restart of player if needed, switch to DEAD if you want one-time use only
         self.kill = False  # Reset kill flag for potential future use
+        
+        # Clear the queue
+        while not self.queue.empty():
+            try:
+                self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            self.queue.task_done()
 
     def status_embed(self) -> discord.Embed:
         """Generate a status embed for the player."""
