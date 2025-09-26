@@ -61,6 +61,7 @@ class PlayerNotFoundError(PlayerError):
 
     pass
 
+
 class Emoji(Enum):
     PLAY = "▶️"
     PAUSE = "⏸️"
@@ -70,6 +71,7 @@ class Emoji(Enum):
     SONG = "🎵"
     PLAYLIST = "📜"
     QUEUE = "🔊"
+
 
 class MusicPlayer:
     """Handles music playback in voice channels."""
@@ -194,7 +196,9 @@ class MusicPlayer:
                 # Allow moving the player if it's idle
                 self.players[guild.id].channel = channel
             else:
-                raise PlayerExsistsError("Player is already active in a different channel.")
+                raise PlayerExsistsError(
+                    "Player is already active in a different channel."
+                )
         return self.players[guild.id]
 
     async def remove_player(self, guild: discord.Guild):
@@ -208,7 +212,9 @@ class MusicPlayer:
 class PlayerInstance:
     """Represents a music player instance for a guild/channel."""
 
-    def __init__(self, guild: discord.Guild, channel: discord.VoiceChannel, config: MusicConfig):
+    def __init__(
+        self, guild: discord.Guild, channel: discord.VoiceChannel, config: MusicConfig
+    ):
         self.guild = guild
         self.channel = channel
         self.path = config.songs
@@ -228,7 +234,7 @@ class PlayerInstance:
 
         if self.loop_state == PlayerLoopState.STOPPED:
             asyncio.create_task(self.loop())
-        
+
         await asyncio.sleep(1.5)  # Give some time for the loop to start
         if len(self.queue._queue) > 0 and len(self.queue._queue) < 6:
             await self.text_channel_controls()  # Update the control message's up next queue
@@ -371,7 +377,7 @@ class PlayerInstance:
             PlayerState.IDLE
         )  # Allow restart of player if needed, switch to DEAD if you want one-time use only
         self.kill = False  # Reset kill flag for potential future use
-        
+
         # Clear the queue
         while not self.queue.empty():
             try:
@@ -385,15 +391,22 @@ class PlayerInstance:
         if self.state == PlayerState.DEAD:
             title = "Music Player | Dead"
             color = discord.Color.dark_red()
-            embed = discord.Embed(title=title, color=color, description="The player has been killed and is no longer active.")
+            embed = discord.Embed(
+                title=title,
+                color=color,
+                description="The player has been killed and is no longer active.",
+            )
             return embed
         elif self.state == PlayerState.IDLE:
             title = "Music Player | Idle"
             color = discord.Color.dark_grey()
-            embed = discord.Embed(title=title, color=color, description="Join a voice channel and use `/vc-play` to start playing music.")
+            embed = discord.Embed(
+                title=title,
+                color=color,
+                description="Join a voice channel and use `/vc-play` to start playing music.",
+            )
             return embed
-        
-        
+
         embed = discord.Embed(
             title=f"{self.channel.mention} | {self.state.value}",
             color=discord.Color.blue(),
@@ -440,7 +453,11 @@ class PlayerInstance:
                 )
                 return
 
-        view = PlayerView(None, self) if self.state in (PlayerState.PLAYING, PlayerState.PAUSED) else None
+        view = (
+            PlayerView(None, self)
+            if self.state in (PlayerState.PLAYING, PlayerState.PAUSED)
+            else None
+        )
         if self.status_message is None:
             try:
                 self.status_message = await channel.send(
@@ -465,9 +482,7 @@ class PlayerInstance:
                 return
             except discord.NotFound:
                 # Message was deleted, reset and try again next time
-                logger.warning(
-                    f"{guild}: Status message was deleted, resetting."
-                )
+                logger.warning(f"{guild}: Status message was deleted, resetting.")
                 self.status_message = None
                 await self.text_channel_controls()  # Try again to send a new message
 
@@ -483,15 +498,6 @@ class PlayerView(View):
         super().__init__(timeout=timeout)
         self.interaction = interaction
         self.player = player
-        
-        # # Test: Add a disabled button with a random label
-        # self.add_item(
-        #     discord.ui.Button(
-        #         label=self.player.current_song.title[:20] if self.player.current_song else "No Song",
-        #         style=discord.ButtonStyle.gray,
-        #         disabled=True,
-        #     )
-        # )
 
     @discord.ui.button(emoji=Emoji.PLAYPAUSE.value, style=discord.ButtonStyle.primary)
     async def play_pause(
@@ -505,7 +511,9 @@ class PlayerView(View):
             await interaction.response.send_message(
                 "Player is not playing or paused.", ephemeral=True
             )
-            await self.end_interaction(canceled=True)  # Just end the interaction if not playing or paused
+            await self.end_interaction(
+                canceled=True
+            )  # Just end the interaction if not playing or paused
             return
 
         if self.player.state == PlayerState.PLAYING:
@@ -526,7 +534,9 @@ class PlayerView(View):
             await interaction.response.send_message(
                 "Player is not playing or paused.", ephemeral=True
             )
-            await self.end_interaction(canceled=True)  # Just end the interaction if not playing or paused
+            await self.end_interaction(
+                canceled=True
+            )  # Just end the interaction if not playing or paused
             return
         await interaction.response.defer(ephemeral=True)
         await self.player.skip()
@@ -538,7 +548,9 @@ class PlayerView(View):
             )
 
     @discord.ui.button(emoji=Emoji.STOP.value, style=discord.ButtonStyle.danger)
-    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def stop_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         """Stop playback and clear the queue."""
         if self.player.state not in (
             PlayerState.PLAYING,
@@ -547,7 +559,9 @@ class PlayerView(View):
             await interaction.response.send_message(
                 "Player is not playing or paused.", ephemeral=True
             )
-            await self.end_interaction(canceled=True)  # Just end the interaction if not playing or paused
+            await self.end_interaction(
+                canceled=True
+            )  # Just end the interaction if not playing or paused
             return
         await interaction.response.defer(ephemeral=True)
         await self.player.kill_player()
