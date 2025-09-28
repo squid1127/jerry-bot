@@ -17,3 +17,4 @@ discord.py[voice]
 mutagen
 spotdl
 yt-dlp>=2025.9.26
+aiomqtt

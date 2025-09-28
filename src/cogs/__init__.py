@@ -20,3 +20,6 @@ from .stickers import Stickers
 
 # Music
 from .music import MusicCog
+
+# MQTT
+from .mqtt import MQTTCog
