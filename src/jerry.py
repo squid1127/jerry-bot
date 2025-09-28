@@ -62,7 +62,10 @@ class Jerry(core.Bot):
         await self.add_cog(cogs.StaticCommands(self))
         await self.add_cog(cogs.SimpleUpdate(self))
         await self.add_cog(cogs.AutoReply(self))
+        logger.info("Load: Music") # Debugging: This takes forever to load for some reason
         await self.add_cog(cogs.MusicCog(self))
+        logger.info("Load: MQTT")
+        await self.add_cog(cogs.MQTTCog(self))
 
 
     JERRY_RED = 0xFF5C5C
