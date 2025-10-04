@@ -1,6 +1,6 @@
 # jerry-bot
 
-Jerry-bot -- a (not so) simple Discord bot, featluring a variety of random features, including an AI chatbot, auto-reply system, and more.
+Jerry-bot -- a (not so) simple Discord bot, featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
 
 ## Disclaimer
 
@@ -11,7 +11,7 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 ## Features
 
 - **AutoReply**: Automatically respond to predetermined responses with corresponding arguments such as "Nuh uh" → "Yuh uh"
-- **JerryGemini**: Google Gemini AI Chatbot with multi-channel support, conversation memory, and file processing capabilities
+- **JerryGemini**: Google Gemini AI Chatbot with multichannel support, conversation memory, and file processing capabilities
 - **Bot Shell**: Manage the bot with a CLI in a dedicated channel
 - **Stickers**: Send stickers from various sticker packs (stored in directories with MongoDB indexing)
 - **Memory Management**: Advanced caching and data persistence using Redis and MongoDB
