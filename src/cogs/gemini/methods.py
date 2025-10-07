@@ -604,7 +604,7 @@ class DiscordSendTextAttachment(AIMethod):
             response_model=f"Text attachment '{file_name}' sent successfully.",
         )
 
-class DiscordGetProfile:
+class DiscordGetProfile(AIMethod):
     """Method to get a Discord user's profile information."""
     name = "discord.get_profile"
     description = "Retrieves a Discord user's profile information. (Implicit consent required) Returns: User profile information | Error message"
@@ -698,7 +698,7 @@ class DiscordGetProfile:
             ),
         )
 
-class SpaceBinPost:
+class SpaceBinPost(AIMethod):
     """
     Method to post a message to SpaceBin.
     """
@@ -780,7 +780,113 @@ class SpaceBinPost:
                 source=AISource.METHOD,
             ),
         )
+        
+class MDServerPost(AIMethod):
+    """
+    Interface for squid1127/md-server as a markdown pastebin service.
+    
+    Endpoints:
+    - POST /api/new to create a new document
+    - GET /api/documents/{id} to retrieve raw document data
+    - GET /d/{id} to view the document rendered as a webpage
+    
+    Note: /api/new requires a api key supplied as a header "X-API-KEY" if the server is configured with one.
+    """
 
+    name = "mdserver.post"
+    description = "Publish a markdown document to a server running squid1127/md-server. Use this method to give the user fully featured markdown, as Discord messages may struggle with some markdown syntax, longer messages, etc. Note that documents are publically accessible to anyone with the link. Request permission before using this method. Note that Discord objects, like mentions and custom emojis, will not be rendered correctly. Returns: URL of the posted document | Error message"
+    arguments = [
+        AIMethodParameter(
+            name="message",
+            param_type=str,
+            description="The markdown message to post to the md-server. If applicable, include the title has a top-level header (e.g., '# Title') in addition to the title parameter.",
+            required=True,
+        ),
+        AIMethodParameter(
+            name="title",
+            param_type=str,
+            description="The title of the markdown document for webpage, etc.",
+            required=True,
+        ),
+    ]
+    
+    
+    async def run(method_call: AIMethodCall) -> AIMethodResponse:
+        """
+        Posts a markdown document to an md-server instance.
+
+        Args:
+            method_call (AIMethodCall): The method call object containing the message and title.
+
+        Returns:
+            AIMethodResponse: The response object indicating success or failure.
+        """
+        base_url = method_call.method_config.get("post_url", "http://localhost:8000/")
+        api_key = method_call.method_config.get("api_key", None)
+        logger.info(f"Posting markdown document to md-server at {base_url}")
+
+        url = f"{base_url}{'' if base_url.endswith('/') else '/'}api/new"
+        message = method_call.arguments.get("message")
+        title = method_call.arguments.get("title")
+
+        headers = {}
+        if api_key:
+            headers["X-API-KEY"] = api_key
+        payload = {
+            "content": message,
+            "title": title
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status != 200:
+                    logger.error(f"Failed to post to md-server: {response.status}")
+                    return AIMethodResponse(
+                        method_name=method_call.method_name,
+                        status=AIMethodStatus.FAILED,
+                        response_model=f"Failed to post to md-server: {response.status}",
+                    )
+
+                data: dict = await response.json()
+
+        id = data.get("id")
+        if not id:
+            logger.error("Failed to get ID from md-server response.")
+            return AIMethodResponse(
+                method_name=method_call.method_name,
+                status=AIMethodStatus.FAILED,
+                response_model="Failed to get ID from md-server response.",
+            )
+        response_url = f"{base_url}{'' if base_url.endswith('/') else '/'}d/{id}"
+
+        embed = {
+            "title": "Markdown Document Posted Successfully",
+            "url": response_url,
+            "color": 0x52FF83,  # Green color for success
+        }
+        footer = method_call.method_config.get("footer", {})
+        if footer:
+            embed["footer"] = {
+                "text": footer.get("text", ""),
+                **(
+                    {"icon_url": footer.get("icon_url")}
+                    if footer.get("icon_url")
+                    else {}
+                ),
+            }
+
+        logger.info(f"Markdown document posted to md-server: {response_url}")
+
+        return AIMethodResponse(
+            method_name=method_call.method_name,
+            status=AIMethodStatus.SUCCESS,
+            response_model=f"Markdown document posted successfully: {response_url}",
+            response_user=AIResponse(
+                text="",
+                embeds=[embed],
+                source=AISource.METHOD,
+            ),
+        )
 
 class ThisWillError(AIMethod):
     """
@@ -812,4 +918,5 @@ AIMethodRegistry.register_method(DiscordSendDirectMessage)
 AIMethodRegistry.register_method(DiscordSendTextAttachment)
 AIMethodRegistry.register_method(DiscordGetProfile)
 AIMethodRegistry.register_method(SpaceBinPost)
+AIMethodRegistry.register_method(MDServerPost)
 AIMethodRegistry.register_method(ThisWillError)
