@@ -174,3 +174,10 @@ msar/
 # Dockerignore
 .dockerignore
 # Ignore dockerignore as everything is already ignored in .gitignore
+
+# sqlite files
+*.sqlite
+*.db
+*.db-journal
+*.sqlite-shm
+*.sqlite-wal
