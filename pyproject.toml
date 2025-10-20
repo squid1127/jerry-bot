@@ -1,0 +1,18 @@
+[project]
+name = "jerry-bot"
+version = "0.1.0"
+description = "A (not so) simple Discord bot"
+authors = [
+    { name = "squid1127", email = "120748767+squid1127@users.noreply.github.com." },
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11, <4.0"
+
+dependencies = [
+    "squid-core @ git+https://github.com/squid1127/squid-core.git@main"
+]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
