@@ -8,6 +8,10 @@ Jerry bot is designed for personal use by squid1127 and is not intended for publ
 
 As you may be able to tell by the sheer number of deprecated features, this bot is a work in progress and is not guaranteed to be stable or functional. Use at your own risk!
 
+## Second Disclaimer
+
+Jerry-bot is currently being built from the ground up (again), so none of the below documentation is accurate. The project is (probably) not at a usable state right now.
+
 ## Features
 
 - **AutoReply**: Automatically respond to predetermined responses with corresponding arguments such as "Nuh uh" → "Yuh uh"
