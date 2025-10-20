@@ -1,2 +1,0 @@
-{"rule":"MORFOLOGIK_RULE_EN_US","sentence":"^\\QJerry-bot -- The bot designed specifically for LBUSD Drone Soccer Discord and other of squid1127's personal servers.\\E$"}
-{"rule":"UPPERCASE_SENTENCE_START","sentence":"^\\Qjerry-bot\\E$"}
