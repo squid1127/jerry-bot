@@ -1,0 +1,23 @@
+# squid-core Project Manifest
+[project]
+name = "jerry_bot"
+friendly_name = "Jerry Bot"
+
+[bot]
+cmd_prefix = "jerry-"
+intents = ["guilds", "messages", "message_content", "members"]
+
+[bot.cli]
+prefix = "jerry "
+
+[log]
+level = "INFO"
+console = true
+
+[plugins]
+plugins = [
+    "core:*",
+]
+
+[plugins.perms_cli]
+use_cog = true  # Use permissions CLI cog
