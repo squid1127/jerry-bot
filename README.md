@@ -2,6 +2,10 @@
 
 Jerry-bot -- a (not so) simple Discord bot, featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
 
+## Legacy Branch
+
+This branch contains a deprecated version jerry-bot that used squid-core's legacy architecture. It is no longer maintained and may not work with the latest version of Discord.py or other dependencies. Please refer to the `main` branch for the latest version of jerry-bot.
+
 ## Disclaimer
 
 Jerry bot is designed for personal use by squid1127 and is not intended for public use. ~~If you would like to use Jerry bot, please contact squid1127.~~ Why is this repo public? No clue ¯\\_(ツ)_/¯ That being said, this repo is licensed under the MIT License, so feel free to steal my code :)
