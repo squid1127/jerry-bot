@@ -15,9 +15,8 @@ level = "INFO"
 console = true
 
 [plugins]
-plugins = [
-    "core:*",
-]
+packages = { jerry = "src.jerry_bot.plugins" }
 
+plugins = ["core:*", "jerry:*"]
 [plugins.perms_cli]
-use_cog = true  # Use permissions CLI cog
+use_cog = true # Use permissions CLI cog
