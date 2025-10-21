@@ -7,10 +7,14 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.11, <4.0"
+requires-python = ">=3.11, <3.14"
 
 dependencies = [
-    "squid-core @ git+https://github.com/squid1127/squid-core.git@main"
+    "aiohttp",                                                           # Plugin: Commands
+    "beautifulsoup4",                                                    # Plugin: Commands
+    "yt-dlp",                                                            # Plugin: Music
+    "spotdl>=4.4.3",                                                # Plugin: Music
+    "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
 ]
 
 [build-system]
