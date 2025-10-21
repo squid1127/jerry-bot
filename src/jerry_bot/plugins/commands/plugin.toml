@@ -1,0 +1,4 @@
+[plugin]
+name = "commands"
+description = "A plugin that adds various commands to Jerry Bot. Mostly reuses old code from Jerry Bot v2."
+class = "CommandsPlugin"
