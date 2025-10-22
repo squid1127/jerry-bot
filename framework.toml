@@ -5,7 +5,7 @@ friendly_name = "Jerry Bot"
 
 [bot]
 cmd_prefix = "jerry-"
-intents = ["guilds", "messages", "message_content", "members"]
+intents = ["guilds", "messages", "message_content", "members", "voice_states"]
 
 [bot.cli]
 prefix = "jerry "
