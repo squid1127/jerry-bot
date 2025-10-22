@@ -28,7 +28,7 @@ class ViewQuery(UIView):
         embed_description = f"**Found {len(results)} results**:\n"
         self.embed = discord.Embed(
             title="Music Download - Results",
-            description=embed_description + self.results_string(results),
+            description=embed_description + self.results_string(results, char_limit=2000), # Plenty of headroom
             color=discord.Color.blue(),
         )
         self.add_button(
