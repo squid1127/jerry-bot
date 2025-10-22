@@ -385,8 +385,9 @@ class PlaybackStatusInteraction(UIView):
             self.add_button(label="⏸️", style=ButtonStyle.gray, callback=self.pause_resume)
         elif self.player.state == PlayerState.PAUSED:
             self.add_button(label="▶️", style=ButtonStyle.gray, callback=self.pause_resume)
-        if self.player.state in (PlayerState.PLAYING, PlayerState.PAUSED):
+        if self.player.queue.can_skip:
             self.add_button(label="⏭️", style=ButtonStyle.gray, callback=self.skip)
+        if self.player.state in (PlayerState.PLAYING, PlayerState.PAUSED):
             self.add_button(label="⏹️", style=ButtonStyle.gray, callback=self.stop)
 
     async def refresh(self):
