@@ -1,0 +1,14 @@
+# Local test. Assuming docker image is built locally @ jerry
+
+services:
+  jerry-bot:
+    image: jerry:latest # Local image built from Dockerfile
+    container_name: jerry-bot
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+    env_file:
+      - .env
