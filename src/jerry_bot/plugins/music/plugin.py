@@ -95,6 +95,8 @@ class MusicPlayerCog(PluginCog):
         query="The search query for the track.",
         name="Name for the resulting playlist (optional).",
     )
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def vc_download(
         self,
         interaction: discord.Interaction,
@@ -144,6 +146,8 @@ class MusicPlayerCog(PluginCog):
         name="vc-stop",
         description="Stop and disconnect music player.",
     )
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def vc_stop(
         self,
         interaction: discord.Interaction,
@@ -166,6 +170,8 @@ class MusicPlayerCog(PluginCog):
     @app_commands.describe(
         query="The search query for the track or playlist.",
     )
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def vc_play(
         self,
         interaction: discord.Interaction,
@@ -218,6 +224,8 @@ class MusicPlayerCog(PluginCog):
         name="vc",
         description="Music playback controls.",
     )
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def vc(
         self,
         interaction: discord.Interaction,
