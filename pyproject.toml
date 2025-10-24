@@ -14,8 +14,8 @@ dependencies = [
     "beautifulsoup4",                                                    # Plugin: Commands
     "yt-dlp",                                                            # Plugin: Music
     "spotdl>=4.4.3",                                                # Plugin: Music
-    "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
     "discord.py[voice]",                                               # Voice support
+    "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
 ]
 
 [build-system]
