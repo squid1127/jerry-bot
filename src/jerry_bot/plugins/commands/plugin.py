@@ -44,6 +44,8 @@ class StaticCommands(PluginCog):
         self.cat = "https://cataas.com/cat"
         self.cat_title = "Cataas - Cat as a Service"
         
+        self.random = "https://www.random.org/integers"
+        
         self.api_command_semaphore = asyncio.Semaphore(2)  # Limit to 2 concurrent API commands
 
     @app_commands.command(
@@ -306,3 +308,48 @@ More to come soon!""",
             )
 
             await interaction.followup.send(embed=embed, file=file)
+    
+    @app_commands.command(
+        name="yes-no", description="Get a random yes or no answer. Like an 8-ball but simpler."
+    )
+    async def yes_no_command(self, interaction: discord.Interaction):
+        """Responds with a random yes or no answer."""
+        if not await self.perms.interaction_check(interaction):
+            return
+        
+        # Use true random from random.org
+        await interaction.response.defer(thinking=True)
+        
+        params = {
+            "num": 1,
+            "min": 0,
+            "max": 1,
+            "col": 1,
+            "base": 10,
+            "format": "plain",
+            "rnd": "new",
+        }
+        try:       
+            async with self.api_command_semaphore:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(self.random, params=params) as response:
+                        if response.status == 200:
+                            text = await response.text()
+                            result = text.strip()
+                            if result == "0":
+                                answer = "No."
+                            elif result == "1":
+                                answer = "Yes."
+                            else:
+                                raise ValueError("Unexpected response from random.org")
+                        else:
+                            raise ValueError("Failed to get response from random.org")
+                        
+        except Exception as e:
+            import random
+            self.logger.error(f"Error in yes_no_command: {e}")
+            answer = random.choice(["Yes.", "No."])
+            await interaction.followup.send(f"*{answer}*")
+            return
+        
+        await interaction.followup.send(f"*{answer}*")
