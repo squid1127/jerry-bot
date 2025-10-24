@@ -2252,7 +2252,7 @@ tortoise-orm = "*"
 type = "git"
 url = "https://github.com/squid1127/squid-core.git"
 reference = "main"
-resolved_reference = "e7070a7ae94e71bf85bf3814ee883b9e02bbf010"
+resolved_reference = "e52888218dc6d3b9b03c5b367d62891db2381ad3"
 
 [[package]]
 name = "starlette"
@@ -2758,4 +2758,4 @@ requests = ">=2.22"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.14"
-content-hash = "cc8b51e4fbad35c9f21a89c340a14c08ba5ad30d0bde634b2088f2aba215e242"
+content-hash = "e0e39d22f1c9ce4f589981d5ecd0e07005aa5e9ab772a2fdeb50943cba25cf53"
