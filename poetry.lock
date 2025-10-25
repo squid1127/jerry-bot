@@ -2237,6 +2237,7 @@ develop = false
 [package.dependencies]
 aiofiles = "*"
 aiohttp = "*"
+aiosqlite = "*"
 asyncpg = "*"
 coloredlogs = "*"
 databases = {version = "*", extras = ["asyncpg"]}
@@ -2252,7 +2253,7 @@ tortoise-orm = "*"
 type = "git"
 url = "https://github.com/squid1127/squid-core.git"
 reference = "main"
-resolved_reference = "e52888218dc6d3b9b03c5b367d62891db2381ad3"
+resolved_reference = "8edabe1b3ddbb65ed70b4f4756d564cb95893aae"
 
 [[package]]
 name = "starlette"
