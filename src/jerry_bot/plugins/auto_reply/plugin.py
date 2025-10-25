@@ -58,26 +58,17 @@ class AutoReply(Plugin):
     ) -> bool:
         """Check if a message should be ignored based on channel, user, or guild ID."""
         if user_id and user_id in self.ignore_cache:
-            for ignore in self.ignore_cache.values():
-                if (
-                    ignore.discord_type == IgnoreType.USER
-                    and int(ignore.discord_id) == user_id
-                ):
-                    return True
+            ignore = self.ignore_cache[user_id]
+            if ignore.discord_type == IgnoreType.USER:
+                return True
         if channel_id and channel_id in self.ignore_cache:
-            for ignore in self.ignore_cache.values():
-                if (
-                    ignore.discord_type == IgnoreType.CHANNEL
-                    and int(ignore.discord_id) == channel_id
-                ):
-                    return True
+            ignore = self.ignore_cache[channel_id]
+            if ignore.discord_type == IgnoreType.CHANNEL:
+                return True
         if guild_id and guild_id in self.ignore_cache:
-            for ignore in self.ignore_cache.values():
-                if (
-                    ignore.discord_type == IgnoreType.GUILD
-                    and int(ignore.discord_id) == guild_id
-                ):
-                    return True
+            ignore = self.ignore_cache[guild_id]
+            if ignore.discord_type == IgnoreType.GUILD:
+                return True
         return False
 
     def choose_random(self, response_payload: str) -> str:
