@@ -9,4 +9,4 @@ docker build -t jerry:latest .
 docker-compose -f docker-compose.yml down
 
 # Run the docker compose for local development
-docker-compose -f docker-compose.yml up -ds
+docker-compose -f docker-compose.yml up -d
