@@ -187,3 +187,6 @@ msar/
 
 # Data dir
 data/
+
+# All *.env files
+*.env
