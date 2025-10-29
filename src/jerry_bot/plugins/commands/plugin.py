@@ -47,6 +47,18 @@ class StaticCommands(PluginCog):
         self.random = "https://www.random.org/integers"
         
         self.api_command_semaphore = asyncio.Semaphore(2)  # Limit to 2 concurrent API commands
+        self._http_session: aiohttp.ClientSession | None = None
+    
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared HTTP session."""
+        if self._http_session is None or self._http_session.closed:
+            self._http_session = aiohttp.ClientSession()
+        return self._http_session
+    
+    async def cog_unload(self):
+        """Clean up resources when cog is unloaded."""
+        if self._http_session and not self._http_session.closed:
+            await self._http_session.close()
 
     @app_commands.command(
         name="ping-jerry",
@@ -104,22 +116,22 @@ More to come soon!""",
         
         # Semaphore to limit concurrent API commands
         async with self.api_command_semaphore:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.dev_excuses, headers=headers) as response:
-                    if response.status == 200:
-                        html = await response.text()
-                        soup = bs4.BeautifulSoup(html, "html.parser")
-                        excuse_tag = soup.find("center")
-                        excuse = (
-                            excuse_tag.find("a").text
-                            if excuse_tag and excuse_tag.find("a")
-                            else "No excuse found."
-                        )
-                        await interaction.followup.send(f"||*{excuse}*||")
-                    else:
-                        await interaction.followup.send(
-                            "Sorry, I can't help you. It's just that bad. :P"
-                        )
+            session = await self._get_session()
+            async with session.get(self.dev_excuses, headers=headers) as response:
+                if response.status == 200:
+                    html = await response.text()
+                    soup = bs4.BeautifulSoup(html, "html.parser")
+                    excuse_tag = soup.find("center")
+                    excuse = (
+                        excuse_tag.find("a").text
+                        if excuse_tag and excuse_tag.find("a")
+                        else "No excuse found."
+                    )
+                    await interaction.followup.send(f"||*{excuse}*||")
+                else:
+                    await interaction.followup.send(
+                        "Sorry, I can't help you. It's just that bad. :P"
+                    )
 
     # Mention command (idk why)
     class MentionType(Enum):
@@ -139,10 +151,18 @@ More to come soon!""",
         if role:
             members = role.members
         else:
-            members = []
-            # Force fetch all members
-            async for member in guild.fetch_members(limit=None):
-                members.append(member)
+            # Use guild.members which is cached instead of fetching all members
+            # This requires the Members intent to be enabled
+            members = guild.members
+            if not members:
+                # Fallback to fetch if cache is empty (shouldn't happen with proper intents)
+                self.logger.warning(
+                    "Guild members cache is empty. Fetching members from API (slow). "
+                    "Ensure Members intent is enabled."
+                )
+                members = []
+                async for member in guild.fetch_members(limit=None):
+                    members.append(member)
         if mention_type == self.MentionType.EVERYONE:
             for member in members:
                 if not member.bot:
@@ -286,28 +306,28 @@ More to come soon!""",
             }
 
             # Fetch cat image
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.cat, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.read()
+            session = await self._get_session()
+            async with session.get(self.cat, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.read()
 
-                    else:
-                        await interaction.followup.send(
-                            "Sorry, I couldn't get a cat image right now."
-                        )
-                        return
+                else:
+                    await interaction.followup.send(
+                        "Sorry, I couldn't get a cat image right now."
+                    )
+                    return
 
-            # Convert to discord file, using BytesIO
-            from io import BytesIO
+        # Convert to discord file, using BytesIO
+        from io import BytesIO
 
-            file = discord.File(BytesIO(data), filename="cat.jpg")
+        file = discord.File(BytesIO(data), filename="cat.jpg")
 
-            # Embed
-            embed = discord.Embed(color=discord.Color.blue()).set_footer(
-                text=f"Images provided by {self.cat_title}"
-            )
+        # Embed
+        embed = discord.Embed(color=discord.Color.blue()).set_footer(
+            text=f"Images provided by {self.cat_title}"
+        )
 
-            await interaction.followup.send(embed=embed, file=file)
+        await interaction.followup.send(embed=embed, file=file)
     
     @app_commands.command(
         name="yes-no", description="Get a random yes or no answer. Like an 8-ball but simpler."
@@ -331,19 +351,19 @@ More to come soon!""",
         }
         try:       
             async with self.api_command_semaphore:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(self.random, params=params) as response:
-                        if response.status == 200:
-                            text = await response.text()
-                            result = text.strip()
-                            if result == "0":
-                                answer = "No."
-                            elif result == "1":
-                                answer = "Yes."
-                            else:
-                                raise ValueError("Unexpected response from random.org")
+                session = await self._get_session()
+                async with session.get(self.random, params=params) as response:
+                    if response.status == 200:
+                        text = await response.text()
+                        result = text.strip()
+                        if result == "0":
+                            answer = "No."
+                        elif result == "1":
+                            answer = "Yes."
                         else:
-                            raise ValueError("Failed to get response from random.org")
+                            raise ValueError("Unexpected response from random.org")
+                    else:
+                        raise ValueError("Failed to get response from random.org")
                         
         except Exception as e:
             import random

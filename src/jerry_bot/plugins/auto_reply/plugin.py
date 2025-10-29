@@ -167,18 +167,13 @@ class AutoReply(Plugin):
         if message.author.bot:
             return  # Ignore messages from bots
 
-        if (
-            int(message.author.id) in self.ignore_cache
-            or int(message.channel.id) in self.ignore_cache
-            or int(message.guild.id) in self.ignore_cache
+        # Optimized ignore check - check once instead of twice
+        if self.check_ignored(
+            channel_id=message.channel.id,
+            user_id=message.author.id,
+            guild_id=message.guild.id,
         ):
-            # Execute more thorough ignore check
-            if self.check_ignored(
-                channel_id=message.channel.id,
-                user_id=message.author.id,
-                guild_id=message.guild.id,
-            ):
-                return  # Ignore this message
+            return  # Ignore this message
             
         # Content
         content = message.content
