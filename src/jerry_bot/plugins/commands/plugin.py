@@ -147,7 +147,6 @@ More to come soon!""",
     async def generate_mention_list(
         self, guild: discord.Guild, mention_type: MentionType, role: discord.Role = None
     ) -> list[str]:
-        mentions = []
         if role:
             members = role.members
         else:
@@ -163,36 +162,45 @@ More to come soon!""",
                 members = []
                 async for member in guild.fetch_members(limit=None):
                     members.append(member)
+        
+        # Use list comprehension for better performance
         if mention_type == self.MentionType.EVERYONE:
-            for member in members:
-                if not member.bot:
-                    mentions.append(member.mention)
-        elif mention_type == self.MentionType.HERE:
-            for member in members:
-                if not member.bot and member.status != discord.Status.offline:
-                    mentions.append(member.mention)
-        elif mention_type == self.MentionType.USER:
-            for member in members:
-                if not member.bot and member.status != discord.Status.offline:
-                    mentions.append(member.mention)
+            mentions = [member.mention for member in members if not member.bot]
+        elif mention_type in (self.MentionType.HERE, self.MentionType.USER):
+            mentions = [
+                member.mention 
+                for member in members 
+                if not member.bot and member.status != discord.Status.offline
+            ]
+        else:
+            mentions = []
+        
         return mentions
 
     def compress_mentions(
         self, mentions: list[str], max_length: int = 2000
     ) -> list[str]:
         chunks = []
-        current_chunk = ""
+        current_chunk_parts = []
+        current_length = 0
         for mention in mentions:
-            if len(current_chunk) + len(mention) + 1 > max_length:
-                chunks.append(current_chunk)
-                current_chunk = mention
+            mention_len = len(mention)
+            # Account for the space separator
+            needed_length = mention_len + (1 if current_chunk_parts else 0)
+            
+            if current_length + needed_length > max_length:
+                # Start a new chunk
+                if current_chunk_parts:
+                    chunks.append(" ".join(current_chunk_parts))
+                current_chunk_parts = [mention]
+                current_length = mention_len
             else:
-                if current_chunk:
-                    current_chunk += " " + mention
-                else:
-                    current_chunk = mention
-        if current_chunk:
-            chunks.append(current_chunk)
+                current_chunk_parts.append(mention)
+                current_length += needed_length
+        
+        # Add the last chunk
+        if current_chunk_parts:
+            chunks.append(" ".join(current_chunk_parts))
         return chunks
 
     @app_commands.command(
