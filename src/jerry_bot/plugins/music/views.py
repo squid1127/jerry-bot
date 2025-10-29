@@ -392,7 +392,6 @@ class PlaybackStatusInteraction(UIView):
 
     async def refresh(self):
         """Refresh the view."""
-        await asyncio.sleep(0.5)  # Small delay to prevent rapid updates
         if not self.alive:
             return
         self.view.clear_items()

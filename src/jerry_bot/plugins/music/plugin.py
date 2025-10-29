@@ -214,8 +214,6 @@ class MusicPlayerCog(PluginCog):
             )
             return
         
-        await asyncio.sleep(1)  # Small delay to ensure message order
-
         view = ViewPBSearch(self.plugin, tracks, playlists)
         await view.init_interaction(interaction)
 
