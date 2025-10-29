@@ -45,8 +45,10 @@ class AutoReply(Plugin):
         self.cache = [rule.as_dataclass() for rule in rules if rule.is_active]
 
         ignores = await AutoReplyIgnore.all()
+        # Use composite key (type, id) to prevent overlap between user/channel/guild IDs
         self.ignore_cache = {
-            int(ignore.discord_id): ignore.as_dataclass() for ignore in ignores
+            (ignore.discord_type, int(ignore.discord_id)): ignore.as_dataclass() 
+            for ignore in ignores
         }
 
         self.logger.info(
@@ -57,18 +59,12 @@ class AutoReply(Plugin):
         self, channel_id: int = None, user_id: int = None, guild_id: int = None
     ) -> bool:
         """Check if a message should be ignored based on channel, user, or guild ID."""
-        if user_id and user_id in self.ignore_cache:
-            ignore = self.ignore_cache[user_id]
-            if ignore.discord_type == IgnoreType.USER:
-                return True
-        if channel_id and channel_id in self.ignore_cache:
-            ignore = self.ignore_cache[channel_id]
-            if ignore.discord_type == IgnoreType.CHANNEL:
-                return True
-        if guild_id and guild_id in self.ignore_cache:
-            ignore = self.ignore_cache[guild_id]
-            if ignore.discord_type == IgnoreType.GUILD:
-                return True
+        if user_id and (IgnoreType.USER, user_id) in self.ignore_cache:
+            return True
+        if channel_id and (IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
+            return True
+        if guild_id and (IgnoreType.GUILD, guild_id) in self.ignore_cache:
+            return True
         return False
 
     def choose_random(self, response_payload: str) -> str:
