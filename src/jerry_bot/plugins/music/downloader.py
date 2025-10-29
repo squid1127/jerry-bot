@@ -217,20 +217,38 @@ class SpotTrackQuery:
         if url is None:
             url = self.url
 
-        # Check for existing audio with the same provider URL
+        # Check for existing audios with the same provider URL
         audio_id = hash_text(url)
-        existing_audio = await TrackAudio.get_or_none(audio_id=audio_id)
+        existing_audios = await TrackAudio.filter(audio_id=audio_id).all()
 
-        if existing_audio:
-            path = Path(existing_audio.file_path)
-            if path.exists():
-                self.file_path = path
-                return existing_audio
-            else:
-                # File doesn't exist, delete the stale record
-                await existing_audio.delete()
-                return None
-        return None
+        if len(existing_audios) == 0:
+            return None
+        elif len(existing_audios) > 1:
+            # Handle multiple audio files - clean up duplicates
+            self.logger.warning(
+                f"Multiple existing audios found for URL {url}. Cleaning up duplicates."
+            )
+            # Keep the first one that has a valid file, delete the rest
+            valid_audio = None
+            for audio in existing_audios:
+                path = Path(audio.file_path)
+                if path.exists() and valid_audio is None:
+                    valid_audio = audio
+                    self.file_path = path
+                else:
+                    await audio.delete()
+            return valid_audio
+        
+        # Single audio found
+        existing = existing_audios[0]
+        path = Path(existing.file_path)
+        if path.exists():
+            self.file_path = path
+            return existing
+        else:
+            # File doesn't exist, delete the stale record
+            await existing.delete()
+            return None
 
     async def yt_download(self, url: str = None) -> Path | None:
         """Download the track using youtube-dl and return the local file path."""
