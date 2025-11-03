@@ -20,6 +20,7 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 ### Incomplete/Need Reworking
 
 - **music** - A discord music player with the ability to easily import music and fancy interactions
+- **gemini** - Chatbot system using Gemini API (Being rewritten)
 
 ### Not Implemented (Yet)
 
