@@ -24,6 +24,10 @@ RULE_TYPE_INFO = {
         "label": "Reaction",
         "description": "Reacts to the message with a predefined emoji.",
     },
+    ResponseType.TEXT_TEMPLATE: {
+        "label": "Text Reply with Jinja2",
+        "description": "Replies with a text message using Jinja2 templating.",
+    },
 }
 RULE_REQUIRED = ["trigger", "response_type", "response_payload"]
 
@@ -35,7 +39,7 @@ class SearchView(UIView):
         self, plugin: Plugin, search_results: list[AutoReplyRuleData] = None
     ) -> None:
         super().__init__(ui_type=UIType.MESSAGE, timeout=180.0, plugin=plugin)
-        description = "Manage your auto-reply rules below."
+        description = "Manage your auto-reply rules below. \n(Tip: Use `jerry ar reload` to refresh the cache manually.)"
         if search_results is not None and len(search_results) > 0:
             description += f"\nFound {len(search_results)} matching rules."
         elif search_results is not None:
