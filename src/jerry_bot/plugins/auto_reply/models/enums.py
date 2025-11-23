@@ -9,6 +9,7 @@ class ResponseType(IntEnum):
     STICKER = auto()
     TEXT_RANDOM = auto()
     REACTION = auto()
+    TEXT_TEMPLATE = auto()
     
 class IgnoreType(IntEnum):
     """Enumeration for different types of ignore rules."""
