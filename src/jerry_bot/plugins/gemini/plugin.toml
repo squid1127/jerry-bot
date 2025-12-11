@@ -1,0 +1,4 @@
+[plugin]
+name = "gemini"
+description = "Jerry gemini chatbot system plugin"
+class = "Gemini"
