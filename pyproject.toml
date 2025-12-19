@@ -12,6 +12,8 @@ requires-python = ">=3.11, <4.0"
 dependencies = [
     "aiohttp",                                                           # Plugin: Commands
     "beautifulsoup4",                                                    # Plugin: Commands
+    "aiofiles",                                                          # Plugin: Music
+    "mutagen",                                                          # Plugin: Music
     "discord.py[voice]",                                               # Voice support
     "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
     "google-genai", # Plugin: Gemini
