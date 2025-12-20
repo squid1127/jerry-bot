@@ -8,6 +8,7 @@ from discord.ext import commands
 from squid_core.plugin_base import Plugin, PluginCog
 from squid_core.framework import Framework
 from squid_core.decorators import DiscordEventListener
+from squid_core.config_types import ConfigOption
 
 # Plugin imports
 from .models.config import GlobalConfig, InstanceConfig
@@ -40,7 +41,7 @@ class Gemini(Plugin):
         if not self.config:
             return
 
-        test_channel_id = 1
+        test_channel_id = await self.fw.config.get_config_option(ConfigOption(None, ['plugins', 'gemini', 'test_channel_id'], enforce_type=int, enforce_type_coerce=True), self)
         
         llm_config = GeminiLLMConfig(
             model_name="gemini-2.5-flash",
