@@ -17,7 +17,6 @@ dependencies = [
     "discord.py[voice]",                                               # Voice support
     "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
     "google-genai", # Plugin: Gemini
-    "semantic-text-splitter", # Plugin: Gemini
     "jinja2", # Plugin: Auto Reply - Text Template
     "asteval", # Plugin: Auto Reply - Math Evaluation
 ]
