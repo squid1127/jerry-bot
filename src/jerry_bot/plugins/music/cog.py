@@ -197,7 +197,12 @@ class MusicPlayerCog(PluginCog):
         view = MusicSearchView(tracks=tracks, playlists=playlists, player=guild_player, timeout=180, interaction=interaction)
 
         await interaction.followup.send(
-            content="Select a track or playlist to add to the queue:",
+            content="",
+            embed=discord.Embed(
+                title="Search Results",
+                description="Select a track or playlist to add to the queue:",
+                color=discord.Color.blue(),
+            ),
             view=view,
             ephemeral=True,
         )
