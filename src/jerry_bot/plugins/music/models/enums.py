@@ -9,3 +9,9 @@ class PlaybackState(Enum):
     PLAYING = "playing"
     PAUSED = "paused"
     
+class CommandAction(Enum):
+    """Enumeration for command actions."""
+    
+    PlayPause = "play_pause"
+    Stop = "stop"
+    Skip = "skip"
