@@ -14,6 +14,8 @@ import aiofiles
 
 from .imports import ImportManager
 from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry, MusicPlaylistACL
+from .player import GuildMusicPlayer
+from .cog import MusicPlayerCog
 
 class MusicPlayerPlugin(Plugin):
     """Music Player Plugin for Jerry Bot."""
@@ -26,19 +28,25 @@ class MusicPlayerPlugin(Plugin):
             target_directory=self.path / "tracks",
             logger=self.logger,
         )
+        self.cog = MusicPlayerCog(self)
+        self.players: dict[int, GuildMusicPlayer] = {}
 
     async def load(self):
         """Load the Music Player Plugin."""
         self.logger.info("Music Player initializing...")
         await self.imports.init_directories()
+        await self.framework.bot.add_cog(self.cog)
 
         self.logger.info("Starting initial import...")
         asyncio.create_task(self.imports.import_all())
         self.logger.info("Music Player initialized.")
+        
 
     async def unload(self):
         """Unload the Music Player Plugin."""
         self.logger.info("Unloaded Music Player.")
+        if self.cog is not None:
+            await self.framework.bot.remove_cog(self.cog.qualified_name)
 
     @CLICommandDec(
         name="music",
@@ -187,3 +195,9 @@ class MusicPlayerPlugin(Plugin):
                 description="Available subcommands: **import**, **list**",
                 level=EmbedLevel.INFO,
             )
+
+    def get_player(self, guild: discord.Guild) -> GuildMusicPlayer:
+        """Get or create the music player for a guild."""
+        if guild.id not in self.players:
+            self.players[guild.id] = GuildMusicPlayer(guild, self.logger, self.path / "tracks")
+        return self.players[guild.id]
