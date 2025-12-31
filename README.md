@@ -16,15 +16,15 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 ### Mostly-Complete Features
 
 - **commands** - A random set of application commands, some of which rely on external APIs
+- **auto-reply** - Regex-based system to reply to messages based on content. Now fully supports native interactions.
+- **music** - A discord music player with the ability to easily import music and fancy interactions. (Missing UI elements, file based import system)
 
 ### Incomplete/Need Reworking
 
-- **music** - A discord music player with the ability to easily import music and fancy interactions
 - **gemini** - Chatbot system using Gemini API (Being rewritten)
 
 ### Not Implemented (Yet)
 
-- **auto-reply** - Regex-based system to reply to messages based on content.
 - **stickers** - A sticker system that allows users to create and use custom stickers.
 
 ### Future Features (🤨)
