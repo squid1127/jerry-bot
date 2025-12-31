@@ -21,6 +21,7 @@ from .models.db import (
 )
 from .models.enums import IgnoreType, ResponseType
 from .editor import SearchView, SearchSelect
+from .cog import AutoReplyCog
 
 
 class AutoReply(Plugin):
@@ -37,14 +38,17 @@ class AutoReply(Plugin):
             autoescape=True,
         )
         self.jinja_env.globals.update(self.make_globals())
+        self.cog = AutoReplyCog(self)
 
     async def load(self):
         """Load the AutoReply Plugin."""
         await self.load_cache()
+        await self.framework.bot.add_cog(self.cog)
         self.logger.info("AutoReply plugin loaded.")
 
     async def unload(self):
         """Unload the AutoReply Plugin."""
+        await self.framework.bot.remove_cog(self.cog.qualified_name)
         self.logger.info("AutoReply plugin unloaded.")
 
     async def load_cache(self):
@@ -53,9 +57,9 @@ class AutoReply(Plugin):
         self.cache = [rule.as_dataclass() for rule in rules if rule.is_active]
 
         ignores = await AutoReplyIgnore.all()
-        # Use composite key (type, id) to prevent overlap between user/channel/guild IDs
+        # Use composite key (guild_id or None, type, id) for guild-specific and global ignores
         self.ignore_cache = {
-            (ignore.discord_type, int(ignore.discord_id)): ignore.as_dataclass() 
+            (int(ignore.guild_id) if ignore.guild_id else None, ignore.discord_type, int(ignore.discord_id)): ignore.as_dataclass() 
             for ignore in ignores
         }
 
@@ -64,15 +68,30 @@ class AutoReply(Plugin):
         )
 
     def check_ignored(
-        self, channel_id: int = None, user_id: int = None, guild_id: int = None
+        self, channel_id: int = None, user_id: int = None, guild_id: int = None, role_ids: list[int] = None
     ) -> bool:
-        """Check if a message should be ignored based on channel, user, or guild ID."""
-        if user_id and (IgnoreType.USER, user_id) in self.ignore_cache:
+        """Check if a message should be ignored based on channel, user, guild, or role ID.
+        Checks both global ignores (guild_id=None) and guild-specific ignores.
+        """
+        # Check global ignores first (guild_id=None)
+        if user_id and (None, IgnoreType.USER, user_id) in self.ignore_cache:
             return True
-        if channel_id and (IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
+        if channel_id and (None, IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
             return True
-        if guild_id and (IgnoreType.GUILD, guild_id) in self.ignore_cache:
+        if role_ids and any((None, IgnoreType.ROLE, role_id) in self.ignore_cache for role_id in role_ids):
             return True
+        
+        # Check guild-specific ignores if guild_id is provided
+        if guild_id:
+            if user_id and (guild_id, IgnoreType.USER, user_id) in self.ignore_cache:
+                return True
+            if channel_id and (guild_id, IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
+                return True
+            if (None, IgnoreType.GUILD, guild_id) in self.ignore_cache:
+                return True
+            if role_ids and any((guild_id, IgnoreType.ROLE, role_id) in self.ignore_cache for role_id in role_ids):
+                return True
+        
         return False
 
     def choose_random(self, response_payload: str) -> str:
@@ -258,7 +277,8 @@ class AutoReply(Plugin):
         if self.check_ignored(
             channel_id=message.channel.id,
             user_id=message.author.id,
-            guild_id=message.guild.id,
+            guild_id=message.guild.id if message.guild else None,
+            role_ids=[role.id for role in message.author.roles] if message.guild else None,
         ):
             return  # Ignore this message
             
@@ -342,7 +362,7 @@ class AutoReply(Plugin):
                 level=EmbedLevel.ERROR,
             )
 
-    @RedisSubscribe(["reload_cache"])
+    @RedisSubscribe(["jerry:auto_reply:reload_cache"])
     async def redis_reload_cache(self, message: dict):
         """Handle Redis message to reload cache."""
         
