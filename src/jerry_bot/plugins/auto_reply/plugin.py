@@ -2,13 +2,15 @@
 
 # squid_core imports
 import asyncio
+import re
 from squid_core.plugin_base import Plugin
 from squid_core.framework import Framework
 from squid_core.decorators import DiscordEventListener, CLICommandDec, RedisSubscribe
 from squid_core.components.cli import CLIContext, EmbedLevel
 
 # third-party imports
-import discord, yaml, random
+import discord, yaml, random, datetime, math, asteval
+import jinja2
 
 # local imports
 from .models.db import (
@@ -19,6 +21,7 @@ from .models.db import (
 )
 from .models.enums import IgnoreType, ResponseType
 from .editor import SearchView, SearchSelect
+from .cog import AutoReplyCog
 
 
 class AutoReply(Plugin):
@@ -29,14 +32,23 @@ class AutoReply(Plugin):
 
         self.cache: list[AutoReplyRuleData] = []
         self.ignore_cache: dict[int, AutoReplyIgnoreData] = {}
+        self.jinja_env = jinja2.Environment(
+            loader=jinja2.BaseLoader(),
+            enable_async=True,
+            autoescape=True,
+        )
+        self.jinja_env.globals.update(self.make_globals())
+        self.cog = AutoReplyCog(self)
 
     async def load(self):
         """Load the AutoReply Plugin."""
         await self.load_cache()
+        await self.framework.bot.add_cog(self.cog)
         self.logger.info("AutoReply plugin loaded.")
 
     async def unload(self):
         """Unload the AutoReply Plugin."""
+        await self.framework.bot.remove_cog(self.cog.qualified_name)
         self.logger.info("AutoReply plugin unloaded.")
 
     async def load_cache(self):
@@ -45,8 +57,10 @@ class AutoReply(Plugin):
         self.cache = [rule.as_dataclass() for rule in rules if rule.is_active]
 
         ignores = await AutoReplyIgnore.all()
+        # Use composite key (guild_id or None, type, id) for guild-specific and global ignores
         self.ignore_cache = {
-            int(ignore.discord_id): ignore.as_dataclass() for ignore in ignores
+            (int(ignore.guild_id) if ignore.guild_id else None, ignore.discord_type, int(ignore.discord_id)): ignore.as_dataclass() 
+            for ignore in ignores
         }
 
         self.logger.info(
@@ -54,21 +68,30 @@ class AutoReply(Plugin):
         )
 
     def check_ignored(
-        self, channel_id: int = None, user_id: int = None, guild_id: int = None
+        self, channel_id: int = None, user_id: int = None, guild_id: int = None, role_ids: list[int] = None
     ) -> bool:
-        """Check if a message should be ignored based on channel, user, or guild ID."""
-        if user_id and user_id in self.ignore_cache:
-            ignore = self.ignore_cache[user_id]
-            if ignore.discord_type == IgnoreType.USER:
+        """Check if a message should be ignored based on channel, user, guild, or role ID.
+        Checks both global ignores (guild_id=None) and guild-specific ignores.
+        """
+        # Check global ignores first (guild_id=None)
+        if user_id and (None, IgnoreType.USER, user_id) in self.ignore_cache:
+            return True
+        if channel_id and (None, IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
+            return True
+        if role_ids and any((None, IgnoreType.ROLE, role_id) in self.ignore_cache for role_id in role_ids):
+            return True
+        
+        # Check guild-specific ignores if guild_id is provided
+        if guild_id:
+            if user_id and (guild_id, IgnoreType.USER, user_id) in self.ignore_cache:
                 return True
-        if channel_id and channel_id in self.ignore_cache:
-            ignore = self.ignore_cache[channel_id]
-            if ignore.discord_type == IgnoreType.CHANNEL:
+            if channel_id and (guild_id, IgnoreType.CHANNEL, channel_id) in self.ignore_cache:
                 return True
-        if guild_id and guild_id in self.ignore_cache:
-            ignore = self.ignore_cache[guild_id]
-            if ignore.discord_type == IgnoreType.GUILD:
+            if (None, IgnoreType.GUILD, guild_id) in self.ignore_cache:
                 return True
+            if role_ids and any((guild_id, IgnoreType.ROLE, role_id) in self.ignore_cache for role_id in role_ids):
+                return True
+        
         return False
 
     def choose_random(self, response_payload: str) -> str:
@@ -111,11 +134,93 @@ class AutoReply(Plugin):
             text = text.replace(author.mention, "{author_mention}")
 
         return text
+    
+    def make_globals(self) -> dict:
+        """Create global variables for Jinja2 templates."""
+        def regex_match(pattern: str, string: str) -> bool:
+            """Check if the regex pattern matches the string."""
+            return re.search(pattern, string) is not None
+        
+        def ordinal(n: int) -> str:
+            """Convert an integer to its ordinal representation."""
+            suffix = ["th", "st", "nd", "rd"] + ["th"] * 6
+            if 10 <= n % 100 <= 20:
+                return f"{n}th"
+            else:
+                return f"{n}{suffix[n % 10]}"
+            
+        self.asteval = asteval.Interpreter()
+        def asteval_eval(expr: str):
+            """Evaluate a mathematical expression safely."""
+            try:
+                result = self.asteval(expr)
+            except Exception as e:
+                raise ValueError(f"Error evaluating expression: {e}")
+            
+            # Check for errors
+            if self.asteval.error:
+                error_msg = "; ".join([str(err.get_error()) for err in self.asteval.error])
+                raise ValueError(f"Error evaluating expression: {error_msg}")
+            
+            return result
+        
+        bot = self.framework.bot
+        now = datetime.datetime.utcnow()
+        globals_dict = {
+            "bot": bot,
+            "now": now,
+            "utcnow": now,
+            "math": math,
+            "randint": random.randint,
+            "randchoice": random.choice,
+            "random": random,
+            "regex_match": regex_match,
+            "ordinal": ordinal,
+            "asteval": asteval_eval,
+        }
+        return globals_dict
+    
+    async def render_jinja_template(self, template_str: str, **context) -> str:
+        """Render a Jinja2 template string with the provided context."""
+        try:
+            template = self.jinja_env.from_string(template_str)
+            rendered = await template.render_async(**context)
+            return rendered
+        except jinja2.TemplateError as e:
+            self.logger.error(f"Jinja2 template rendering error: {e}")
+            return template_str  # Fallback to original string on error
+        except Exception as e:
+            self.logger.error(f"Unexpected error during Jinja2 rendering: {e}")
+            return template_str  # Fallback to original string on error
 
     async def send_response(self, message: discord.Message, rule: AutoReplyRuleData):
         """Send a response based on the rule's response type."""
         if rule.response_type == ResponseType.TEXT:
             response_templated = self.auto_template(rule.response_payload, author=message.author)
+            await message.reply(response_templated)
+        elif rule.response_type == ResponseType.TEXT_TEMPLATE:
+            response_rendered = await self.render_jinja_template(
+                rule.response_payload,
+                content = message.content,
+                author=message.author,
+                message=message,
+                channel=message.channel,
+                guild=message.guild,
+                bot=self.framework.bot,
+            )
+            response_templated = self.auto_template(response_rendered, author=message.author)
+            if len(response_templated) == 0:
+                await message.reply(
+                    embed=discord.Embed(
+                        title="Error",
+                        description="The rendered template resulted in an empty response.",
+                    ).set_footer(
+                        text="If you are a bot admin, please check the auto-reply rule configuration."
+                    )
+                )
+                return
+            elif len(response_templated) > 2000:
+                response_templated = response_templated[:1997] + "..."
             await message.reply(response_templated)
         elif rule.response_type == ResponseType.TEXT_RANDOM:
             try:
@@ -131,6 +236,7 @@ class AutoReply(Plugin):
                         text="If you are a bot admin, please check the auto-reply rule configuration."
                     )
                 )
+                
         elif rule.response_type == ResponseType.STICKER:
             await message.reply(
                 embed=discord.Embed(
@@ -167,18 +273,14 @@ class AutoReply(Plugin):
         if message.author.bot:
             return  # Ignore messages from bots
 
-        if (
-            int(message.author.id) in self.ignore_cache
-            or int(message.channel.id) in self.ignore_cache
-            or int(message.guild.id) in self.ignore_cache
+        # Optimized ignore check - check once instead of twice
+        if self.check_ignored(
+            channel_id=message.channel.id,
+            user_id=message.author.id,
+            guild_id=message.guild.id if message.guild else None,
+            role_ids=[role.id for role in message.author.roles] if message.guild else None,
         ):
-            # Execute more thorough ignore check
-            if self.check_ignored(
-                channel_id=message.channel.id,
-                user_id=message.author.id,
-                guild_id=message.guild.id,
-            ):
-                return  # Ignore this message
+            return  # Ignore this message
             
         # Content
         content = message.content
@@ -207,14 +309,9 @@ class AutoReply(Plugin):
         """CLI command to manage AutoReply plugin."""
 
         if len(ctx.args) == 0:
-            await ctx.respond(
-                "AutoReply Plugin CLI\nAvailable subcommands: `reload`, `rule`",
-                title="AutoReply CLI",
-                level=EmbedLevel.INFO,
-            )
-            return
-
-        subcommand = ctx.args[0].lower()
+            subcommand = "rule"
+        else:
+            subcommand = ctx.args[0].lower()
 
         if subcommand == "reload":
             await self.load_cache()
@@ -265,7 +362,7 @@ class AutoReply(Plugin):
                 level=EmbedLevel.ERROR,
             )
 
-    @RedisSubscribe(["reload_cache"])
+    @RedisSubscribe(["jerry:auto_reply:reload_cache"])
     async def redis_reload_cache(self, message: dict):
         """Handle Redis message to reload cache."""
         

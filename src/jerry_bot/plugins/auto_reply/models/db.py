@@ -45,6 +45,7 @@ class AutoReplyIgnore(Model):
     Attributes:
         discord_id (str): The Discord ID of the user or channel to ignore.
         discord_type (IgnoreType): The type of Discord entity (user, channel, guild).
+        guild_id (str | None): The guild context for the ignore, if applicable.
         reason (str | None): Optional reason for ignoring.
         internal (bool): Whether the ignore was created automatically by the system.
     """
@@ -52,6 +53,7 @@ class AutoReplyIgnore(Model):
     id = fields.IntField(pk=True)
     discord_id = fields.CharField(max_length=50)
     discord_type = fields.IntEnumField(IgnoreType)
+    guild_id = fields.CharField(max_length=50, null=True)  # Guild context for the ignore
     internal = fields.BooleanField(default=False) # Created by the system
     
     class Meta:
@@ -64,6 +66,7 @@ class AutoReplyIgnore(Model):
             db_id=self.id,
             discord_id=self.discord_id,
             discord_type=self.discord_type,
+            guild_id=self.guild_id,
             internal=self.internal
         )
     
@@ -91,6 +94,7 @@ class AutoReplyIgnoreData:
     """Dataclass representation of AutoReplyIgnore for in-memory operations."""
     discord_id: str
     discord_type: IgnoreType
+    guild_id: str | None = None
     internal: bool = False
     reason: str | None = None
     db_id: int | None = field(default=None)

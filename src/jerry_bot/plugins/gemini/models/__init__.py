@@ -1,0 +1,1 @@
+"""Configuration models for Gemini chatbot plugin."""
