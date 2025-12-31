@@ -17,7 +17,7 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 
 - **commands** - A random set of application commands, some of which rely on external APIs
 - **auto-reply** - Regex-based system to reply to messages based on content. Now fully supports native interactions.
-- **music** - A discord music player with the ability to easily import music and fancy interactions. (Missing UI elements, file based import system)
+- **music** - A discord music player with the ability to easily import music and fancy interactions. (Missing UI elements, file based import syste needs reworking)
 
 ### Incomplete/Need Reworking
 
