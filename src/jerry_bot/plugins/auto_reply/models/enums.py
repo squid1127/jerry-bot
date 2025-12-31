@@ -17,6 +17,8 @@ class IgnoreType(IntEnum):
     USER = auto()
     CHANNEL = auto()
     GUILD = auto()
+    ROLE = auto()
+    
     
 if __name__ == "__main__":
     # Print all enum members for testing purposes
