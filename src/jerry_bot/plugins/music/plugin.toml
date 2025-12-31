@@ -4,4 +4,4 @@ description = "Comprehensive music player plugin for Jerry Bot."
 class = "MusicPlayerPlugin"
 
 [db]
-models = ["models"]
+models = ["models.db"]
