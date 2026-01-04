@@ -88,7 +88,7 @@ class AutoEmbedInputForm(discord.ui.Modal):
     """Modal form for AutoEmbed input."""
 
     def __init__(self) -> None:
-        super().__init__(title="AutoEmbed Input Form", timeout=600.0)  # 10 minute timeout
+        super().__init__(title="AutoEmbed", timeout=600.0)  # 10 minute timeout
 
         # Inputs
         self.input_message = discord.ui.TextInput(
@@ -210,7 +210,7 @@ class AutoEmbedPreviewView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         """Handle send button click."""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(thinking=False)
         try:
             await interaction.channel.send(content=self.message, embed=self.embed)
         except discord.Forbidden:
@@ -231,17 +231,12 @@ class AutoEmbedPreviewView(discord.ui.View):
                 ephemeral=True,
             )
             return
-
-        await interaction.followup.send(
-            embed=discord.Embed(description="Embed sent!", color=discord.Color.green()),
-            ephemeral=True,
-        )
         
-    @discord.ui.button(label="Interaction Mode", style=discord.ButtonStyle.secondary)
-    async def interaction_mode_button(
+    @discord.ui.button(label="Reply", style=discord.ButtonStyle.secondary)
+    async def reply_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
-        """Handle interaction mode button click."""
+        """Handle reply button click."""
         try:
             # Send using an interaction followup
             await interaction.response.send_message(content=self.message, embed=self.embed)
@@ -254,6 +249,34 @@ class AutoEmbedPreviewView(discord.ui.View):
                 ephemeral=True,
             )
             return
+        
+    @discord.ui.button(label="DM", style=discord.ButtonStyle.secondary)
+    async def dm_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        """Handle DM button click."""
+        try:
+            # Send using an interaction followup
+            await interaction.user.send(content=self.message, embed=self.embed)
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    description="I don't have permission to DM you. Please check your privacy settings.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        except Exception as e:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    description=f"Uh oh! I tried to send something but it blew up: :(",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(thinking=False)
 
     async def on_timeout(self) -> None:
         """Handle view timeout gracefully."""
