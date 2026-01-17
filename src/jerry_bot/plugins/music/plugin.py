@@ -13,7 +13,7 @@ from pathlib import Path
 import aiofiles
 
 from .imports import ImportManager
-from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry, MusicPlaylistACL
+from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
 from .player import GuildMusicPlayer
 from .cog import MusicPlayerCog
 
@@ -91,19 +91,10 @@ class MusicPlayerPlugin(Plugin):
                     # Get length of playlist
                     entries = await MusicPlaylistEntry.filter(playlist=pl).order_by("order").prefetch_related("track")
                     
-                    # Search for ACLS
-                    acls = await MusicPlaylistACL.filter(playlist=pl)
-                    
                     # Build description
                     description = f"**Playlist '{pl.name}'** (ID: {pl.id})\n"
                     description += f"Entries: {len(entries)}\n"
-                    description += "User Access:\n"
-                    if acls:
-                        for acl in acls:
-                            description += f"- <@{acl.user_id}> | {acl.user_id}\n"
-                    else:
-                        description += "- No ACLs set."
-                    description += "\nActions: `delete`, `useradd <user_id>`, `userdel <user_id>`\n"
+                    description += "\nActions: `delete`\n"
                         
                     # Send response
                     await ctx.respond(
@@ -128,61 +119,6 @@ class MusicPlayerPlugin(Plugin):
                         description=f"Playlist '{playlist}' has been deleted.",
                         level=EmbedLevel.SUCCESS,
                     )
-                elif operation == "useradd":
-                    # Add user ACL
-                    user_id = ctx.args[3] if len(ctx.args) > 3 else None
-                    if not user_id or not user_id.isdigit():
-                        await ctx.respond(
-                            title="Invalid User ID",
-                            description="Please provide a valid numeric user ID.",
-                            level=EmbedLevel.ERROR,
-                        )
-                        return
-                    pl = await MusicPlaylist.get_or_none(name=playlist)
-                    if pl is None:
-                        await ctx.respond(
-                            title="Playlist Not Found",
-                            description=f"Playlist '{playlist}' does not exist.",
-                            level=EmbedLevel.ERROR,
-                        )
-                        return
-                    await MusicPlaylistACL.get_or_create(playlist=pl, user_id=int(user_id))
-                    await ctx.respond(
-                        title="ACL Added",
-                        description=f"User ID {user_id} has been granted access to playlist '{playlist}'.",
-                        level=EmbedLevel.SUCCESS,
-                    )
-                elif operation == "userdel":
-                    # Remove user ACL
-                    user_id = ctx.args[3] if len(ctx.args) > 3 else None
-                    if not user_id or not user_id.isdigit():
-                        await ctx.respond(
-                            title="Invalid User ID",
-                            description="Please provide a valid numeric user ID.",
-                            level=EmbedLevel.ERROR,
-                        )
-                        return
-                    pl = await MusicPlaylist.get_or_none(name=playlist)
-                    if pl is None:
-                        await ctx.respond(
-                            title="Playlist Not Found",
-                            description=f"Playlist '{playlist}' does not exist.",
-                            level=EmbedLevel.ERROR,
-                        )
-                        return
-                    deleted_count = await MusicPlaylistACL.filter(playlist=pl, user_id=int(user_id)).delete()
-                    if deleted_count == 0:
-                        await ctx.respond(
-                            title="ACL Not Found",
-                            description=f"No ACL found for User ID {user_id} on playlist '{playlist}'.",
-                            level=EmbedLevel.ERROR,
-                        )
-                    else:
-                        await ctx.respond(
-                            title="ACL Removed",
-                            description=f"User ID {user_id} access removed from playlist '{playlist}'.",
-                            level=EmbedLevel.SUCCESS,
-                        )
             else:
                 # List all playlists
                 playlists = await MusicPlaylist.all()
