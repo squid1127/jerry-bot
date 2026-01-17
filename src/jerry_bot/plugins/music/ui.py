@@ -192,3 +192,4 @@ class MusicControlView(ui.LayoutView):
         """Handle the timeout of the view."""
         self.alive = False
         self.stop()
+        await self.render()
