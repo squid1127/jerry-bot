@@ -7,8 +7,7 @@ from pathlib import Path
 import logging
 import discord
 import asyncio
-
-
+import weakref, inspect
 class GuildMusicPlayer:
     """Manages music playback for a specific guild."""
 
@@ -29,7 +28,9 @@ class GuildMusicPlayer:
         self.player_lock = asyncio.Lock()
         self.player_task: asyncio.Task | None = None
         self._current_track: MusicTrack | None = None
-
+        
+        self._listeners: set[weakref.ReferenceType] = set()
+        
     async def reset(self):
         """Reset the music player state and queue."""
         async with self.operation_lock:
@@ -82,14 +83,14 @@ class GuildMusicPlayer:
                     
     async def _do_track(self, track: MusicTrack):
         """Play a single track."""
-        
+                
         # Create an event to signal when playback is finished
         finished = asyncio.Event()
         def finished_callback(error):
             if error:
                 self.logger.error(f"Error during playback: {error}")
             finished.set()
-        
+                    
         # Fetch track file path
         track_path = self.playback_dir / track.file_name
         if not track_path.exists():
@@ -97,6 +98,8 @@ class GuildMusicPlayer:
             return
         self._current_track = track
         
+        await self.emit_event("track_start")
+
         # Create audio source and play
         source = discord.FFmpegPCMAudio(
             track_path.as_posix(),
@@ -117,6 +120,7 @@ class GuildMusicPlayer:
             else:
                 await self.queue.add(track)
             await self.start_player()
+            await self.emit_event("add_track")
     
     async def add_playlist(self, playlist: MusicPlaylist):
         """Add all tracks from a playlist to the playback queue."""
@@ -125,6 +129,7 @@ class GuildMusicPlayer:
             for entry in entries:
                 await self.queue.add(entry.track)
             await self.start_player()
+            await self.emit_event("add_playlist")
                 
     async def stop(self):
         """Stop playback and reset the player."""
@@ -138,6 +143,7 @@ class GuildMusicPlayer:
                 await self.connection.disconnect()
             self.connection = None
             await self.reset()
+            await self.emit_event("stop")
             
     async def set_channel(self, channel: discord.VoiceChannel):
         """Set the voice channel for playback. Does not connect to it."""
@@ -152,6 +158,7 @@ class GuildMusicPlayer:
             if self.connection and self.connection.is_playing():
                 self.connection.pause()
                 self.state = PlaybackState.PAUSED
+            await self.emit_event("pause")
                 
     async def resume(self):
         """Resume playback."""
@@ -159,12 +166,14 @@ class GuildMusicPlayer:
             if self.connection and self.connection.is_paused():
                 self.connection.resume()
                 self.state = PlaybackState.PLAYING
+            await self.emit_event("resume")
                 
     async def skip(self):
         """Skip the current track."""
         async with self.operation_lock:
             if self.connection and self.connection.is_playing():
                 self.connection.stop()
+            await self.emit_event("skip")
                 
     @property
     def current_track(self) -> MusicTrack | None:
@@ -174,3 +183,38 @@ class GuildMusicPlayer:
         if self.connection.is_playing() or self.connection.is_paused():
             return self._current_track
         return None
+    
+    # "Simple" event system to allow subscribing to player events
+
+    def subscribe(self, callback):
+        """
+        Subscribe a listener callback to player events.
+        
+        The callback should be a callable that takes a single argument: the event name. It can be either:
+        - a function
+        - a bound method
+        """
+        if inspect.ismethod(callback):
+            ref = weakref.WeakMethod(callback)
+        else:
+            ref = weakref.ref(callback)
+
+        self._listeners.add(ref)
+        
+    async def emit_event(self, event_name: str):
+        """Emit an event to all subscribed listeners."""
+        to_remove = set()
+        for ref in self._listeners:
+            callback = ref()
+            if callback is None:
+                to_remove.add(ref)
+                continue
+            try:
+                if inspect.iscoroutinefunction(callback):
+                    asyncio.create_task(callback(event_name))
+                else:
+                    callback(event_name)
+            except Exception as e:
+                self.logger.error(f"Error in listener callback: {e}")
+        self._listeners.difference_update(to_remove)
+        
