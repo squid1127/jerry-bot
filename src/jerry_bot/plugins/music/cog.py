@@ -18,9 +18,10 @@ class MusicPlayerCog(PluginCog):
     """Cog for Music Player Plugin commands."""
 
     def __init__(self, plugin: Plugin):
+        
         super().__init__(plugin)
         self.music_plugin: Plugin = plugin  # Type hint for clarity
-
+        
     async def member_check(
         self, interaction: discord.Interaction
     ) -> discord.VoiceChannel:
@@ -136,7 +137,7 @@ class MusicPlayerCog(PluginCog):
 
     @app_commands.command(
         name="music-queue",
-        description="Start or resume music playback.",
+        description="Add tracks or playlists to the music queue.",
     )
     @app_commands.describe(
         query="Search query for the track or playlist to play."
