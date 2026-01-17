@@ -7,7 +7,8 @@ from pathlib import Path
 import logging
 import discord
 import asyncio
-import weakref, inspect
+import weakref
+import inspect
 class GuildMusicPlayer:
     """Manages music playback for a specific guild."""
 
