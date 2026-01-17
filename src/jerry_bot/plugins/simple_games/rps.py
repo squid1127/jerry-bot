@@ -56,7 +56,7 @@ class RPSGame(discord.ui.LayoutView):
                 players = ", ".join(user.display_name for user in self.choices.keys())
                 container.add_item(discord.ui.TextDisplay(content=f"({len(self.choices)}/{self.players_count}) {players}"))
             else:
-                container.add_item(discord.ui.TextDisplay(content=f"(0/{self.players_count}) No choices made yet."))
+                container.add_item(discord.ui.TextDisplay(content=f"(0/{self.players_count}) No choices made yet.\n-# *Expires in 2 minutes*"))
             
         elif self.state == GameState.RESULT:
             winners = self.determine_winner()
