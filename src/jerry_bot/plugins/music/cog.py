@@ -6,11 +6,13 @@ from .interactions import MusicSearchView
 from .player import GuildMusicPlayer
 from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry, MusicPlaylistACL
 from .models.enums import PlaybackState, CommandAction
+from .ui import MusicControlView
 
 import discord
 from discord import app_commands
 import asyncio
 
+MUSIC_CONTROL_TIMEOUT = 300.0  # 5 minutes
 
 class MusicPlayerCog(PluginCog):
     """Cog for Music Player Plugin commands."""
@@ -94,7 +96,7 @@ class MusicPlayerCog(PluginCog):
         self, interaction: discord.Interaction, action: CommandAction = None
     ):
         """Base command for music management."""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
 
         voice_channel = await self.member_check(interaction)
         if voice_channel is None:
@@ -119,7 +121,8 @@ class MusicPlayerCog(PluginCog):
             await asyncio.sleep(1)  # Give time for state to update
 
         try:
-            embed = await self.status_embed(guild_player)
+            view = MusicControlView(player=guild_player, timeout=MUSIC_CONTROL_TIMEOUT, context=interaction)
+            await view.render()
         except Exception as e:
             self.music_plugin.logger.error(f"Error creating status embed: {e}")
             embed = discord.Embed(
@@ -127,7 +130,9 @@ class MusicPlayerCog(PluginCog):
                 description="An error occurred while retrieving the music player status.",
                 color=discord.Color.red(),
             )
-        await interaction.followup.send("", embed=embed)
+            await interaction.followup.send(
+                content="", embed=embed, ephemeral=True
+            )
 
     @app_commands.command(
         name="music-queue",
