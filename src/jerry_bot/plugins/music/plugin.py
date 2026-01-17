@@ -44,9 +44,14 @@ class MusicPlayerPlugin(Plugin):
 
     async def unload(self):
         """Unload the Music Player Plugin."""
-        self.logger.info("Unloaded Music Player.")
+        for guild_id, player in self.players.items():
+            await player.stop()
+        
         if self.cog is not None:
             await self.framework.bot.remove_cog(self.cog.qualified_name)
+            
+        self.logger.info("Unloaded Music Player.")
+
 
     @CLICommandDec(
         name="music",
