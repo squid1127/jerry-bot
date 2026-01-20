@@ -1,6 +1,6 @@
 # jerry-bot
 
-Jerry-bot -- a (not so) simple Discord bot, featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
+Jerry-bot -- a (not so) simple Discord bot based on [squid-core](https://github.com/squid1127/squid-core), featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
 
 ## Disclaimer
 
