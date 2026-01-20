@@ -1,0 +1,4 @@
+[plugin]
+name = "auto_embed"
+description = "Automatic embedded messages plugin for Jerry Bot."
+class = "AutoEmbedPlugin"
