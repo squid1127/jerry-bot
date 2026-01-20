@@ -1,0 +1,4 @@
+[plugin]
+name = "simple_games"
+description = "A collection of simple games to play utilizing Discord components."
+class = "SimpleGames"

@@ -214,6 +214,7 @@ More to come soon!""",
     )
     @app_commands.guild_install()  # Cannot be used in a user context (members not available)
     @app_commands.guild_only()  # No dms
+    @app_commands.default_permissions(mention_everyone=True)
     async def at_everyone_command(
         self,
         interaction: discord.Interaction,
