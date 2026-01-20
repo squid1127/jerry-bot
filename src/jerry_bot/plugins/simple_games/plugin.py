@@ -7,8 +7,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from .rps import RPSGame  # Local import to avoid circular dependency
-
+from .rps import RPSGame
+from .tic_tac_toe import TicTacToeGame
 
 class SimpleGames(Plugin):
     """SimpleGames Plugin."""
@@ -51,3 +51,11 @@ class SimpleGamesCog(PluginCog):
             return
         rps_game = RPSGame(interaction, players)
         await interaction.response.send_message(view=rps_game)
+
+    @app_commands.command(
+        name="tictactoe", description="Start a game of Tic Tac Toe."
+    )
+    async def tictactoe_command(self, interaction: discord.Interaction):
+        """Command to start a Tic Tac Toe game."""
+        tictactoe_game = TicTacToeGame(interaction)
+        await interaction.response.send_message(view=tictactoe_game)
