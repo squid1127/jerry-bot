@@ -93,6 +93,7 @@ class MusicPlayerCog(PluginCog):
         action="Action to perform on the music player (play/pause, stop, skip)."
     )
     @app_commands.guild_only()
+    @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
     async def music_command(
         self, interaction: discord.Interaction, action: CommandAction = None
     ):
