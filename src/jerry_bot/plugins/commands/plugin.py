@@ -76,7 +76,7 @@ class StaticCommands(PluginCog):
         name="help-jerry",
         description="Get help with Jerry",
     )
-    @app_commands.guild_install()
+    @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
     async def help_command(self, interaction: discord.Interaction):
         if not await self.perms.interaction_check(interaction):
             return
@@ -212,7 +212,7 @@ More to come soon!""",
         mode="How to send the mentions",
         role="Filter by a specific role",
     )
-    @app_commands.guild_install()  # Cannot be used in a user context (members not available)
+    @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
     @app_commands.guild_only()  # No dms
     @app_commands.default_permissions(mention_everyone=True)
     async def at_everyone_command(
