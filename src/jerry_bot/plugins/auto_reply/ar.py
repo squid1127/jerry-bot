@@ -15,6 +15,8 @@ from squid_core import Plugin, Framework
 from .models.db import AutoReplyIgnore, AutoReplyRule, AutoReplyIgnoreData, AutoReplyRuleData
 from .models.enums import IgnoreType, ResponseType
 
+from .help import ERR_MSG_JINJA_RENDER
+
 class AutoReply:
     """Auto Reply Component for AR Plugin."""
 
@@ -178,84 +180,100 @@ class AutoReply:
             return rendered
         except jinja2.TemplateError as e:
             self.plugin.logger.error(f"Jinja2 template rendering error: {e}")
-            return template_str  # Fallback to original string on error
+            raise  # Re-raise to be handled by send_response
         except Exception as e:
             self.plugin.logger.error(f"Unexpected error during Jinja2 rendering: {e}")
-            return template_str  # Fallback to original string on error
-
+            raise  # Re-raise to be handled by send_response
+            
     async def send_response(self, message: discord.Message, rule: AutoReplyRuleData):
         """Send a response based on the rule's response type."""
-        if rule.response_type == ResponseType.TEXT:
-            response_templated = self.auto_template(rule.response_payload, author=message.author)
-            await message.reply(response_templated)
-        elif rule.response_type == ResponseType.TEXT_TEMPLATE:
-            response_rendered = await self.render_jinja_template(
-                rule.response_payload,
-                content = message.content,
-                author=message.author,
-                message=message,
-                channel=message.channel,
-                guild=message.guild,
-                bot=self.framework.bot,
-            )
-            response_templated = self.auto_template(response_rendered, author=message.author)
-            if len(response_templated) == 0:
-                await message.reply(
-                    embed=discord.Embed(
-                        title="Error",
-                        description="The rendered template resulted in an empty response.",
-                    ).set_footer(
-                        text="If you are a bot admin, please check the auto-reply rule configuration."
-                    )
-                )
-                return
-            elif len(response_templated) > 2000:
-                response_templated = response_templated[:1997] + "..."
-            await message.reply(response_templated)
-        elif rule.response_type == ResponseType.TEXT_RANDOM:
-            try:
-                response = self.choose_random(rule.response_payload)
-                response_templated = self.auto_template(response, author=message.author)
+        try:
+            if rule.response_type == ResponseType.TEXT:
+                response_templated = self.auto_template(rule.response_payload, author=message.author)
                 await message.reply(response_templated)
-            except ValueError:
+            elif rule.response_type == ResponseType.TEXT_TEMPLATE:
+                try:
+                    response_rendered = await self.render_jinja_template(
+                        rule.response_payload,
+                        content = message.content,
+                        author=message.author,
+                        message=message,
+                        channel=message.channel,
+                        guild=message.guild,
+                        bot=self.framework.bot,
+                    )
+                    # Built-in templated disabled for TEXT_TEMPLATE to avoid conflicts with Jinja2
+                    if len(response_rendered) == 0:
+                        self.plugin.logger.warning(f"Rule {rule.db_id} rendered empty response")
+                        await message.reply(
+                            embed=discord.Embed(
+                                title="Error",
+                                description="The rendered template resulted in an empty response.",
+                            ).set_footer(
+                                text="If you are a bot admin, please check the auto-reply rule configuration."
+                            )
+                        )
+                        return
+                    elif len(response_rendered) > 2000:
+                        self.plugin.logger.debug(f"Rule {rule.db_id} response truncated (length: {len(response_rendered)})")
+                        response_rendered = response_rendered[:1997] + "..."
+                    await message.reply(response_rendered)
+                except Exception as e:
+                    self.plugin.logger.error(f"Template rendering error for rule {rule.db_id}: {e}", exc_info=True)
+                    await message.reply(
+                        embed=discord.Embed(
+                            title="Template Error",
+                            description="Failed to render the template. Please check the rule configuration.",
+                        ).set_footer(
+                            text="If you are a bot admin, check the logs for details."
+                        )
+                    )
+            elif rule.response_type == ResponseType.TEXT_RANDOM:
+                try:
+                    response = self.choose_random(rule.response_payload)
+                    response_templated = self.auto_template(response, author=message.author)
+                    await message.reply(response_templated)
+                except ValueError as e:
+                    self.plugin.logger.error(f"Random response error for rule {rule.db_id}: {e}")
+                    await message.reply(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to parse random text responses.",
+                        ).set_footer(
+                            text="If you are a bot admin, please check the auto-reply rule configuration."
+                        )
+                    )
+                    
+            elif rule.response_type == ResponseType.STICKER:
+                self.plugin.logger.warning(f"Rule {rule.db_id} uses unsupported sticker response type")
                 await message.reply(
                     embed=discord.Embed(
                         title="Error",
-                        description="Failed to parse random text responses.",
-                    ).set_footer(
-                        text="If you are a bot admin, please check the auto-reply rule configuration."
-                    )
+                        description="Sticker responses are not supported in this implementation.",
+                    ).set_footer(text="If you are a bot admin, please remove this rule.")
                 )
-                
-        elif rule.response_type == ResponseType.STICKER:
-            await message.reply(
-                embed=discord.Embed(
-                    title="Error",
-                    description="Sticker responses are not supported in this implementation.",
-                ).set_footer(text="If you are a bot admin, please remove this rule.")
-            )
-        elif rule.response_type == ResponseType.REACTION:
-            try:
-                emoji = rule.response_payload.strip()
-                await message.add_reaction(emoji)
-            except Exception as e:
-                self.plugin.logger.error(f"Failed to add reaction: {e}")
+            elif rule.response_type == ResponseType.REACTION:
+                try:
+                    emoji = rule.response_payload.strip()
+                    await message.add_reaction(emoji)
+                except discord.HTTPException as e:
+                    self.plugin.logger.warning(f"Failed to add reaction for rule {rule.db_id}: {e}")
+                    # Don't send error message for reactions - too spammy
+                except Exception as e:
+                    self.plugin.logger.error(f"Unexpected error adding reaction for rule {rule.db_id}: {e}", exc_info=True)
+            else:
+                self.plugin.logger.error(f"Rule {rule.db_id} has unknown response type: {rule.response_type}")
                 await message.reply(
                     embed=discord.Embed(
-                        title="Error",
-                        description="Failed to add reaction. Please ensure the emoji is valid and the bot has permission to use it.",
+                        title="Error", description="Unknown response type configured."
                     ).set_footer(
-                        text="If you are a bot admin, please check the auto-reply rule configuration."
+                        text="If you are a bot admin, please check the auto-reply rules."
                     )
                 )
-        else:
-            await message.reply(
-                embed=discord.Embed(
-                    title="Error", description="Unknown response type configured."
-                ).set_footer(
-                    text="If you are a bot admin, please check the auto-reply rules."
-                )
-            )
+        except discord.HTTPException as e:
+            self.plugin.logger.warning(f"Failed to send response for rule {rule.db_id}: {e}")
+        except Exception as e:
+            self.plugin.logger.error(f"Unexpected error in send_response for rule {rule.db_id}: {e}", exc_info=True)
             
     async def set_rule(
         self,
