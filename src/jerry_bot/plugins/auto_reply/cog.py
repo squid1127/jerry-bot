@@ -11,212 +11,154 @@ from discord import app_commands as cmds
 from .models.db import AutoReplyIgnore
 from .models.enums import IgnoreType
 
+from .ar import AutoReply
+
 class AutoReplyCog(PluginCog):
     """Cog for Auto Reply Plugin for application commands."""
 
-    def __init__(self, plugin: Plugin):
+    def __init__(self, plugin: Plugin, ar: AutoReply):
         super().__init__(plugin)
+        self.ar = ar
 
-    @cmds.command(
+    ar_ignore = cmds.Group(
         name="ar-ignore",
         description="Set auto-reply to ignore/unignore a channel, user, guild, or role.",
+        guild_only=True,
+        allowed_contexts=cmds.AppCommandContext(guild=True),
+        default_permissions=discord.Permissions(manage_channels=True),
     )
-    @cmds.describe(
-        user="Ignore messages from this user.",
-        channel="Ignore messages in this channel.",
-        server="Ignore messages in this server (Set to true).",
-        role="Ignore messages from this role.",
-        global_ignore="Ignore messages globally (all servers).",
-    )
-    @cmds.guild_only()
-    @cmds.guild_install()
-    @cmds.checks.has_permissions(manage_channels=True)
-    async def ar_ignore(
+
+    async def _update_ignore(
         self,
         interaction: discord.Interaction,
-        user: discord.User | None = None,
-        channel: discord.TextChannel | None = None,
-        server: bool | None = None,
-        role: discord.Role | None = None,
-        global_ignore: bool = False,
+        ignore_type: IgnoreType,
+        target: discord.User | discord.TextChannel | discord.Role | discord.Guild,
+        global_ignore: bool,
     ):
-        """Set auto-reply to ignore a channel, user, guild, or role."""
-        guild = server  # Alias for clarity
-        
+        """Helper to update ignore status."""
+        await interaction.response.defer(ephemeral=True)
+
         if global_ignore:
             if not await self.fw.perms.interaction_check(
-                interaction,
-                PermissionLevel.ADMIN,
+                interaction, PermissionLevel.ADMIN
             ):
                 return
-        
-        # Check that params are mutually exclusive
-        if sum(param is not None and param is not False for param in [user, channel, guild, role]) != 1:
-            await interaction.response.send_message(
-                "You must specify exactly one of user, channel, guild, or role to ignore.",
-                ephemeral=True,
-            )
-            return
-        await interaction.response.defer(ephemeral=True)
-        
-        # Perform the ignore action
-        if user is not None:
-            # Check if already ignored
-            guild_id_str = None if global_ignore else str(interaction.guild.id)
-            existing = await AutoReplyIgnore.get_or_none(
-                discord_type=IgnoreType.USER,
-                discord_id=str(user.id),
-                guild_id=guild_id_str,
-            )
-            if existing is not None:
-                await existing.delete()
-                scope = "globally" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Stopped ignoring {user.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-            else:
-                await AutoReplyIgnore.create(
-                    discord_type=IgnoreType.USER,
-                    discord_id=str(user.id),
-                    guild_id=guild_id_str,
-                )
-                scope = "globally" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Now ignoring {user.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-        elif channel is not None:
-            guild_id_str = None if global_ignore else str(interaction.guild.id)
-            existing = await AutoReplyIgnore.get_or_none(
-                discord_type=IgnoreType.CHANNEL,
-                discord_id=str(channel.id),
-                guild_id=guild_id_str,
-            )
-            if existing is not None:
-                await existing.delete()
-                scope = "globally (Warning: Ignoring channels globally does not do anything as channels are unique to servers. It is not recommended to ignore channels and roles globally)" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Stopped ignoring {channel.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-            else:
-                await AutoReplyIgnore.create(
-                    discord_type=IgnoreType.CHANNEL,
-                    discord_id=str(channel.id),
-                    guild_id=guild_id_str,
-                )
-                scope = "globally (Warning: Ignoring channels globally does not do anything as channels are unique to servers. It is not recommended to ignore channels and roles globally)" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Now ignoring {channel.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-        elif guild is True:
-            guild_obj = interaction.guild
-            # Guild ignores are always global (guild_id should be None)
-            # because the discord_id itself is the guild being ignored
-            existing = await AutoReplyIgnore.get_or_none(
-                discord_type=IgnoreType.GUILD,
-                discord_id=str(guild_obj.id),
-                guild_id=None,  # Guild ignores are always global
-            )
-            if existing is not None:
-                await existing.delete()
-                await interaction.followup.send(
-                    f"Stopped ignoring guild **{guild_obj.name}**.",
-                    ephemeral=True,
-                )
-                
-            else:
-                await AutoReplyIgnore.create(
-                    discord_type=IgnoreType.GUILD,
-                    discord_id=str(guild_obj.id),
-                    guild_id=None,  # Guild ignores are always global
-                )
-                await interaction.followup.send(
-                    f"Now ignoring guild **{guild_obj.name}**.",
-                    ephemeral=True,
-                )
 
-        elif guild is False:
-            # Do nothing
-            await interaction.followup.send(
-                "Guild ignore set to false; no action taken. To ignore another type (channel, role, user), do not specify this parameter.",
-                ephemeral=True,
-            )
-                
-        elif role is not None:
+        guild_id_str = None
+        if ignore_type is not IgnoreType.GUILD:
             guild_id_str = None if global_ignore else str(interaction.guild.id)
-            existing = await AutoReplyIgnore.get_or_none(
-                discord_type=IgnoreType.ROLE,
-                discord_id=str(role.id),
+
+        discord_id = str(target.id)
+
+        existing = await AutoReplyIgnore.get_or_none(
+            discord_type=ignore_type,
+            discord_id=discord_id,
+            guild_id=guild_id_str,
+        )
+
+        target_mention = (
+            f"**{target.name}**"
+            if isinstance(target, discord.Guild)
+            else target.mention
+        )
+
+        if existing:
+            await existing.delete()
+            scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
+            message = f"Stopped ignoring {target_mention} {scope}."
+        else:
+            await AutoReplyIgnore.create(
+                discord_type=ignore_type,
+                discord_id=discord_id,
                 guild_id=guild_id_str,
             )
-            if existing is not None:
-                await existing.delete()
-                scope = "globally (Warning: Ignoring roles globally does not do anything as roles are unique to servers. It is not recommended to ignore channels and roles globally)" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Stopped ignoring role {role.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-            else:
-                await AutoReplyIgnore.create(
-                    discord_type=IgnoreType.ROLE,
-                    discord_id=str(role.id),
-                    guild_id=guild_id_str,
-                )
-                scope = "globally (Warning: Ignoring roles globally does not do anything as roles are unique to servers. It is not recommended to ignore channels and roles globally)" if global_ignore else f"in {interaction.guild.name}"
-                await interaction.followup.send(
-                    f"Now ignoring role {role.mention} {scope}.",
-                    ephemeral=True,
-                )
-                
-        # Trigger Cache Update (write-through cache)
+            scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
+            message = f"Now ignoring {target_mention} {scope}."
+            if global_ignore and ignore_type in [IgnoreType.CHANNEL, IgnoreType.ROLE]:
+                message += " (Warning: Ignoring channels or roles globally has no effect as they are server-specific.)"
+
+        await interaction.followup.send(message, ephemeral=True)
+
         try:
-            await self.plugin.load_cache()
-            # Notify other instances via Redis
+            await self.ar.load_cache()
             await self.fw.redis.publish(
                 "jerry:auto_reply:reload_cache",
                 {"type": "ignore_modified", "source": "ar-ignore_command"},
             )
         except Exception as e:
             await interaction.followup.send(
-                "Warning: Your ignore settings were saved, but the cache/propagation "
-                "step failed. Changes may not take effect immediately on all bot "
-                "instances.",
+                "Warning: Your ignore settings were saved, but the cache update failed. "
+                "Changes may not take effect immediately.",
                 ephemeral=True,
             )
             self.plugin.logger.error(
-                "Failed to update cache after ar-ignore command.",
-                exc_info=e,
+                "Failed to update cache after ar-ignore command.", exc_info=e
             )
-            
-    @ar_ignore.error
-    async def ar_ignore_error(
+
+    @ar_ignore.command(name="user", description="Toggle ignoring a user.")
+    @cmds.describe(
+        user="The user to ignore or unignore.",
+        global_ignore="Apply this ignore globally across all servers (Admin only).",
+    )
+    async def ar_ignore_user(
         self,
         interaction: discord.Interaction,
-        error: cmds.AppCommandError,
+        user: discord.User,
+        global_ignore: bool = False,
     ):
-        """Error handler for ar-ignore command."""
-        # Determine the appropriate error message based on the error type
+        """Toggles ignoring a user for auto-replies."""
+        await self._update_ignore(interaction, IgnoreType.USER, user, global_ignore)
+
+    @ar_ignore.command(name="channel", description="Toggle ignoring a channel.")
+    @cmds.describe(
+        channel="The channel to ignore or unignore.",
+        global_ignore="Apply this ignore globally (Admin only, not recommended).",
+    )
+    async def ar_ignore_channel(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        global_ignore: bool = False,
+    ):
+        """Toggles ignoring a channel for auto-replies."""
+        await self._update_ignore(
+            interaction, IgnoreType.CHANNEL, channel, global_ignore
+        )
+
+    @ar_ignore.command(name="role", description="Toggle ignoring a role.")
+    @cmds.describe(
+        role="The role to ignore or unignore.",
+        global_ignore="Apply this ignore globally (Admin only, not recommended).",
+    )
+    async def ar_ignore_role(
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
+        global_ignore: bool = False,
+    ):
+        """Toggles ignoring a role for auto-replies."""
+        await self._update_ignore(interaction, IgnoreType.ROLE, role, global_ignore)
+
+    @ar_ignore.command(name="server", description="Toggle ignoring this entire server.")
+    async def ar_ignore_server(self, interaction: discord.Interaction):
+        """Toggles ignoring the current server for auto-replies."""
+        await self._update_ignore(
+            interaction, IgnoreType.GUILD, interaction.guild, global_ignore=True
+        )
+
+    async def cog_app_command_error(
+        self, interaction: discord.Interaction, error: cmds.AppCommandError
+    ):
+        """Handles errors for all commands in this cog."""
+        message = "An unknown error occurred."
         if isinstance(error, (cmds.MissingPermissions, cmds.CheckFailure)):
             message = "You do not have permission to use this command."
         else:
-            message = "An error occurred while processing the command."
+            self.plugin.logger.error(
+                f"An error occurred in a command: {error}", exc_info=error
+            )
 
-        # Decide whether to send an initial response or a followup
         if interaction.response.is_done():
-            await interaction.followup.send(
-                message,
-                ephemeral=True,
-            )
+            await interaction.followup.send(message, ephemeral=True)
         else:
-            await interaction.response.send_message(
-                message,
-                ephemeral=True,
-            )
+            await interaction.response.send_message(message, ephemeral=True)
