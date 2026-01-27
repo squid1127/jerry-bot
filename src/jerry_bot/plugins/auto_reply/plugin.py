@@ -51,36 +51,44 @@ class AutoReplyPlugin(Plugin):
     @DiscordEventListener()
     async def on_message(self, message: discord.Message):
         """Handle incoming messages and respond if they match any auto-reply rules."""
-        
-        if message.author.bot:
-            return  # Ignore messages from bots
-
-        # Optimized ignore check - check once instead of twice
-        if self.ar.check_ignored(
-            channel_id=message.channel.id,
-            user_id=message.author.id,
-            guild_id=message.guild.id if message.guild else None,
-            role_ids=[role.id for role in message.author.roles] if message.guild else None,
-        ):
-            return  # Ignore this message
-            
-        # Content
-        content = message.content
         try:
-            content = self.ar.reverse_template(content, author=message.author)
+            if message.author.bot:
+                return  # Ignore messages from bots
+
+            # Optimized ignore check - check once instead of twice
+            if self.ar.check_ignored(
+                channel_id=message.channel.id,
+                user_id=message.author.id,
+                guild_id=message.guild.id if message.guild else None,
+                role_ids=[role.id for role in message.author.roles] if message.guild else None,
+            ):
+                return  # Ignore this message
+                
+            # Content
+            content = message.content
+            try:
+                content = self.ar.reverse_template(content, author=message.author)
+            except Exception as e:
+                self.logger.debug(f"Error reversing templates in message content: {e}")
+
+            found = 0
+            for rule in self.ar.cache:
+                try:
+                    if rule.match(content):
+                        await self.ar.send_response(message, rule)
+                        found += 1
+                except Exception as e:
+                    self.logger.error(
+                        f"Error processing rule {rule.db_id} for message {message.id}: {e}",
+                        exc_info=True
+                    )
+
+            if found > 0:
+                self.logger.debug(
+                    f"Auto-replied {found} times in response to message ID {message.id}."
+                )
         except Exception as e:
-            self.logger.error(f"Error reversing templates in message content: {e}")
-
-        found = 0
-        for rule in self.ar.cache:
-            if rule.match(content):
-                await self.ar.send_response(message, rule)
-                found += 1
-
-        if found > 0:
-            self.logger.info(
-                f"Auto-replied {found} times in response to message ID {message.id}."
-            )
+            self.logger.error(f"Unexpected error in on_message handler: {e}", exc_info=True)
 
     @CLICommandDec(
         "autoreply",
@@ -89,9 +97,18 @@ class AutoReplyPlugin(Plugin):
     )
     async def cli_autoreply(self, ctx: CLIContext):
         """CLI command to manage AutoReply plugin."""
-
-        ui = AutoReplyMainUI(ar=self.ar, message_method=ctx.message.reply)
-        await ui.render()
+        try:
+            ui = AutoReplyMainUI(ar=self.ar, message_method=ctx.message.reply)
+            await ui.render()
+        except Exception as e:
+            self.logger.error(f"Error rendering AutoReply UI: {e}", exc_info=True)
+            await ctx.message.reply(
+                embed=discord.Embed(
+                    title="Error",
+                    description="Failed to open AutoReply management interface. Please try again.",
+                    color=discord.Color.red(),
+                )
+            )
 
     @RedisSubscribe(["jerry:auto_reply:reload_cache"])
     async def redis_reload_cache(self, message: dict):
