@@ -36,64 +36,86 @@ class AutoReplyCog(PluginCog):
         global_ignore: bool,
     ):
         """Helper to update ignore status."""
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True)
 
-        if global_ignore:
-            if not await self.fw.perms.interaction_check(
-                interaction, PermissionLevel.ADMIN
-            ):
-                return
+            if global_ignore:
+                if not await self.fw.perms.interaction_check(
+                    interaction, PermissionLevel.ADMIN
+                ):
+                    await interaction.followup.send(
+                        "You need admin permissions to set global ignores.",
+                        ephemeral=True,
+                    )
+                    return
 
-        guild_id_str = None
-        if ignore_type is not IgnoreType.GUILD:
-            guild_id_str = None if global_ignore else str(interaction.guild.id)
+            guild_id_str = None
+            if ignore_type is not IgnoreType.GUILD:
+                guild_id_str = None if global_ignore else str(interaction.guild.id)
 
-        discord_id = str(target.id)
+            discord_id = str(target.id)
 
-        existing = await AutoReplyIgnore.get_or_none(
-            discord_type=ignore_type,
-            discord_id=discord_id,
-            guild_id=guild_id_str,
-        )
-
-        target_mention = (
-            f"**{target.name}**"
-            if isinstance(target, discord.Guild)
-            else target.mention
-        )
-
-        if existing:
-            await existing.delete()
-            scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
-            message = f"Stopped ignoring {target_mention} {scope}."
-        else:
-            await AutoReplyIgnore.create(
+            existing = await AutoReplyIgnore.get_or_none(
                 discord_type=ignore_type,
                 discord_id=discord_id,
                 guild_id=guild_id_str,
             )
-            scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
-            message = f"Now ignoring {target_mention} {scope}."
-            if global_ignore and ignore_type in [IgnoreType.CHANNEL, IgnoreType.ROLE]:
-                message += " (Warning: Ignoring channels or roles globally has no effect as they are server-specific.)"
 
-        await interaction.followup.send(message, ephemeral=True)
-
-        try:
-            await self.ar.load_cache()
-            await self.fw.redis.publish(
-                "jerry:auto_reply:reload_cache",
-                {"type": "ignore_modified", "source": "ar-ignore_command"},
+            target_mention = (
+                f"**{target.name}**"
+                if isinstance(target, discord.Guild)
+                else target.mention
             )
+
+            if existing:
+                await existing.delete()
+                scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
+                message = f"Stopped ignoring {target_mention} {scope}."
+                self.plugin.logger.debug(f"Removed ignore: {ignore_type.name} {discord_id} (guild: {guild_id_str})")
+            else:
+                await AutoReplyIgnore.create(
+                    discord_type=ignore_type,
+                    discord_id=discord_id,
+                    guild_id=guild_id_str,
+                )
+                scope = "globally" if global_ignore or ignore_type is IgnoreType.GUILD else f"in {interaction.guild.name}"
+                message = f"Now ignoring {target_mention} {scope}."
+                if global_ignore and ignore_type in [IgnoreType.CHANNEL, IgnoreType.ROLE]:
+                    message += " (Warning: Ignoring channels or roles globally has no effect as they are server-specific.)"
+                self.plugin.logger.debug(f"Added ignore: {ignore_type.name} {discord_id} (guild: {guild_id_str})")
+
+            await interaction.followup.send(message, ephemeral=True)
+
+            try:
+                await self.ar.load_cache()
+                await self.fw.redis.publish(
+                    "jerry:auto_reply:reload_cache",
+                    {"type": "ignore_modified", "source": "ar-ignore_command"},
+                )
+            except Exception as e:
+                await interaction.followup.send(
+                    "⚠️ Warning: Your ignore settings were saved, but the cache update failed. "
+                    "Changes may not take effect immediately.",
+                    ephemeral=True,
+                )
+                self.plugin.logger.error(
+                    "Failed to update cache after ar-ignore command.", exc_info=True
+                )
         except Exception as e:
-            await interaction.followup.send(
-                "Warning: Your ignore settings were saved, but the cache update failed. "
-                "Changes may not take effect immediately.",
-                ephemeral=True,
-            )
-            self.plugin.logger.error(
-                "Failed to update cache after ar-ignore command.", exc_info=e
-            )
+            self.plugin.logger.error(f"Error in _update_ignore: {e}", exc_info=True)
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        "An error occurred while updating ignore settings. Please try again.",
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "An error occurred while updating ignore settings. Please try again.",
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
     @ar_ignore.command(name="user", description="Toggle ignoring a user.")
     @cmds.describe(
