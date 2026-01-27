@@ -6,6 +6,7 @@ from .models.enums import ResponseType
 from .models.db import AutoReplyRule, AutoReplyIgnoreData
 from .ar import AutoReply
 from .search import Search
+from .help import HELP_MSG
 
 RULE_TYPE_INFO = {
     ResponseType.TEXT: {
@@ -34,7 +35,6 @@ RULE_TYPE_INFO = {
         "emoji": "🧩",
     },
 }
-
 
 class AutoReplyMainUI(discord.ui.LayoutView):
     """Main UI for the Auto Reply plugin."""
@@ -89,12 +89,19 @@ class AutoReplyMainUI(discord.ui.LayoutView):
         )
         reload.callback = self.reload_cb
         actions.add_item(reload)
+        
+        help = discord.ui.Button(
+            label="Help",
+            style=discord.ButtonStyle.secondary,
+        )
+        help.callback = self.help_cb
+        actions.add_item(help)
         container.add_item(actions)
 
         return container
 
     async def on_timeout(self):
-        await self.message.edit(view=None)
+        await self.message.edit(view=None, content=None, embed=discord.Embed(description="This menu has timed out.", color=discord.Color.greyple()))
         self.stop()
 
     async def render(self):
@@ -108,43 +115,147 @@ class AutoReplyMainUI(discord.ui.LayoutView):
 
     async def reload_cb(self, interaction: discord.Interaction):
         """Callback to reload all auto-reply rules."""
-        await interaction.response.defer(thinking=True)
-        await self.ar.load_cache()
-        await interaction.followup.send(
-            embed=discord.Embed(
-                title="Auto Reply",
-                description="All auto-reply rules have been reloaded.",
-                color=discord.Color.green(),
-            ),
-            ephemeral=True,
-        )
+        try:
+            await interaction.response.defer(thinking=True)
+            await self.ar.load_cache()
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="Auto Reply",
+                    description="All auto-reply rules have been reloaded.",
+                    color=discord.Color.green(),
+                ),
+                ephemeral=True,
+            )
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error reloading cache: {e}", exc_info=True)
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to reload auto-reply rules. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to reload auto-reply rules. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
     async def search_cb(self, interaction: discord.Interaction):
         """Callback to open the search modal."""
-        search = Search(
-            title="Search Rules",
-            model=AutoReplyRule,
-            callback=self.edit_rule_cb,
-            render=lambda rule: discord.SelectOption(
-                label=f"Rule ID {rule.id} ({RULE_TYPE_INFO[rule.response_type]['label']})",
-                description=rule.trigger[:20],
-                emoji=RULE_TYPE_INFO[rule.response_type].get("emoji"),
-                value=str(rule.id),
-            ),
-            search_fields=["trigger", "response_payload"],
-        )
-        await search.show_modal(interaction)
+        try:
+            search = Search(
+                title="Search Rules",
+                model=AutoReplyRule,
+                callback=self.edit_rule_cb,
+                render=lambda rule: discord.SelectOption(
+                    label=f"Rule ID {rule.id} ({RULE_TYPE_INFO[rule.response_type]['label']})",
+                    description=rule.trigger[:20],
+                    emoji=RULE_TYPE_INFO[rule.response_type].get("emoji"),
+                    value=str(rule.id),
+                ),
+                search_fields=["trigger", "response_payload"],
+            )
+            await search.show_modal(interaction)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error opening search modal: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to open search. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
     async def edit_rule_cb(self, interaction: discord.Interaction, rule: AutoReplyRule):
         """Callback to edit a specific rule."""
-        view = AutoReplyRuleView(ar=self.ar, rule=rule)
-        await view.start(interaction)
+        try:
+            view = AutoReplyRuleView(ar=self.ar, rule=rule)
+            await view.start(interaction)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error editing rule: {e}", exc_info=True)
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to open rule editor. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to open rule editor. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
     async def create_rule_cb(self, interaction: discord.Interaction):
         """Callback to create a new rule."""
-        modal = AutoReplyRuleModal(ar=self.ar)
-        await interaction.response.send_modal(modal)
+        try:
+            modal = AutoReplyRuleModal(ar=self.ar)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error opening create rule modal: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to open rule creator. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
+    async def help_cb(self, interaction: discord.Interaction):
+        """Callback to show help message."""
+        try:
+            view = discord.ui.LayoutView(timeout=None)
+            container = discord.ui.Container()
+            container.add_item(
+                discord.ui.TextDisplay(
+                    content=HELP_MSG
+                )
+            )
+            view.add_item(container)
+            await interaction.response.send_message(view=view, ephemeral=True)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error showing help: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to display help. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
 
 class AutoReplyRuleModal(discord.ui.Modal):
     """Modal for creating or editing an Auto Reply Rule."""
@@ -207,40 +318,82 @@ class AutoReplyRuleModal(discord.ui.Modal):
         )
 
     async def on_submit(self, interaction: discord.Interaction):
-        trigger = self.trigger_input.value
-        response_type = ResponseType(int(self.response_type_select.values[0]))
-        response_payload = self.response_payload_input.value
-
-        if self.rule:
-            # Update existing rule
-            self.rule.trigger = trigger
-            self.rule.response_type = response_type
-            self.rule.response_payload = response_payload
-            await self.rule.save()
-            message = "Auto-reply rule updated successfully."
-        else:
-            # Create new rule
-            new_rule = AutoReplyRule(
-                trigger=trigger,
-                response_type=response_type,
-                response_payload=response_payload,
-            )
-            await new_rule.save()
-            message = "New auto-reply rule created successfully."
-            
         try:
-            await self.ar.load_cache()
-        except Exception as e:
-            self.ar.plugin.logger.error(f"Error reloading auto-reply cache: {e}")
+            trigger = self.trigger_input.value
+            response_type = ResponseType(int(self.response_type_select.values[0]))
+            response_payload = self.response_payload_input.value
 
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                title="Auto Reply",
-                description=message,
-                color=discord.Color.green(),
-            ),
-            ephemeral=True,
-        )
+            # Validate regex pattern
+            try:
+                import re
+                re.compile(trigger)
+            except re.error as e:
+                await interaction.response.send_message(
+                    embed=discord.Embed(
+                        title="Invalid Trigger",
+                        description=f"The regex pattern is invalid: {str(e)}",
+                        color=discord.Color.red(),
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            if self.rule:
+                # Update existing rule
+                self.rule.trigger = trigger
+                self.rule.response_type = response_type
+                self.rule.response_payload = response_payload
+                await self.rule.save()
+                message = "Auto-reply rule updated successfully."
+                self.ar.plugin.logger.debug(f"Updated rule ID {self.rule.id}")
+            else:
+                # Create new rule
+                new_rule = AutoReplyRule(
+                    trigger=trigger,
+                    response_type=response_type,
+                    response_payload=response_payload,
+                )
+                await new_rule.save()
+                message = "New auto-reply rule created successfully."
+                self.ar.plugin.logger.debug(f"Created new rule ID {new_rule.id}")
+                
+            try:
+                await self.ar.load_cache()
+            except Exception as e:
+                self.ar.plugin.logger.error(f"Error reloading auto-reply cache: {e}", exc_info=True)
+                message += "\n\n⚠️ Warning: Cache reload failed. Changes may not be active immediately."
+
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Auto Reply",
+                    description=message,
+                    color=discord.Color.green(),
+                ),
+                ephemeral=True,
+            )
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error in rule modal submission: {e}", exc_info=True)
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to save rule. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to save rule. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
         
 class AutoReplyRuleView(discord.ui.LayoutView):
     """View for displaying an Auto Reply Rule."""
@@ -288,39 +441,89 @@ class AutoReplyRuleView(discord.ui.LayoutView):
         return container
     
     async def on_timeout(self):
-        await self.interaction.edit_original_response(view=None)
+        await self.interaction.delete_original_response(view=None)
         self.stop()
         
     async def start(self, interaction: discord.Interaction):
-        self.interaction = interaction
-        self.container = self.generate_container()
-        self.clear_items()
-        self.add_item(self.container)
-        if interaction.response.is_done():
-            await interaction.edit_original_response(view=self)
-        else:
-            await interaction.response.send_message(view=self, ephemeral=True)
+        try:
+            self.interaction = interaction
+            self.container = self.generate_container()
+            self.clear_items()
+            self.add_item(self.container)
+            if interaction.response.is_done():
+                await interaction.edit_original_response(view=self)
+            else:
+                await interaction.response.send_message(view=self, ephemeral=True)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error starting rule view: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to display rule. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
             
     async def edit_rule_cb(self, interaction: discord.Interaction):
         """Callback to edit the rule."""
-        modal = AutoReplyRuleModal(ar=self.ar, rule=self.rule)
-        await interaction.response.send_modal(modal)
+        try:
+            modal = AutoReplyRuleModal(ar=self.ar, rule=self.rule)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            self.ar.plugin.logger.error(f"Error opening edit modal: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to open editor. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
         
     async def delete_rule_cb(self, interaction: discord.Interaction):
         """Callback to delete the rule."""
-        await self.rule.delete()
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                title="Auto Reply",
-                description="Auto-reply rule deleted successfully.",
-                color=discord.Color.green(),
-            ),
-            ephemeral=True,
-        )
-        
         try:
-            await self.ar.load_cache()
+            rule_id = self.rule.id
+            await self.rule.delete()
+            self.ar.plugin.logger.debug(f"Deleted rule ID {rule_id}")
+            
+            message = "Auto-reply rule deleted successfully."
+            try:
+                await self.ar.load_cache()
+            except Exception as e:
+                self.ar.plugin.logger.error(f"Error reloading auto-reply cache: {e}", exc_info=True)
+                message += "\n\n⚠️ Warning: Cache reload failed. Changes may not be active immediately."
+            
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="Auto Reply",
+                    description=message,
+                    color=discord.Color.green(),
+                ),
+                ephemeral=True,
+            )
+            
+            await self.on_timeout()
         except Exception as e:
-            self.ar.plugin.logger.error(f"Error reloading auto-reply cache: {e}")
-        
-        await self.on_timeout()
+            self.ar.plugin.logger.error(f"Error deleting rule: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        embed=discord.Embed(
+                            title="Error",
+                            description="Failed to delete rule. Please try again.",
+                            color=discord.Color.red(),
+                        ),
+                        ephemeral=True,
+                    )
+            except:
+                pass
