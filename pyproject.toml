@@ -19,6 +19,7 @@ dependencies = [
     "google-genai", # Plugin: Gemini
     "jinja2", # Plugin: Auto Reply - Text Template
     "asteval", # Plugin: Auto Reply - Math Evaluation
+    "numpy (>=2.4.2,<3.0.0)",
 ]
 
 [project.scripts]
