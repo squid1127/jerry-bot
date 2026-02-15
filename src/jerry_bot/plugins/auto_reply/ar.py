@@ -28,8 +28,9 @@ class AutoReply:
         self.jinja_env = jinja2.Environment(
             loader=jinja2.BaseLoader(),
             enable_async=True,
-            autoescape=True,
+            autoescape=False,
         )
+        self.asteval_interpreters: dict[int, asteval.Interpreter] = {}
         self.jinja_env.globals.update(self.make_globals())
         
     @property
@@ -141,18 +142,55 @@ class AutoReply:
             else:
                 return f"{n}{suffix[n % 10]}"
             
-        self.asteval = asteval.Interpreter()
-        def asteval_eval(expr: str):
+        def asteval_eval(expr: str, interpreter_id: int = 0) -> any:
             """Evaluate a mathematical expression safely."""
+            asteval_interpreter = self.asteval_interpreters.get(interpreter_id)
+            if not asteval_interpreter:
+                asteval_interpreter = asteval.Interpreter(use_numpy=True, builtins_readonly=True)
+                self.asteval_interpreters[interpreter_id] = asteval_interpreter
+            
             try:
-                result = self.asteval(expr)
+                result = asteval_interpreter(expr)
             except Exception as e:
                 raise ValueError(f"Error evaluating expression: {e}")
             
             # Check for errors
-            if self.asteval.error:
-                error_msg = "; ".join([str(err.get_error()) for err in self.asteval.error])
+            if asteval_interpreter.error:
+                errors = []
+                for err in asteval_interpreter.error:
+                    err_data = err.get_error()
+                    if isinstance(err_data, tuple) and len(err_data) >= 2:
+                        errors.append(err_data[1])  # Extract just the message
+                    else:
+                        errors.append(str(err_data))
+                error_msg = "; ".join(errors)
                 raise ValueError(f"Error evaluating expression: {error_msg}")
+            
+            return result
+        def asteval_eval_safe(expr: str, interpreter_id: int = 0) -> any:
+            """Evaluate a mathematical expression safely, returning error messages instead of raising exceptions."""
+            
+            asteval_interpreter = self.asteval_interpreters.get(interpreter_id)
+            if not asteval_interpreter:
+                asteval_interpreter = asteval.Interpreter(use_numpy=True, builtins_readonly=True)
+                self.asteval_interpreters[interpreter_id] = asteval_interpreter
+
+            try:
+                result = asteval_interpreter(expr)
+            except Exception as e:
+                return f"`Runtime error: {e}`"
+            
+            # Check for errors
+            if asteval_interpreter.error:
+                errors = []
+                for err in asteval_interpreter.error:
+                    err_data = err.get_error()
+                    if isinstance(err_data, tuple) and len(err_data) >= 2:
+                        errors.append(err_data[1])  # Extract just the message
+                    else:
+                        errors.append(str(err_data))
+                error_msg = "; ".join(errors)
+                return f"## Error\n```\n{error_msg}\n```"
             
             return result
         
@@ -169,6 +207,7 @@ class AutoReply:
             "regex_match": regex_match,
             "ordinal": ordinal,
             "asteval": asteval_eval,
+            "asteval_safe": asteval_eval_safe,
         }
         return globals_dict
     
