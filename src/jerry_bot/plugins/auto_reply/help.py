@@ -40,6 +40,7 @@ Globals available in templates:
 - `regex_match`: A function to check if a regex pattern matches a string.
 - `ordinal`: A function to convert an integer to its ordinal representation (e.g., 1st, 2nd, 3rd).
 - `asteval`: A function to safely evaluate a mathematical expression.
+- `asteval_safe`: A function to safely evaluate a mathematical expression, returning an error message instead of raising an exception.
 """
 
 ERR_MSG_JINJA_RENDER = """Something broke :("""
