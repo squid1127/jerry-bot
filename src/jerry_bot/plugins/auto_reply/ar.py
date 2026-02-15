@@ -233,7 +233,7 @@ class AutoReply:
                 return "👍"
             return result
 
-        bot = self.framework.bot
+        bot = self.framework.bot.user
         now = datetime.datetime.utcnow()
         globals_dict = {
             "bot": bot,
