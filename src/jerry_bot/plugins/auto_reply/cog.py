@@ -25,6 +25,7 @@ class AutoReplyCog(PluginCog):
         description="Set auto-reply to ignore/unignore a channel, user, guild, or role.",
         guild_only=True,
         allowed_contexts=cmds.AppCommandContext(guild=True),
+        allowed_installs=cmds.AppInstallationType(guild=True),
         default_permissions=discord.Permissions(manage_channels=True),
     )
 
