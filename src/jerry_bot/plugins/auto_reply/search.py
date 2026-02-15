@@ -88,6 +88,15 @@ class Search:
         await modal.render()
         await interaction.response.send_modal(modal)
         
+    async def show_view(self, interaction: discord.Interaction):
+        """Show the search view for the interaction.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+        """
+        view = SearchView(self, interaction)
+        await view.render()
+        
 class SearchModal(discord.ui.Modal):
     """A modal for searching within a model."""
 
@@ -114,23 +123,23 @@ class SearchModal(discord.ui.Modal):
         
         self.search_input = discord.ui.TextInput(
             style=discord.TextStyle.short,
-            placeholder="Enter your search query here...",
+            placeholder="Search for an entry...",
             required=False,
             max_length=100,
         )
-        self.add_item(discord.ui.Label(text="Search Query", component=self.search_input))
+        self.add_item(discord.ui.Label(text="Search", component=self.search_input, description=f"Search all entries by {', '.join(self.search.search_fields)}. Press submit to update results."))
         
         results = await self.search.fetch_results(query=self.search_input.value)
         self.options = self.search.render_options(results)
         if results:
             self.dropdown = discord.ui.Select(
-                placeholder="Select a result...",
+                placeholder="Select a entry...",
                 min_values=0,
                 max_values=1,
                 options=[opt.option for opt in self.options.values()],
                 required=False,
             )
-            self.add_item(discord.ui.Label(text="Results", component=self.dropdown))
+            self.add_item(discord.ui.Label(text="Results", component=self.dropdown, description=f"Select entry from the top {len(results)} results."))
         # elif self.search.query:
         #     self.dropdown = discord.ui.Select(
         #         placeholder="No results found.",
@@ -164,8 +173,97 @@ class SearchModal(discord.ui.Modal):
         # Else, open a new modal with results
         else:
             self.stop()
-            await self.search.show_modal(interaction)
+            await self.search.show_view(interaction)
             
     async def on_timeout(self):
         # Modal timed out
         self.stop()
+
+class SearchView(discord.ui.LayoutView):
+    """A view for displaying search results."""
+
+    def __init__(self, search: Search, interaction: discord.Interaction):
+        """Initialize the SearchView.
+
+        Args:
+            search (Search): The Search instance.
+        """
+        super().__init__(timeout=600)
+        self.search:Search = search
+        self.interaction:discord.Interaction = interaction
+        self.options: dict[str, SelectOptionData] = {}
+        
+    async def on_timeout(self):
+        # View timed out
+        self.stop()
+        try:
+            await self.interaction.delete_original_response()
+        except:
+            pass
+        
+    async def render(self):
+        """Asyncronously render the view components."""
+        self.clear_items()
+        container = discord.ui.Container(accent_color=discord.Color.blurple())
+        
+        results = await self.search.fetch_results()
+        self.options = self.search.render_options(results)
+        if results:
+            container.add_item(discord.ui.TextDisplay("### Search Results\nSelect a result from the dropdown below."))
+            dropdown = discord.ui.Select(
+                placeholder="Select a result...",
+                min_values=0,
+                max_values=1,
+                options=[opt.option for opt in self.options.values()],
+                required=False,
+            )
+            dropdown.callback = self.on_select
+            container.add_item(discord.ui.ActionRow(dropdown))
+            self._select = dropdown
+        else:
+            container.add_item(discord.ui.TextDisplay("### Search Results\nNo results found. Try a different query."))
+            
+        actions = discord.ui.ActionRow()
+        button = discord.ui.Button(label="Back", style=discord.ButtonStyle.secondary)
+        button.callback = self.show_modal_cb
+        actions.add_item(button)
+        container.add_item(actions)
+            
+        self.add_item(container)
+        
+        if self.interaction.response.is_done():
+            await self.interaction.edit_original_response(content=None, view=self)
+        else:
+            await self.interaction.response.send_message(content=None, view=self, ephemeral=True)
+            
+    @property
+    def select(self) -> discord.ui.Select | None:
+        """Get the select component if it exists."""
+        return getattr(self, "_select", None)
+        
+    async def show_modal_cb(self, interaction: discord.Interaction):
+        """Show the search modal for the interaction.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+        """
+        await self.search.show_modal(interaction)
+        
+    async def on_select(self, interaction: discord.Interaction):
+        """Handle the selection of a search result.
+
+        Args:
+            interaction (discord.Interaction): The interaction object.
+            select (discord.ui.Select): The select component that triggered the callback.
+        """
+        select = self.select
+        if select and select.values:
+            selected_value = select.values[0]
+            selected_model = self.options[selected_value].model
+            await self.search.callback(interaction, selected_model)
+            self.stop()
+        else:
+            if self.interaction.response.is_done():
+                await self.interaction.followup.send("❌ No option selected. Please try again.", ephemeral=True)
+            else:
+                await self.interaction.response.send_message("❌ No option selected. Please try again.", ephemeral=True)
