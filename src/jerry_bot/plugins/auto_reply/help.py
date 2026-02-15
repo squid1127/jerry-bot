@@ -41,6 +41,8 @@ Globals available in templates:
 - `ordinal`: A function to convert an integer to its ordinal representation (e.g., 1st, 2nd, 3rd).
 - `asteval`: A function to safely evaluate a mathematical expression.
 - `asteval_safe`: A function to safely evaluate a mathematical expression, returning an error message instead of raising an exception.
+
+**Warning**: It is not recommanded to use `asteval` in production environments for security reasons, as it can execute arbitrary code or induce Denial of Service (DoS) attacks if used with untrusted input.
 """
 
 ERR_MSG_JINJA_RENDER = """Something broke :("""
