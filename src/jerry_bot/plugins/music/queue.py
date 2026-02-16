@@ -89,3 +89,8 @@ class MusicQueue:
             temp_list = list(self._queue)
             random.shuffle(temp_list)
             self._queue = deque(temp_list)
+            
+    @property
+    def is_empty(self) -> bool:
+        """Check if the queue is empty."""
+        return len(self._queue) == 0
