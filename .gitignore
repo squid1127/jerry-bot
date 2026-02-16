@@ -162,10 +162,7 @@ cython_debug/
 #.idea/
 
 # Cached files
-store/
-communal/
 tmp/
-config/
 
 # Database files
 db/
