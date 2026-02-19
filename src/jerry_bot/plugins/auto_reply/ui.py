@@ -441,7 +441,7 @@ class AutoReplyRuleView(discord.ui.LayoutView):
         return container
     
     async def on_timeout(self):
-        await self.interaction.delete_original_response(view=None)
+        await self.interaction.delete_original_response()
         self.stop()
         
     async def start(self, interaction: discord.Interaction):
