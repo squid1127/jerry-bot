@@ -1,11 +1,7 @@
 """Main plugin file for AutoEmbed plugin."""
 
-from squid_core.plugin_base import Plugin as PluginBase, PluginCog
+from squid_core import Plugin as PluginBase, PluginCog
 from squid_core.framework import Framework
-
-from enum import Enum
-import aiohttp, bs4
-import asyncio
 
 import discord
 from discord import app_commands
