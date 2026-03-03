@@ -1,0 +1,7 @@
+[plugin]
+name = "support_threads"
+description = "Experimental support threads system for best bot"
+class = "SupportThreadsPlugin"
+
+[db]
+models = ['models.db']
