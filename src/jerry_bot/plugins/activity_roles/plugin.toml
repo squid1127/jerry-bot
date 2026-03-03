@@ -1,0 +1,7 @@
+[plugin]
+name = "activity_roles"
+description = "Activity Roles Plugin for best_bot."
+class = "ActivityRolesPlugin"
+
+[db]
+models = ['models.db']
