@@ -22,6 +22,9 @@ Rather than having formal releases, Jerry-bot uses a `stable` branch to provide 
 - **commands** - A random set of application commands, some of which rely on external APIs
 - **auto-reply** - Regex-based system to reply to messages based on content. Now fully supports native interactions.
 - **music** - A discord music player with the ability to easily import music and fancy interactions. (Missing UI elements, file based import system needs reworking)
+- **auto-embed** - Simple interactive command to create message embeds.
+- **support-threads** - Automatically create private threads using a deticated channel with an interactive button.
+- **activity-roles** - Automatically assign roles to users based on the frequency of their activity in the server.
 
 ### Incomplete/Need Reworking
 
