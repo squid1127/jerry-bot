@@ -25,6 +25,7 @@ Rather than having formal releases, Jerry-bot uses a `stable` branch to provide 
 - **auto-embed** - Simple interactive command to create message embeds.
 - **support-threads** - Automatically create private threads using a dedicated channel with an interactive button.
 - **activity-roles** - Automatically assign roles to users based on the frequency of their activity in the server.
+- **simple-games** - Multiplayer, interaction-based games. (Currently only tic-tac-toe & rock-paper-scissors)
 
 ### Incomplete/Need Reworking
 
