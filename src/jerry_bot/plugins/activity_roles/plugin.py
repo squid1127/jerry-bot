@@ -257,6 +257,7 @@ class ActivityRolesCog(PluginCog):
         
     @app_commands.command(name="activity-roles", description="Set/update activity roles configuration.")
     @app_commands.guild_only()
+    @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
     @app_commands.describe(
         active_role="Role to assign to active members.",
@@ -323,6 +324,7 @@ class ActivityRolesCog(PluginCog):
             
     @app_commands.command(name="activity-role-add-all", description="Add all missing members to the tracking database, defaulting them to inactive.")
     @app_commands.guild_only()
+    @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
     async def activity_role_add_all(
         self,
