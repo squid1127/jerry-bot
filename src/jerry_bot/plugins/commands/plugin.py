@@ -42,7 +42,7 @@ class StaticCommands(PluginCog):
         self.dev_excuses = "http://developerexcuses.com/"
 
         self.cat = "https://cataas.com/cat"
-        self.cat_title = "Cataas - Cat as a Service"
+        self.cat_title = "Cat as a Service"
         
         self.random = "https://www.random.org/integers"
         
@@ -212,7 +212,7 @@ More to come soon!""",
         mode="How to send the mentions",
         role="Filter by a specific role",
     )
-    @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
+    @app_commands.guild_install()
     @app_commands.guild_only()  # No dms
     @app_commands.default_permissions(mention_everyone=True)
     async def at_everyone_command(
