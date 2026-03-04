@@ -10,6 +10,8 @@ import asyncio
 import discord
 from discord import app_commands
 
+from .constants import *
+
 class CommandsPlugin(PluginBase):
     """Plugin class for Commands."""
 
@@ -82,17 +84,14 @@ class StaticCommands(PluginCog):
             return
 
         embed = discord.Embed(
-            title="Jerry Bot",
-            description="I'm Jerry, a bot created by CubbScratchStudios. I'm designed as a server-specific bot, meaning I have features that are unique to each server I'm in. However, I also have some global features that are available in all servers.",
+            title=JERRY_TITLE,
+            description=JERRY_DESCRIPTION,
             color=discord.Color.red(),
         )
 
         embed.add_field(
             name="Global Commands",
-            value="""Here are some commands that are available in all servers:
-- `/ping-jerry` - Check if Jerry is alive
-- `/help-jerry` - This command
-More to come soon!""",
+            value=JERRY_GLOBAL_COMMANDS,
             inline=False,
         )
 
