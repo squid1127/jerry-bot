@@ -10,6 +10,8 @@ import asyncio
 import discord
 from discord import app_commands
 
+from .constants import *
+
 class CommandsPlugin(PluginBase):
     """Plugin class for Commands."""
 
@@ -42,7 +44,7 @@ class StaticCommands(PluginCog):
         self.dev_excuses = "http://developerexcuses.com/"
 
         self.cat = "https://cataas.com/cat"
-        self.cat_title = "Cataas - Cat as a Service"
+        self.cat_title = "Cat as a Service"
         
         self.random = "https://www.random.org/integers"
         
@@ -76,23 +78,20 @@ class StaticCommands(PluginCog):
         name="help-jerry",
         description="Get help with Jerry",
     )
-    @app_commands.guild_install()
+    @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
     async def help_command(self, interaction: discord.Interaction):
         if not await self.perms.interaction_check(interaction):
             return
 
         embed = discord.Embed(
-            title="Jerry Bot",
-            description="I'm Jerry, a bot created by CubbScratchStudios. I'm designed as a server-specific bot, meaning I have features that are unique to each server I'm in. However, I also have some global features that are available in all servers.",
+            title=JERRY_TITLE,
+            description=JERRY_DESCRIPTION,
             color=discord.Color.red(),
         )
 
         embed.add_field(
             name="Global Commands",
-            value="""Here are some commands that are available in all servers:
-- `/ping-jerry` - Check if Jerry is alive
-- `/help-jerry` - This command
-More to come soon!""",
+            value=JERRY_GLOBAL_COMMANDS,
             inline=False,
         )
 
@@ -212,7 +211,7 @@ More to come soon!""",
         mode="How to send the mentions",
         role="Filter by a specific role",
     )
-    @app_commands.guild_install()  # Cannot be used in a user context (members not available)
+    @app_commands.guild_install()
     @app_commands.guild_only()  # No dms
     @app_commands.default_permissions(mention_everyone=True)
     async def at_everyone_command(

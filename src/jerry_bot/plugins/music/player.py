@@ -33,11 +33,11 @@ class GuildMusicPlayer:
         self._listeners: set[weakref.ReferenceType] = set()
         
     async def reset(self):
-        """Reset the music player state and queue."""
-        async with self.operation_lock:
-            self.state = PlaybackState.STOPPED
-            # Create a new queue instance to clear existing tracks
-            self.queue = MusicQueue()
+        """Reset the music player state and queue. Must be called with operation_lock held."""
+        # Note: This method assumes operation_lock is already held by the caller
+        self.state = PlaybackState.STOPPED
+        # Create a new queue instance to clear existing tracks
+        self.queue = MusicQueue()
         
     async def start_player(self):
         """Attempt to start the music player loop. (Ignores if already running)"""
@@ -53,6 +53,9 @@ class GuildMusicPlayer:
                 self.logger.error(f"Cannot start player loop: No voice channel set for guild {self.guild.id}")
                 return
             self.connection = await self.channel.connect()
+            
+        # Deafen the bot
+        #await self.connection.guild.change_voice_state(self.connection.guild.me, self_deaf=True, self_mute=False)
         
         self.logger.info(f"Starting music player loop for guild {self.guild.id}")
         self.state = PlaybackState.PLAYING
@@ -80,7 +83,20 @@ class GuildMusicPlayer:
             
         # Cleanup after exiting the loop
         self.logger.info(f"Music player loop ending for guild {self.guild.id}")
-        await self.stop()
+        # Don't call stop() from within the player loop to avoid self-cancellation issues
+        # Just disconnect and reset without trying to cancel ourselves
+        async with self.operation_lock:
+            if self.connection and self.connection.is_connected():
+                try:
+                    # Use timeout to prevent hanging during shutdown
+                    await asyncio.wait_for(self.connection.disconnect(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"Disconnect timed out for guild {self.guild.id}, forcing cleanup")
+                    self.connection.cleanup()
+                self.logger.info(f"Disconnected from voice channel in guild {self.guild.id}")
+            self.connection = None
+            await self.reset()
+            await self.emit_event("stop")
                     
     async def _do_track(self, track: MusicTrack):
         """Play a single track."""
@@ -137,13 +153,28 @@ class GuildMusicPlayer:
         async with self.operation_lock:
             self.logger.info(f"Stopping playback in guild {self.guild.id}")
             self.state = PlaybackState.STOPPED
-            if self.player_task:
+            if self.player_task is not None:
                 self.player_task.cancel()
+                try:
+                    await self.player_task
+                except asyncio.CancelledError:
+                    pass
                 self.player_task = None
-            if self.connection is not None:
-                await self.connection.disconnect()
+                self.logger.info(f"Player loop task cancelled for guild {self.guild.id}")
+            if self.connection and self.connection.is_playing():
+                self.connection.stop()
+                self.logger.info(f"Stopped current track in guild {self.guild.id}")
+            if self.connection and self.connection.is_connected():
+                try:
+                    # Use timeout to prevent hanging during shutdown
+                    await asyncio.wait_for(self.connection.disconnect(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"Disconnect timed out for guild {self.guild.id}, forcing cleanup")
+                    self.connection.cleanup()
+                self.logger.info(f"Disconnected from voice channel in guild {self.guild.id}")
             self.connection = None
             await self.reset()
+            self.logger.info(f"Player reset complete for guild {self.guild.id}")
             await self.emit_event("stop")
             
     async def set_channel(self, channel: discord.VoiceChannel):

@@ -1,12 +1,16 @@
 # jerry-bot
 
-Jerry-bot -- a (not so) simple Discord bot, featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
+Jerry-bot -- a (not so) simple Discord bot based on [squid-core](https://github.com/squid1127/squid-core), featuring a variety of random features, including an AI chatbot, auto-reply system, and more.
 
 ## Disclaimer
 
-Jerry bot is designed for personal use by squid1127 and is not intended for public use. ~~If you would like to use Jerry bot, please contact squid1127.~~ Why is this repo public? No clue ¯\\_(ツ)_/¯ That being said, this repo is licensed under the MIT License, so feel free to steal my code :)
+Jerry bot is designed for personal use by squid1127 and is not intended for public use. Jerry-bot's code base is open source so that others may learn from it and see how it works, but it is not designed to be deployed by others. Use at your own risk.
 
-As you may be able to tell by the sheer number of deprecated features, this bot is a work in progress and is not guaranteed to be stable or functional. Jerry's been completely rewritten several times, so don't be surprised if things break, and they will.
+As you may be able to tell by the sheer number of deprecated features, this bot is a work in progress and is not guaranteed to be all that stable or functional. Jerry's been completely rewritten several times, so don't be surprised if things break, and they will.
+
+## Stable Branch
+
+Rather than having formal releases, Jerry-bot uses a `stable` branch to provide a working version of the bot for production use (see above). The `main` branch is where active development occurs and may contain unstable or incomplete features.
 
 ## Features
 
@@ -18,10 +22,14 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 - **commands** - A random set of application commands, some of which rely on external APIs
 - **auto-reply** - Regex-based system to reply to messages based on content. Now fully supports native interactions.
 - **music** - A discord music player with the ability to easily import music and fancy interactions. (Missing UI elements, file based import system needs reworking)
+- **auto-embed** - Simple interactive command to create message embeds.
+- **support-threads** - Automatically create private threads using a dedicated channel with an interactive button.
+- **activity-roles** - Automatically assign roles to users based on the frequency of their activity in the server.
+- **simple-games** - Multiplayer, interaction-based games. (Currently only tic-tac-toe & rock-paper-scissors)
 
 ### Incomplete/Need Reworking
 
-- **gemini** - Chatbot system using Gemini API (Being rewritten)
+- **gemini** - (r3) Sophisticated AI chatbot system leveraging Google Gemini. (Being rewritten)
 
 ### Not Implemented (Yet)
 
@@ -29,7 +37,7 @@ As you may be able to tell by the sheer number of deprecated features, this bot 
 
 ### Future Features (🤨)
 
-- (Maybe) **price-tracker** - A system to track prices of items on various e-commerce platforms and notify users of price drops. (Previously a partially integrated feature on splat-bot)
+- (No) **price-tracker** - A system to track prices of items on various e-commerce platforms and notify users of price drops. (Previously a partially integrated feature on splat-bot)
 
 ## Contributing
 

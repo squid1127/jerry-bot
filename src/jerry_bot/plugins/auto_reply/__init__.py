@@ -1,2 +1,2 @@
 """AutoReply plugin"""
-from .plugin import AutoReply
+from .plugin import AutoReplyPlugin

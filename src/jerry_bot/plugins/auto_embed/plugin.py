@@ -1,11 +1,7 @@
 """Main plugin file for AutoEmbed plugin."""
 
-from squid_core.plugin_base import Plugin as PluginBase, PluginCog
+from squid_core import Plugin as PluginBase, PluginCog
 from squid_core.framework import Framework
-
-from enum import Enum
-import aiohttp, bs4
-import asyncio
 
 import discord
 from discord import app_commands
@@ -39,6 +35,8 @@ class AutoEmbedCog(PluginCog):
         self.logger = plugin.logger
         
     @app_commands.command(name="auto-embed", description="Create and send a discord embed automatically.")
+    @app_commands.guild_install()
+    @app_commands.guild_only()
     async def auto_embed_command(self, interaction: discord.Interaction) -> None:
         """Handle the /auto-embed command."""
         form = AutoEmbedInputForm()
