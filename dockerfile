@@ -9,8 +9,9 @@ WORKDIR /app
 # - gcc, musl-dev: for building Python packages
 # - libffi-dev: for cryptography and discord.py
 # - opus-dev: for voice support
-# - ffmpeg: for audio processing (yt-dlp, spotdl)
+# - ffmpeg: for audio processing / voice support
 # - sqlite-dev: for database support
+# Install and configure poetry w/o a virtual environment
 RUN apk add --no-cache \
     git \
     gcc \
@@ -18,13 +19,9 @@ RUN apk add --no-cache \
     libffi-dev \
     opus-dev \
     ffmpeg \
-    sqlite-dev
-
-# Install Poetry
-RUN pip install --no-cache-dir poetry
-
-# Configure Poetry to not create virtual environments (not needed in container)
-RUN poetry config virtualenvs.create false
+    sqlite-dev \
+    && pip install --no-cache-dir poetry \
+    && poetry config virtualenvs.create false
 
 # Copy dependency files first for better layer caching
 COPY pyproject.toml poetry.lock* ./
