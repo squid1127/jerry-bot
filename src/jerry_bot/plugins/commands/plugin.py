@@ -64,7 +64,7 @@ class StaticCommands(PluginCog):
 
     @app_commands.command(
         name="ping-jerry",
-        description="Is Jerry alive?",
+        description="[Commands] Is Jerry alive?",
     )
     async def ping_command(self, interaction: discord.Interaction):
         if not await self.perms.interaction_check(interaction):
@@ -76,7 +76,7 @@ class StaticCommands(PluginCog):
 
     @app_commands.command(
         name="help-jerry",
-        description="Get help with Jerry",
+        description="[Commands] Get help with Jerry",
     )
     @app_commands.allowed_contexts(app_commands.AppCommandContext(guild=True))
     async def help_command(self, interaction: discord.Interaction):
@@ -99,7 +99,7 @@ class StaticCommands(PluginCog):
 
     @app_commands.command(
         name="my-code-sucks",
-        description="Helps you with your stupid code",
+        description="[Commands] Helps you with your stupid code",
     )
     async def my_code_sucks_command(self, interaction: discord.Interaction):
         """Gives you a random excuse for your code not working"""
@@ -203,7 +203,7 @@ class StaticCommands(PluginCog):
         return chunks
 
     @app_commands.command(
-        name="at-everyone", description="Mentions everyone in the server, user by user."
+        name="at-everyone", description="[Commands] Mentions everyone in the server, user by user."
     )
     @app_commands.describe(
         yes="Confirm you want to do this, which you probably don't.",
@@ -297,7 +297,7 @@ class StaticCommands(PluginCog):
             self.logger.error(f"Error in at_everyone_command: {e}")
             await interaction.followup.send("Something broke :(", ephemeral=True)
 
-    @app_commands.command(name="cat", description="Sends a random cat image.")
+    @app_commands.command(name="cat", description="[Commands] Sends a random cat image.")
     async def cat_command(self, interaction: discord.Interaction):
         """Sends a random cat image."""
 
@@ -338,7 +338,7 @@ class StaticCommands(PluginCog):
         await interaction.followup.send(embed=embed, file=file)
     
     @app_commands.command(
-        name="yes-no", description="Get a random yes or no answer. Like an 8-ball but simpler."
+        name="yes-no", description="[Commands] Get a random yes or no answer. Like an 8-ball but simpler."
     )
     async def yes_no_command(self, interaction: discord.Interaction):
         """Responds with a random yes or no answer."""

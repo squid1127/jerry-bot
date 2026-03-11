@@ -87,7 +87,7 @@ class MusicPlayerCog(PluginCog):
 
     @app_commands.command(
         name="music",
-        description="Manage music playback.",
+        description="[Music] Manage and view playback.",
     )
     @app_commands.describe(
         action="Action to perform on the music player (play/pause, stop, skip)."
@@ -138,7 +138,7 @@ class MusicPlayerCog(PluginCog):
 
     @app_commands.command(
         name="music-queue",
-        description="Add tracks or playlists to the music queue.",
+        description="[Music] Add tracks or playlists to the queue.",
     )
     @app_commands.describe(
         query="Search query for the track or playlist to play."
