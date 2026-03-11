@@ -14,7 +14,7 @@ from .config import ConfigManager, GlobalConfig
 from .core.manager import ConversationManager
 from .provider import ProviderManager
 from .interactions.cog import GeminiCog
-
+from .models import Channel
 
 class Gemini(Plugin):
     """Gemini Plugin."""
@@ -56,6 +56,13 @@ class Gemini(Plugin):
         """Unload the Gemini Plugin."""
         if self.cog:
             await self.fw.bot.remove_cog(self.cog.qualified_name)
+            
+    async def list_channels(self) -> list[Channel]:
+        """List all channels with active conversations."""
+        if not self.conversation_manager:
+            self.logger.error("Conversation manager not initialized.")
+            return []
+        return await self.conversation_manager.list_channels()
 
     @DiscordEventListener()
     async def on_message(self, message: discord.Message):
