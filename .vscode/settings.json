@@ -1,5 +1,5 @@
 {
-  "cSpell.words": ["ollama", "timeparse"],
+  "cSpell.words": ["genai", "ollama", "timeparse"],
   "python.analysis.typeCheckingMode": "standard",
   "sonarlint.disableTelemetry": true
 }
