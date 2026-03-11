@@ -206,16 +206,14 @@ class ConversationManager:
         # Refresh the cache and tear down the stale conversation so it is
         # rebuilt with the new settings on the next incoming message.
         self.channels[channel_id] = channel
-        await self.teardown_conversation(channel_id)
+        await self.stop_conversation(channel_id)
 
         self.logger.info(f"Updated Gemini channel {channel_id}.")
         return channel
 
-    # ── Teardown ──────────────────────────────────────────────────────────
+    # ── Stop Conversation ─────────────────────────────────────────────────
 
-    async def teardown_conversation(
-        self, channel_id: int, *, drain: bool = False
-    ) -> None:
+    async def stop_conversation(self, channel_id: int, *, drain: bool = False) -> None:
         """Stop and remove the active Conversation instance for a channel, if one exists.
 
         Args:
@@ -245,7 +243,7 @@ class ConversationManager:
             raise ChannelNotRegisteredError(channel_id)
 
         # Tear down the live conversation if one exists
-        await self.teardown_conversation(channel_id)
+        await self.stop_conversation(channel_id)
 
         # Remove from caches and database
         self.channels.pop(channel_id, None)
