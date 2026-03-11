@@ -1,5 +1,12 @@
 {
-  "cSpell.words": ["genai", "ollama", "timeparse"],
+  "cSpell.words": [
+    "asteval",
+    "autoreply",
+    "genai",
+    "ollama",
+    "randchoice",
+    "timeparse"
+  ],
   "python.analysis.typeCheckingMode": "standard",
   "sonarlint.disableTelemetry": true
 }
