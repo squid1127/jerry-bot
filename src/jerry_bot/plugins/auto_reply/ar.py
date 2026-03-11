@@ -9,6 +9,7 @@ import datetime
 import math
 import re
 import asteval
+from typing import Any
 
 from squid_core import Plugin, Framework
 
@@ -20,8 +21,6 @@ from .models.db import (
 )
 from .models.enums import IgnoreType, ResponseType
 
-from .help import ERR_MSG_JINJA_RENDER
-
 
 class AutoReply:
     """Auto Reply Component for AR Plugin."""
@@ -30,7 +29,9 @@ class AutoReply:
         self.plugin = plugin
 
         self.cache: list[AutoReplyRuleData] = []
-        self.ignore_cache: dict[int, AutoReplyIgnoreData] = {}
+        self.ignore_cache: dict[
+            tuple[int | None, IgnoreType, int], AutoReplyIgnoreData
+        ] = {}
         self.jinja_env = jinja2.Environment(
             loader=jinja2.BaseLoader(),
             enable_async=True,
@@ -73,10 +74,10 @@ class AutoReply:
 
     def check_ignored(
         self,
-        channel_id: int = None,
-        user_id: int = None,
-        guild_id: int = None,
-        role_ids: list[int] = None,
+        channel_id: int | None = None,
+        user_id: int | None = None,
+        guild_id: int | None = None,
+        role_ids: list[int] | None = None,
     ) -> bool:
         """Check if a message should be ignored based on channel, user, guild, or role ID.
         Checks both global ignores (guild_id=None) and guild-specific ignores.
@@ -124,7 +125,9 @@ class AutoReply:
             self.plugin.logger.error(f"Error parsing response payload as YAML: {e}")
             raise ValueError("Invalid YAML format.")
 
-    def auto_template(self, text: str, author: discord.User = None) -> str:
+    def auto_template(
+        self, text: str, author: discord.User | discord.Member | None = None
+    ) -> str:
         """Define built-in templates for auto-reply responses."""
 
         # Bot user mention
@@ -138,7 +141,9 @@ class AutoReply:
 
         return text
 
-    def reverse_template(self, text: str, author: discord.User = None) -> str:
+    def reverse_template(
+        self, text: str, author: discord.User | discord.Member | None = None
+    ) -> str:
         """Reverse built-in templates to their placeholders."""
 
         # Bot user mention
@@ -167,10 +172,12 @@ class AutoReply:
             else:
                 return f"{n}{suffix[n % 10]}"
 
-        def asteval_eval(expr: str, interpreter_id: int = 0) -> any:
+        def asteval_eval(expr: str, interpreter_id: int = 0) -> Any:
             """Evaluate a mathematical expression safely."""
-            self.plugin.logger.info(f"Evaluating expression with asteval_eval: {expr} (interpreter_id: {interpreter_id})")
-            
+            self.plugin.logger.info(
+                f"Evaluating expression with asteval_eval: {expr} (interpreter_id: {interpreter_id})"
+            )
+
             asteval_interpreter = self.asteval_interpreters.get(interpreter_id)
             if not asteval_interpreter:
                 asteval_interpreter = asteval.Interpreter(
@@ -197,9 +204,11 @@ class AutoReply:
 
             return result
 
-        def asteval_eval_safe(expr: str, interpreter_id: int = 0) -> any:
+        def asteval_eval_safe(expr: str, interpreter_id: int = 0) -> Any:
             """Evaluate a mathematical expression safely, returning error messages instead of raising exceptions."""
-            self.plugin.logger.info(f"Evaluating expression with asteval_eval_safe: {expr} (interpreter_id: {interpreter_id})")
+            self.plugin.logger.info(
+                f"Evaluating expression with asteval_eval_safe: {expr} (interpreter_id: {interpreter_id})"
+            )
 
             asteval_interpreter = self.asteval_interpreters.get(interpreter_id)
             if not asteval_interpreter:
@@ -207,7 +216,7 @@ class AutoReply:
                     use_numpy=True,
                     builtins_readonly=True,
                     config={
-                        "import": False, # Very bad idea PLEASE DISABLE THIS BEFORE COMITTING BUDDY YOU BETTER ok i did don't worry
+                        "import": False,  # Very bad idea PLEASE DISABLE THIS BEFORE COMMITTING BUDDY YOU BETTER ok i did don't worry
                     },
                 )
                 self.asteval_interpreters[interpreter_id] = asteval_interpreter
@@ -234,7 +243,7 @@ class AutoReply:
             return result
 
         bot = self.framework.bot.user
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         globals_dict = {
             "bot": bot,
             "now": now,
@@ -355,7 +364,7 @@ class AutoReply:
                     self.plugin.logger.warning(
                         f"Failed to add reaction for rule {rule.db_id}: {e}"
                     )
-                    # Don't send error message for reactions - too spammy
+                    # Don't send error message for reactions - too much spam
                 except Exception as e:
                     self.plugin.logger.error(
                         f"Unexpected error adding reaction for rule {rule.db_id}: {e}",
