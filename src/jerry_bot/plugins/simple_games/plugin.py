@@ -34,7 +34,7 @@ class SimpleGamesCog(PluginCog):
         super().__init__(plugin)
 
     @app_commands.command(
-        name="rps", description="Start a game of Rock, Paper, Scissors."
+        name="rps", description="[SimpleGames] Start a game of Rock, Paper, Scissors."
     )
     @app_commands.describe(players="Number of players (default is 2)")
     async def rps_command(self, interaction: discord.Interaction, players: int = 2):
@@ -53,7 +53,7 @@ class SimpleGamesCog(PluginCog):
         await interaction.response.send_message(view=rps_game)
 
     @app_commands.command(
-        name="tictactoe", description="Start a game of Tic Tac Toe."
+        name="tictactoe", description="[SimpleGames] Start a game of Tic Tac Toe."
     )
     async def tictactoe_command(self, interaction: discord.Interaction):
         """Command to start a Tic Tac Toe game."""

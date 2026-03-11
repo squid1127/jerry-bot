@@ -118,7 +118,7 @@ class AutoReplyCog(PluginCog):
             except:
                 pass
 
-    @ar_ignore.command(name="user", description="Toggle ignoring a user.")
+    @ar_ignore.command(name="user", description="[AutoReply] Toggle ignoring a user.")
     @cmds.describe(
         user="The user to ignore or unignore.",
         global_ignore="Apply this ignore globally across all servers (Admin only).",
@@ -132,7 +132,7 @@ class AutoReplyCog(PluginCog):
         """Toggles ignoring a user for auto-replies."""
         await self._update_ignore(interaction, IgnoreType.USER, user, global_ignore)
 
-    @ar_ignore.command(name="channel", description="Toggle ignoring a channel.")
+    @ar_ignore.command(name="channel", description="[AutoReply] Toggle ignoring a channel.")
     @cmds.describe(
         channel="The channel to ignore or unignore.",
         global_ignore="Apply this ignore globally (Admin only, not recommended).",
@@ -148,7 +148,7 @@ class AutoReplyCog(PluginCog):
             interaction, IgnoreType.CHANNEL, channel, global_ignore
         )
 
-    @ar_ignore.command(name="role", description="Toggle ignoring a role.")
+    @ar_ignore.command(name="role", description="[AutoReply] Toggle ignoring a role.")
     @cmds.describe(
         role="The role to ignore or unignore.",
         global_ignore="Apply this ignore globally (Admin only, not recommended).",
@@ -162,9 +162,15 @@ class AutoReplyCog(PluginCog):
         """Toggles ignoring a role for auto-replies."""
         await self._update_ignore(interaction, IgnoreType.ROLE, role, global_ignore)
 
-    @ar_ignore.command(name="server", description="Toggle ignoring this entire server.")
+    @ar_ignore.command(name="server", description="[AutoReply] Toggle ignoring this entire server.")
     async def ar_ignore_server(self, interaction: discord.Interaction):
         """Toggles ignoring the current server for auto-replies."""
+        if not interaction.guild:
+            await interaction.response.send_message(
+                "This command can only be used within a server.", ephemeral=True
+            )
+            return
+        
         await self._update_ignore(
             interaction, IgnoreType.GUILD, interaction.guild, global_ignore=True
         )

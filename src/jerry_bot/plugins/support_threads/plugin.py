@@ -101,7 +101,7 @@ class SupportThreadsCog(PluginCog):
         await channel.edit(overwrites=overwrites)
 
     @support_group.command(
-        name="setup", description="Setup support threads in the guild."
+        name="setup", description="[SupportThreads] Setup support threads in the guild."
     )
     @app_commands.describe(
         channel="The channel where support threads will be created.",
@@ -204,7 +204,7 @@ class SupportThreadsCog(PluginCog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     @support_group.command(
-        name="close", description="Force close the current support thread."
+        name="close", description="[SupportThreads] Close the current thread."
     )
     @app_commands.guild_only()
     async def force_close_thread(self, interaction: discord.Interaction):
@@ -281,7 +281,7 @@ class SupportThreadsCog(PluginCog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     @support_group.command(
-        name="create", description="Create a support thread on behalf of a user."
+        name="create", description="[SupportThreads] Create a support thread on behalf of a user."
     )
     @app_commands.describe(user="The user to create a support thread for.")
     async def create_for_user(
@@ -386,7 +386,7 @@ class SupportThreadsCog(PluginCog):
         await instance.handle_thread_member_leave(thread, member)
 
     @support_group.command(
-        name="disable", description="Delete support threads configuration in the guild."
+        name="disable", description="[SupportThreads] Delete support threads configuration in the guild."
     )
     async def delete_support_threads(self, interaction: discord.Interaction):
         """Delete support threads configuration in the guild."""

@@ -255,7 +255,7 @@ class ActivityRolesCog(PluginCog):
             last_active=discord.utils.utcnow()
         )
         
-    @app_commands.command(name="activity-roles", description="Set/update activity roles configuration.")
+    @app_commands.command(name="activity-roles", description="[ActivityRoles] Set/update activity roles configuration.")
     @app_commands.guild_only()
     @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
@@ -322,7 +322,7 @@ class ActivityRolesCog(PluginCog):
             await interaction.followup.send(embed=response, ephemeral=True)
             
             
-    @app_commands.command(name="activity-role-add-all", description="Add all missing members to the tracking database, defaulting them to inactive.")
+    @app_commands.command(name="activity-role-add-all", description="[ActivityRoles] Add all missing members to the tracking database, defaulting them to inactive.")
     @app_commands.guild_only()
     @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
