@@ -1,0 +1,153 @@
+# Gemini Plugin Configuration
+# This file configures the Gemini AI plugin for the bot.
+
+# ==============================================================================
+# GLOBAL SETTINGS
+# ==============================================================================
+
+# The default provider to use when creating new conversations
+# Must match one of the provider names defined in the 'providers' section below
+default_provider: "gemini"
+
+# Optional: A friendly name for the bot to use in conversations and logs (e.g., "Jerry", "AI Assistant", etc.)
+friendly_name: "Jerry"
+
+# Optional: A global prompt to prepend to all conversations. This can be overridden by provider-specific prompts if needed.
+# The global prompt can contain instructions, guidelines, or a persona for the AI to follow in all conversations. It helps set the tone and behavior of the AI across all interactions.
+# Note: If not set, a default playful octopus persona named Jerry will be used.
+
+# global_prompt: >
+#   (Uncomment this section to set a custom global prompt.)
+
+# Optional: Minimum delay between streamed (model output) messages to prevent rate limiting (in seconds)
+# This setting controls the minimum delay between sending each message segment to avoid hitting rate limits. Adjust as needed based on your provider's response speed and Discord's rate limits.
+message_send_cooldown: 0.5
+
+# ==============================================================================
+# PROVIDER CONFIGURATIONS
+# ==============================================================================
+# Define one or more AI providers that can be used for conversations.
+# Each provider has its own configuration including model settings and rate limits.
+
+providers:
+  # ============================================================================
+  # GOOGLE GEMINI PROVIDER
+  # ============================================================================
+  gemini: # Unique identifier for this provider (used in 'default_provider' and channel configs)
+  
+    # Warning: Changing identifier after setting up channels will require updating all channel configs that reference this provider.
+
+    # Provider type - must be one of: gemini, openrouter, ollama
+    type: "gemini"
+
+    # Optional: Friendly name for this provider
+    friendly_name: "Google Gemini Pro"
+
+    # API key or authentication token for the provider (required for Gemini)
+    api_key: "your-google-api-key-here"
+
+    # Default model configuration for this provider
+    default_model:
+      # Model name/identifier
+      # For Gemini: gemini-3-pro, gemini-3-flash, etc.
+      # Note: Gemini model names and versions change frequently as Google updates their offerings. Always check the latest Gemini documentation for available models and their capabilities. Older models may become deprecated rapidly.
+      name: "gemini-3-flash"
+
+      # Model parameters (all optional, provider-specific defaults will be used if omitted)
+
+      # Temperature: Controls randomness in responses (0.0 = deterministic, 2.0 = very random)
+      # Recommended range: 0.0 - 1.0 for most use cases
+      temperature: 0.7
+
+      # Maximum tokens: Maximum number of tokens the model can generate in a single response
+      # Adjust based on your needs and provider limits
+      max_tokens: 2048
+
+      # Top P: Nucleus sampling - considers tokens with cumulative probability up to this value
+      # Range: 0.0 - 1.0 (e.g., 0.95 means consider tokens that make up 95% of probability mass)
+      top_p: 0.95
+
+      # Top K: Only sample from the top K most likely next tokens
+      # Higher values = more diverse output, lower values = more focused output
+      top_k: 40
+
+      # Provider-specific overrides (optional)
+      # Add any custom parameters specific to this provider here
+      overrides: 
+        {}
+
+    # Optional: Global rate limit for this provider (requests per minute)
+    # Helps prevent hitting API rate limits across all conversations
+    global_rate_limit: 60
+
+    # Optional: Per-conversation instance rate limit (requests per minute)
+    # Limits how quickly a single conversation can send requests
+    instance_rate_limit: 10
+
+  # ============================================================================
+  # OPENROUTER PROVIDER (EXAMPLE)
+  # ============================================================================
+  # openrouter:
+  #   type: "openrouter"
+  #   friendly_name: "OpenRouter Multi-Model"
+  #
+  #   default_model:
+  #     # OpenRouter model format: provider/model-name
+  #     name: "anthropic/claude-3-sonnet"
+  #     temperature: 0.8
+  #     max_tokens: 4096
+  #
+  #     overrides:
+  #       api_key: "your-openrouter-api-key"
+  #
+  #   global_rate_limit: 30
+  #   instance_rate_limit: 5
+
+  # ============================================================================
+  # OLLAMA PROVIDER (LOCAL LLM EXAMPLE)
+  # ============================================================================
+  # ollama:
+  #   type: "ollama"
+  #   friendly_name: "Local Ollama"
+  #
+  #   endpoint: "http://localhost:11434"
+  #
+  #   default_model:
+  #     # Ollama model names (must be pulled locally first)
+  #     name: "llama2"
+  #     temperature: 0.7
+  #
+  #   # Local models typically don't need rate limiting
+  #   global_rate_limit: null
+  #   instance_rate_limit: null
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+#
+# 1. Configuration Validation:
+#    - The bot will validate this config on startup
+#    - Missing required fields will cause the plugin to fail loading
+#    - Invalid provider types will be rejected
+#
+# 2. Multiple Providers:
+#    - You can define multiple providers and switch between them
+#    - Each conversation can potentially use a different provider
+#    - The 'default_provider' is used when creating new conversations
+#
+# 3. Rate Limiting:
+#    - Rate limits are optional but recommended for API providers
+#    - They help prevent hitting provider API limits and unexpected costs
+#    - Set to null to disable rate limiting for a provider
+#
+# 4. Security:
+#    - Never commit API keys to version control
+#    - Consider using environment variables for sensitive data
+#    - Ensure this config file has appropriate file permissions
+#
+# 5. Model Parameters:
+#    - All model parameters (temperature, max_tokens, etc.) are optional
+#    - Provider defaults will be used if parameters are omitted
+#    - Experiment with different values to find what works best
+#
+# ==============================================================================
