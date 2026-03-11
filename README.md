@@ -29,7 +29,7 @@ Rather than having formal releases, Jerry-bot uses a `stable` branch to provide 
 
 ### Incomplete/Need Reworking
 
-- **gemini** - (r3) Sophisticated AI chatbot system leveraging Google Gemini. (Being rewritten)
+- **gemini** - (r4) Sophisticated AI chatbot system leveraging Google Gemini, OpenRouter, or Ollama. Currently partially implemented, but missing core features.
 
 ### Not Implemented (Yet)
 
