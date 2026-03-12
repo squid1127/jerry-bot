@@ -174,4 +174,4 @@ class ChannelConfigEditor:
             self.conversation_manager.logger.error(f"Error saving channel configuration for channel {interaction.channel_id}: {e}")
             return
 
-        await send_ephemeral_response(interaction, success="Channel configuration saved successfully!" + ("\n\n**Hints**:\n- " + "- \n".join(hints) if hints else ""))
+        await send_ephemeral_response(interaction, success="Channel configuration saved successfully!" + ("\n\n**Hints**:\n- " + "\n- ".join(hints) if hints else ""))
