@@ -55,9 +55,12 @@ class MessageRenderer:
         
     def _render_model_message(self, message: ModelMessage) -> str:
         """Render a ModelMessage to a string format."""
-        content = self.MESSAGE_FLAGS[ModelMessage] + "\n"
+        # Models break for some reason if we include the [MODEL] flag, so we will omit it for now.
+        # The class type and model role kind of conflict with the [MODEL] flag, which appears to be the root issue
+        # content = self.MESSAGE_FLAGS[ModelMessage] + "\n"
+        content = ""
         content += message.content if message.content else ""
-        return content
+        return content.strip()
 
     def _render_system_message(self, message: SystemMessage) -> str:
         """Render a SystemMessage to a string format."""
