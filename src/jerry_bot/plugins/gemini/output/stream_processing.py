@@ -4,6 +4,8 @@ from typing import AsyncIterator
 from ..models import ModelResponseStream
 import asyncio
 
+from .constants import DEFAULT_MAX_CHUNK_SIZE
+
 
 async def split_paragraphs(
     iterator: AsyncIterator[ModelResponseStream],
@@ -75,7 +77,7 @@ async def buffered_cooldown(
     iterator: AsyncIterator[ModelResponseStream],
     cooldown: float,
     separator: str = "",
-    buffer_size: int = 2000,
+    buffer_size: int = DEFAULT_MAX_CHUNK_SIZE,
 ) -> AsyncIterator[ModelResponseStream]:
     """Async iterator that merges chunks received within the cooldown window into a single chunk,
     yielding when the window expires or the buffer would exceed the character limit.
@@ -90,17 +92,20 @@ async def buffered_cooldown(
                   in a window arrives, further chunks are merged until the window expires.
         separator: The string used to split paragraphs when merging chunks. Defaults to an empty string (no separator).
         buffer_size: The maximum number of characters to accumulate before yielding early.
-                     Defaults to 2000.
+                     Defaults to DEFAULT_MAX_CHUNK_SIZE.
     """
     # A producer task feeds items into a queue so that timing out a queue.get()
     # (via asyncio.shield) never corrupts the underlying iterator — unlike calling
     # asyncio.wait_for directly on __anext__(), which cancels the generator coroutine.
-    queue: asyncio.Queue[ModelResponseStream | None] = asyncio.Queue()
+    queue: asyncio.Queue[ModelResponseStream | None | Exception] = asyncio.Queue()
 
     async def _producer() -> None:
-        async for item in iterator:
-            await queue.put(item)
-        await queue.put(None)  # sentinel
+        try:
+            async for item in iterator:
+                await queue.put(item)
+            await queue.put(None)  # sentinel for successful completion
+        except Exception as e:
+            await queue.put(e)  # sentinel for error
 
     producer_task = asyncio.create_task(_producer())
 
@@ -119,6 +124,10 @@ async def buffered_cooldown(
 
             if response is None:
                 break
+
+            # Check if producer sent an exception
+            if isinstance(response, Exception):
+                raise response
 
             if response.content is not None:
                 buffer += response.content + separator
@@ -148,6 +157,10 @@ async def buffered_cooldown(
                     exhausted = True
                     break
 
+                # Check if producer sent an exception
+                if isinstance(response, Exception):
+                    raise response
+
                 if response.content is None:
                     continue
 
@@ -166,6 +179,7 @@ async def buffered_cooldown(
 
     finally:
         producer_task.cancel()
+        await asyncio.gather(producer_task, return_exceptions=True)
         if pending_get is not None and not pending_get.done():
             pending_get.cancel()
 
@@ -174,7 +188,8 @@ async def buffered_cooldown(
 
 
 async def live_character_buffer(
-    iterator: AsyncIterator[ModelResponseStream], buffer_size: int = 2000
+    iterator: AsyncIterator[ModelResponseStream],
+    buffer_size: int = DEFAULT_MAX_CHUNK_SIZE,
 ) -> AsyncIterator[ModelResponseStream]:
     """Async iterator that forwards all chunks from the input iterator, but sets the 'start' flag so that the output can be treated as a live-updating buffer of text, with a specified maximum size."""
     buffer = ""

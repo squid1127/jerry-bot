@@ -5,13 +5,16 @@ from ..models import ChannelContext, ModelResponseStream, FatalError
 import discord
 import asyncio
 
+from .constants import DEFAULT_TYPING_TIMEOUT, FORBIDDEN_ERROR_MESSAGE
+
+
 async def stream_and_send(
     message_generator: AsyncIterator[ModelResponseStream],
     channel_context: ChannelContext,
     first_message_event: asyncio.Event | None = None,
 ) -> ModelResponseStream:
     """Stream and send each chunk to the Discord channel as it is generated.
-    
+
     Args:
         message_generator: An async iterator that yields ModelResponseStream objects.
         channel_context: The context of the channel to send messages in.
@@ -27,25 +30,26 @@ async def stream_and_send(
         async for chunk in message_generator:
             if chunk.content is None:
                 continue
-            
+
             if not event_set and first_message_event is not None:
                 first_message_event.set()
                 event_set = True
-                
+
             buffer += chunk.content
             await channel.send(chunk.content)
     except discord.Forbidden as e:
-        raise FatalError("Bot does not have permission to send messages in this channel.") from e
-    
+        raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
+
     return ModelResponseStream(content=buffer)
-        
+
+
 async def stream_and_edit(
     message_generator: AsyncIterator[ModelResponseStream],
     channel_context: ChannelContext,
     first_message_event: asyncio.Event | None = None,
 ) -> ModelResponseStream:
     """Stream and send each chunk to the Discord channel as it is generated, editing the same message with new content instead of sending multiple messages.
-    
+
     Args:
         message_generator: An async iterator that yields ModelResponseStream objects.
         channel_context: The context of the channel to send messages in.
@@ -58,17 +62,17 @@ async def stream_and_edit(
     buffer = ""
     global_buffer = ""
     event_set = False
-    
+
     try:
 
         async for chunk in message_generator:
             if chunk.content is None:
                 continue
-            
+
             if not event_set and first_message_event is not None:
                 first_message_event.set()
                 event_set = True
-            
+
             global_buffer += chunk.content
             if sent_message is None or chunk.start:
 
@@ -78,15 +82,75 @@ async def stream_and_edit(
                 buffer += chunk.content
                 await sent_message.edit(content=buffer)
     except discord.Forbidden as e:
-        raise FatalError("Bot does not have permission to send messages in this channel.") from e
-    
+        raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
+
     return ModelResponseStream(content=global_buffer)
 
-async def typing_until_event(channel_context: ChannelContext, stop_event: asyncio.Event):
-    """Start the typing indicator in the channel and keep it active until the stop_event is set."""
+
+def start_typing_until_event(
+    channel_context: ChannelContext,
+    timeout: float = DEFAULT_TYPING_TIMEOUT,
+) -> tuple[asyncio.Task, asyncio.Event]:
+    """Start the typing indicator and return a task and event to control it.
+
+    The typing indicator will remain active until the returned event is set.
+    Automatically handles Discord's typing timeout by refreshing the indicator.
+
+    Args:
+        channel_context: The context of the channel to show typing in.
+        timeout: The maximum time in seconds to wait before refreshing the typing indicator. Should be less than Discord's ~10s timeout.
+
+    Returns:
+        tuple: (typing_task, stop_event) - Set the event to stop typing,
+               await the task to ensure cleanup is complete.
+
+    Example:
+        typing_task, event = start_typing_until_event(channel_context)
+        try:
+            # Do work, pass event to stream functions
+            result = await some_operation(event)
+        finally:
+            event.set()
+            await typing_task
+    """
+    stop_event = asyncio.Event()
     channel = channel_context.channel
 
-    async with channel.typing():
-        await stop_event.wait()
-    
-    return stop_event
+    async def _typing_loop():
+        """Keep typing indicator active, handling Discord's ~10s timeout."""
+        while not stop_event.is_set():
+            async with channel.typing():
+                try:
+                    # Wait for stop event with timeout slightly less than Discord's limit
+                    await asyncio.wait_for(stop_event.wait(), timeout=timeout)
+                    break  # Event was set, exit cleanly
+                except asyncio.TimeoutError:
+                    # Typing expired, loop will restart it
+                    continue
+
+    task = asyncio.create_task(_typing_loop())
+    return task, stop_event
+
+
+async def send_success_message(
+    channel_context: ChannelContext, content: str, title: str = "Success ✅"
+) -> None:
+    """Send a success message to the channel."""
+    channel = channel_context.channel
+    embed = discord.Embed(title=title, description=content, color=discord.Color.green())
+    try:
+        await channel.send(embed=embed)
+    except discord.Forbidden as e:
+        raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
+
+
+async def send_error_message(
+    channel_context: ChannelContext, content: str, title: str = "Error ❌"
+) -> None:
+    """Send an error message to the channel."""
+    channel = channel_context.channel
+    embed = discord.Embed(title=title, description=content, color=discord.Color.red())
+    try:
+        await channel.send(embed=embed)
+    except discord.Forbidden as e:
+        raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
