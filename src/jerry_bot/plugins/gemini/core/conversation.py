@@ -4,7 +4,7 @@ from logging import Logger
 from typing import TYPE_CHECKING
 import discord
 
-from ..models import Channel, Guild, Message, ChannelContext
+from ..models import Channel, Guild, Message, ChannelContext, Model
 from .message_queue import MessageQueue
 from .message_processor import MessageProcessor
 from ..input import ContextGenerator
@@ -23,6 +23,7 @@ class Conversation:
         guild: Guild,
         logger: Logger,
         provider: "Provider",
+        model: Model,
     ):
         self.channel = channel
         self.channel_context = channel_context
@@ -33,8 +34,9 @@ class Conversation:
         # Processing components
         self.context_generator = ContextGenerator(
             global_config=provider.global_config,
-            model_config=provider.default_model,
+            model_config=model,
             guild_config=self.guild,
+            channel_config=self.channel,
         )
         self.processor = MessageProcessor(
             logger=self.logger,
