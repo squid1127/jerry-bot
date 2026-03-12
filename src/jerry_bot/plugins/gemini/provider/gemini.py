@@ -7,7 +7,7 @@ from ..models import (
     ModelResponseStream,
     ModelContextRole,
 )
-from ..config import ProviderConfig, GlobalConfig, ModelConfig
+from ..config import ProviderConfig, GlobalConfig
 from typing import AsyncIterator
 from ..models.exceptions import ProviderAPIError, ProviderGenerateError
 from google.genai import types, Client
