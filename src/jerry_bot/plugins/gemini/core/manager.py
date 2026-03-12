@@ -4,7 +4,7 @@ from logging import Logger
 from typing import Optional, TYPE_CHECKING
 import discord
 
-from ..models import UserMessage, Channel, Guild, ChannelContext
+from ..models import UserMessage, Channel, Guild, ChannelContext, ModelEntry, Model
 from ..models.exceptions import (
     ChannelAlreadyRegisteredError,
     ChannelNotRegisteredError,
@@ -56,6 +56,13 @@ class ConversationManager:
         channel = await self.get_channel(dc_channel.id)
         if not channel:
             return None
+        
+        if channel.model:
+            model_entry: ModelEntry = await channel.model
+            model = Model.from_database_entry(model_entry)
+        else:
+            # Fallback to provider's default model if not set at channel level
+            model = self.provider_manager.get_provider(channel.provider_name).default_model
 
         provider = self.provider_manager.get_provider(channel.provider_name)
         guild = await channel.guild  # Await the FK to get the Guild instance
@@ -65,6 +72,7 @@ class ConversationManager:
             guild=guild,
             logger=self.logger,
             provider=provider,
+            model=model,
         )
         self.conversations[channel.channel_id] = conversation
         return conversation
@@ -130,6 +138,12 @@ class ConversationManager:
         # Ensure the guild exists (get or create)
         guild, _ = await Guild.get_or_create(guild_id=guild_id)
 
+        # Create model entry for the channel with provider's default
+        model = self.provider_manager.get_provider(
+            resolved_provider
+        ).default_model.to_database_entry()
+        await model.save()
+
         channel = await Channel.create(
             channel_id=channel_id,
             guild=guild,
@@ -137,6 +151,7 @@ class ConversationManager:
             provider_overrides=provider_overrides or {},
             prompt=prompt,
             override_system_prompt=override_system_prompt,
+            model=model,
         )
 
         # Cache and initialise a live conversation
@@ -209,6 +224,73 @@ class ConversationManager:
         await self.stop_conversation(channel_id)
 
         self.logger.info(f"Updated Gemini channel {channel_id}.")
+        return channel
+
+    async def update_channel_model(
+        self,
+        channel_id: int,
+        model: Model,
+    ) -> Channel:
+        """Update the model for an existing Gemini channel.
+
+        Args:
+            channel_id: The channel to update.
+            model: The new model to use for the channel.
+        Returns:
+            The updated Channel instance.
+        Raises:
+            ChannelNotRegisteredError: If the channel is not registered.
+        """
+        channel = await self.get_channel(channel_id)
+        if not channel:
+            raise ChannelNotRegisteredError(channel_id)
+        if channel.model:
+            model_entry: ModelEntry | None = await channel.model
+        else:
+            model_entry = None
+
+        if model_entry:
+            self.logger.info(
+                f"Updating model for Gemini channel {channel_id} from {model_entry.model_name} to {model.name}."
+            )
+            
+            default_model = self.provider_manager.get_provider(channel.provider_name).default_model.to_database_entry()
+
+            model_entry.model_name = model.name
+            model_entry.temperature = (
+                model.temperature
+                if model.temperature is not None
+                else default_model.temperature
+            )
+            model_entry.max_tokens = (
+                model.max_tokens
+                if model.max_tokens is not None
+                else default_model.max_tokens
+            )
+            model_entry.top_p = (
+                model.top_p if model.top_p is not None else default_model.top_p
+            )
+            model_entry.top_k = (
+                model.top_k if model.top_k is not None else default_model.top_k
+            )
+
+        else:
+            self.logger.info(
+                f"Setting model for Gemini channel {channel_id} to {model.name}."
+            )
+            model_entry = model.to_database_entry()
+
+        await model_entry.save()
+
+        channel.model = model_entry
+        await channel.save()
+
+        # Refresh the cache and tear down the stale conversation so it is
+        # rebuilt with the new settings on the next incoming message.
+        self.channels[channel_id] = channel
+        await self.stop_conversation(channel_id)
+
+        self.logger.info(f"Updated model for Gemini channel {channel_id}.")
         return channel
 
     # ── Stop Conversation ─────────────────────────────────────────────────
