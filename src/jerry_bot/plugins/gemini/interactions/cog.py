@@ -11,7 +11,8 @@ from discord.ext import commands
 from ..models import Channel
 from ..core.manager import ConversationManager
 from .utils import send_ephemeral_response, create_error_embed
-from .editor import ChannelConfigEditor
+from .channel_editor import ChannelConfigEditor
+from .model_editor import ModelConfigEditor
 
 
 class GeminiCog(PluginCog):
@@ -29,8 +30,11 @@ class GeminiCog(PluginCog):
         super().__init__(plugin)
         self.conversation_manager = conversation_manager
 
-    @group.command(name="enable", description="[Gemini] Enable / configure Gemini for this channel.")
-    async def enable(self, interaction: discord.Interaction):
+    @group.command(
+        name="channel",
+        description="[Gemini] Enable / configure Gemini for this channel.",
+    )
+    async def enable_channel(self, interaction: discord.Interaction):
         """Start the channel configuration editor for the current channel, allowing the user to set up Gemini for this channel. If Gemini is already enabled for this channel, this will allow the user to edit the existing configuration."""
         if not await self.check_permissions(interaction):
             return
@@ -40,7 +44,7 @@ class GeminiCog(PluginCog):
         )
         await editor.start()
 
-    @enable.error
+    @enable_channel.error
     async def enable_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
@@ -49,6 +53,30 @@ class GeminiCog(PluginCog):
         await send_ephemeral_response(
             interaction,
             error="An unexpected error occurred while trying to enable Gemini for this channel. Please try again later.",
+        )
+
+    @group.command(
+        name="model", description="[Gemini] Configure model settings for this channel."
+    )
+    async def model(self, interaction: discord.Interaction):
+        """Configure the model settings for the current channel, including temperature, max tokens, etc."""
+        if not await self.check_permissions(interaction):
+            return
+
+        editor = ModelConfigEditor(
+            conversation_manager=self.conversation_manager, interaction=interaction
+        )
+        await editor.start()
+
+    @model.error
+    async def model_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
+        """Error handler for the model command."""
+        self.plugin.logger.error(f"Error in model command: {error}")
+        await send_ephemeral_response(
+            interaction,
+            error="An unexpected error occurred while trying to configure the model. Please try again later.",
         )
 
     @group.command(
@@ -131,7 +159,10 @@ class GeminiCog(PluginCog):
     async def gemini_reset(self, interaction: discord.Interaction):
         """Reset the Gemini conversation in this channel, clearing all context and history."""
 
-        if not isinstance(interaction.channel, discord.TextChannel) or not interaction.channel_id:
+        if (
+            not isinstance(interaction.channel, discord.TextChannel)
+            or not interaction.channel_id
+        ):
             await send_ephemeral_response(
                 interaction, error="This command can only be used in text channels."
             )
@@ -154,7 +185,7 @@ class GeminiCog(PluginCog):
             ),
             ephemeral=False,
         )
-        
+
     @gemini_reset.error
     async def gemini_reset_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
