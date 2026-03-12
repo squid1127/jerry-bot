@@ -10,10 +10,10 @@ from .message import (
     ExceptionMessage,
     Message,
 )
-from .database import Channel, Guild
+from .database import Channel, Guild, ModelEntry
 from .function_call import FunctionCall
 from .provider import ProviderModel
-from .model import ModelContext, ModelContextMessage, ModelResponseStream
+from .model import Model, ModelContext, ModelContextMessage, ModelResponseStream
 from .context import ChannelContext
 from .exceptions import (
     GeminiError,
@@ -51,11 +51,13 @@ __all__ = [
     # Database models
     "Channel",
     "Guild",
+    "ModelEntry",
     # Function call
     "FunctionCall",
     # Provider
     "ProviderModel",
     # Model context
+    "Model",
     "ModelContext",
     "ModelContextMessage",
     "ModelResponseStream",
