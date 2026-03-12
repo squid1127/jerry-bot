@@ -3,7 +3,7 @@
 from typing import Optional, Dict
 from pydantic import BaseModel, Field
 
-from .provider_config import ProviderConfig
+from .provider_config import ProviderConfig, ModelConfig
 from ..core.constants import GLOBAL_PROMPT
 
 
@@ -31,4 +31,21 @@ class GlobalConfig(BaseModel):
         0.5,
         description="The minimum delay in seconds between streamed message chunks sent by the bot.",
         examples=[0.5, 1.0, 2.0]
+    )
+
+class EphemeralConfig(BaseModel):
+    """Configuration for ephemeral messages, which are only visible to the user who triggered them."""
+
+    enabled: bool = Field(
+        False,
+        description="Whether to enable ephemeral mode, where an ephemeral conversation is created whenever the bot is mentioned in an approved guild. Ephemeral conversations time out after a period of inactivity and can be interacted with by anyone in that channel.",
+    )
+    timeout_seconds: int = Field(
+        300,
+        description="The number of seconds of inactivity after which an ephemeral conversation will time out and be deleted. Defaults to 300 seconds (5 minutes).",
+        examples=[60, 300, 600]
+    )
+    model: ModelConfig = Field(
+        ...,
+        description="The model configuration to use for ephemeral conversations. This allows you to specify a different model or provider for ephemeral interactions compared to regular conversations.",
     )
