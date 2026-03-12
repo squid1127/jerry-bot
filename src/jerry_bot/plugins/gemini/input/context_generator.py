@@ -2,17 +2,16 @@
 
 from typing import TYPE_CHECKING, Optional
 
-from ..models import Message, ModelContext, ModelContextMessage, ModelContextRole, Guild, Channel
+from ..models import Message, ModelContext, ModelContextMessage, Model, Guild, Channel
 if TYPE_CHECKING:
     from ..config.global_config import GlobalConfig
-    from ..config.provider_config import ModelConfig
 from .message_render import MessageRenderer
 
 
 class ContextGenerator:
     """Generates the context for a model response based on the conversation history and model configuration."""
     
-    def __init__(self, global_config: "GlobalConfig", model_config: "ModelConfig", guild_config: "Guild", channel_config: Optional["Channel"] = None, ephemeral: bool = False):
+    def __init__(self, global_config: "GlobalConfig", guild_config: "Guild", model_config: "Model", channel_config: Optional["Channel"] = None, ephemeral: bool = False):
         self.model_config = model_config
         self.guild_config = guild_config
         self.global_config = global_config
@@ -38,7 +37,11 @@ class ContextGenerator:
         prompt_parts: dict[str, str] = {}
         if self.global_config.global_prompt:
             prompt_parts['base'] = self.global_config.global_prompt
-        
+    
+        # Add model-specific prompt if it exists
+        if self.model_config.prompt:
+            prompt_parts['model'] = self.model_config.prompt
+    
         # Add guild-specific prompt if it exists
         if self.guild_config.prompt:
             prompt_parts['guild'] = self.guild_config.prompt
