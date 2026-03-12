@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from .provider_config import ProviderConfig, ModelConfig
 from ..core.constants import GLOBAL_PROMPT
 
-
 class GlobalConfig(BaseModel):
     """Pydantic model for Gemini plugin global configuration."""
 
@@ -32,13 +31,18 @@ class GlobalConfig(BaseModel):
         description="The minimum delay in seconds between streamed message chunks sent by the bot.",
         examples=[0.5, 1.0, 2.0]
     )
+    
+    ephemeral_mode: EphemeralConfig = Field(
+        ...,
+        description="Configuration for ephemeral conversations, which are temporary conversations created when the bot is mentioned in approved guilds. This allows you to specify different behavior and settings for ephemeral interactions compared to regular conversations."
+    )
 
 class EphemeralConfig(BaseModel):
     """Configuration for ephemeral messages, which are only visible to the user who triggered them."""
 
     enabled: bool = Field(
         False,
-        description="Whether to enable ephemeral mode, where an ephemeral conversation is created whenever the bot is mentioned in an approved guild. Ephemeral conversations time out after a period of inactivity and can be interacted with by anyone in that channel.",
+        description="Whether to enable ephemeral mode.",
     )
     timeout_seconds: int = Field(
         300,

@@ -23,6 +23,25 @@ friendly_name: "Jerry"
 # This setting controls the minimum delay between sending each message segment to avoid hitting rate limits. Adjust as needed based on your provider's response speed and Discord's rate limits.
 message_send_cooldown: 0.5
 
+# Configuration for ephemeral conversations, which are temporary conversations created when the bot is mentioned in approved guilds. This allows you to specify different behavior and settings for ephemeral interactions compared to regular conversations.
+ephemeral_mode: 
+
+  enabled: false # Set to true to enable
+
+  timeout_seconds: 300 # Time in seconds before an ephemeral conversation times out due to inactivity. Adjust as needed.
+
+  model:
+    name: "gemini-2.5-flash" # Model to use for ephemeral conversations. Can be the same or different from regular conversations.
+
+    # [Required] Prompt for ephemeral conversations. This qualifies as model-scoped
+    prompt: >
+      You are in an ephemeral conversation. This means you are in a temporary chat that will time out after a period of inactivity. You can interact with anyone in this channel, but your responses should be concise and to the point. Remember that this conversation is temporary, so focus on providing quick and helpful answers without engaging in long discussions.
+
+    temperature: 0.7
+    max_tokens: 2048
+    top_p: 0.95
+    top_k: 40
+
 # ==============================================================================
 # PROVIDER CONFIGURATIONS
 # ==============================================================================
