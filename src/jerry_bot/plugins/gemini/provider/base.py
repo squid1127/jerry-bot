@@ -3,8 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, TYPE_CHECKING
 
-from ..models import ModelContext, ModelContextMessage, ModelResponseStream
-from ..config.provider_config import ProviderConfig, ModelConfig
+from ..models import ModelContext, Model, ModelResponseStream
+from ..config.provider_config import ProviderConfig
 
 if TYPE_CHECKING:
     from ..config.global_config import GlobalConfig
@@ -36,9 +36,9 @@ class Provider(ABC):
         return self._name
 
     @property
-    def default_model(self) -> ModelConfig:
+    def default_model(self) -> Model:
         """Get the default model configuration for this provider."""
-        return self.provider_config.default_model
+        return Model.from_config(self.provider_config.default_model)
 
     @property
     def friendly_name(self) -> str:
