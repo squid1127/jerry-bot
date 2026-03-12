@@ -140,12 +140,28 @@ class ChannelConfigEditor:
 
     async def on_submit(self, interaction: discord.Interaction):
         """Handle submission of the channel configuration form."""
+        
+        if not isinstance(interaction.channel, discord.TextChannel) or not interaction.channel_id:
+            await send_ephemeral_response(
+                interaction, error="This interaction can only be used in text channels."
+            )
+            return
 
         selected_provider_name = self.ui_provider.values[0]
         channel_prompt = self.ui_channel_prompt.value
         override_system_prompt = "prompt_override" in self.ui_options_select.values
+        
+        current_channel_config = (await self.conversation_manager.get_channel(interaction.channel_id))
 
         await interaction.response.defer(thinking=True, ephemeral=True)
+        
+        hints: list[str] = []
+        if current_channel_config and current_channel_config.provider_name != selected_provider_name:
+            hints.append(f"Provider changed to {selected_provider_name}. Make sure to update model settings for this new provider!")
+        if override_system_prompt:
+            hints.append("System prompt will be overridden. Only the channel-specific prompt will be used.")
+        if channel_prompt and len(channel_prompt) > 500:
+            hints.append("Channel prompt is quite long. Consider shortening it for better performance and response times.")
 
         try:
             await self.save_channel(
@@ -158,4 +174,4 @@ class ChannelConfigEditor:
             self.conversation_manager.logger.error(f"Error saving channel configuration for channel {interaction.channel_id}: {e}")
             return
 
-        await send_ephemeral_response(interaction, success="Channel configuration saved successfully!")
+        await send_ephemeral_response(interaction, success="Channel configuration saved successfully!" + ("\n\n**Hints**:\n- " + "- \n".join(hints) if hints else ""))
