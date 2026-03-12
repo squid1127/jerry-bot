@@ -9,9 +9,10 @@ from ..models import (
     ModelResponseStream,
     ModelContextRole,
 )
-from ..config import ProviderConfig, GlobalConfig, ModelConfig
+from ..config import ProviderConfig, GlobalConfig
 from typing import AsyncIterator
 from ..models.exceptions import ProviderAPIError, ProviderGenerateError
+
 
 class OllamaProvider(Provider):
     """Provider implementation for Ollama LLMs."""
@@ -26,10 +27,25 @@ class OllamaProvider(Provider):
             headers["Authorization"] = f"Bearer {provider_config.api_key}"
         self.client = AsyncClient(provider_config.endpoint, headers=headers)
 
+        self.models: list[str] = []  # Cache for model names to avoid repeated API calls
+
+    async def model_exists(self, model_name: str) -> bool:
+        """Check if a model exists in Ollama, with caching."""
+        if model_name in self.models:
+            return True
+
+        try:
+            models: ollama.ListResponse = await self.client.list()
+            self.models = [str(model.model) for model in models.models]
+            return model_name in self.models
+        except Exception as e:
+            raise ProviderAPIError(f"Error checking model existence: {e}") from e
+
     async def generate(
         self, context: ModelContext
     ) -> AsyncIterator[ModelResponseStream]:
         """Generate a response from the Ollama model based on the provided context."""
+                
         # Convert ModelContext to Ollama's expected format
         messages = []
         if context.prompt:
@@ -39,14 +55,16 @@ class OllamaProvider(Provider):
             role = "user" if msg.role == ModelContextRole.USER else "assistant"
             messages.append({"role": role, "content": msg.content})
 
+        model = context.model.name
+        if not await self.model_exists(model):
+            raise ProviderGenerateError(f"Model '{model}' does not exist locally in Ollama. Note: You may need to manually pull the model.")
+
         # Call the Ollama API
-        generator = (await self.client.chat(model=context.model.name, messages=messages, stream=True))
         try:
+            generator = await self.client.chat(
+                model=model, messages=messages, stream=True
+            )
             async for chunk in generator:  # type: ignore
-                yield ModelResponseStream(
-                    content=chunk["message"]["content"]
-                )
-        except ollama.RequestError as e:
-            raise ProviderAPIError(f"Ollama API request failed: {e}")
-        except ollama.ResponseError as e:
-            raise ProviderAPIError(f"Ollama API returned an error response: {e}")
+                yield ModelResponseStream(content=chunk["message"]["content"])
+        except Exception as e:
+            raise ProviderAPIError(f"Ollama API returned an error response: {e}") from e
