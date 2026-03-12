@@ -10,15 +10,14 @@ from .ollama import OllamaProvider
 from .gemini import GeminiProvider
 from .openrouter import OpenRouterProvider
 
+PROVIDER_CLASSES: Dict[ProviderType, Type[Provider]] = {
+    ProviderType.OLLAMA: OllamaProvider,
+    ProviderType.GEMINI: GeminiProvider,
+    ProviderType.OPENROUTER: OpenRouterProvider,
+}
 
 class ProviderManager:
     """Manages the initialization and retrieval of LLM providers."""
-
-    PROVIDER_CLASSES: ClassVar[Dict[ProviderType, Type[Provider]]] = {
-        ProviderType.OLLAMA: OllamaProvider,
-        ProviderType.GEMINI: GeminiProvider,
-        ProviderType.OPENROUTER: OpenRouterProvider,
-    }
 
     def __init__(self, global_config: GlobalConfig):
         """Initialize the ProviderManager with the given global configuration."""
@@ -30,7 +29,7 @@ class ProviderManager:
     def _initialize_providers(self) -> None:
         """Initialize all providers defined in the global configuration."""
         for name, config in self.global_config.providers.items():
-            provider_class = self.PROVIDER_CLASSES.get(config.type)
+            provider_class = PROVIDER_CLASSES.get(config.type)
             if not provider_class:
                 raise NotImplementedError(
                     f"Provider type '{config.type.value}' for provider '{name}' is not yet implemented."
