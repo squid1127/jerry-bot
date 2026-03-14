@@ -2,6 +2,9 @@
 
 import discord
 
+class UserFacingException(Exception):
+    """Base class for exceptions that should be shown to the user in a friendly way."""
+    pass
 
 async def send_ephemeral_response(
     interaction: discord.Interaction,
