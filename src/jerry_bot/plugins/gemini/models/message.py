@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Union
 import discord
 
 from .enums import MessageSource, MessageDestination, ModelContextRole
@@ -56,7 +56,9 @@ class UserMessage(BaseMessage):
 
     user: Participant
     content: Optional[str] = None
-    attachments: Optional[Dict[str, Any]] = None
+    # Discord objects (Eww)
+    attachments: Optional[list[discord.Attachment]] = None
+    discord_msg: Optional[discord.Message] = None  # Original Discord message for reference and further processing
 
     def __post_init__(self):
         """Validate that at least content or attachments is provided."""
@@ -82,7 +84,7 @@ class UserMessage(BaseMessage):
             display_name=message.author.display_name,
         )
 
-        return cls(user=user, content=message.content)
+        return cls(user=user, content=message.content, discord_msg=message)
 
 
 @dataclass(frozen=True, slots=True)
