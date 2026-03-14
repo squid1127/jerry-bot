@@ -53,3 +53,8 @@ class EphemeralConfig(BaseModel):
         ...,
         description="The model configuration to use for ephemeral conversations. This allows you to specify a different model or provider for ephemeral interactions compared to regular conversations.",
     )
+    provider: Optional[str] = Field(
+        None,
+        description="The name of the provider to use for ephemeral conversations. If not set, the default provider will be used.",
+        examples=["gemini", "custom-ollama"]
+    )
