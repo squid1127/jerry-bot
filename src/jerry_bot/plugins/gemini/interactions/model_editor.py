@@ -36,7 +36,7 @@ class ModelConfigEditor:
             return Model.from_database_entry(await channel.model)
 
         # Fallback to provider's default model
-        provider = self.conversation_manager.provider_manager.get_provider(
+        provider = self.conversation_manager._provider_manager.get_provider(
             channel.provider_name
         )
         if provider:
@@ -80,7 +80,7 @@ class ModelConfigEditor:
             return
 
         current_model = await self.get_current_model(channel)
-        provider = self.conversation_manager.provider_manager.get_provider(
+        provider = self.conversation_manager._provider_manager.get_provider(
             channel.provider_name
         )
 
@@ -276,7 +276,7 @@ class ModelConfigEditor:
                 interaction,
                 error="An error occurred while saving the model configuration. Please try again later.",
             )
-            self.conversation_manager.logger.error(
+            self.conversation_manager._logger.error(
                 f"Error saving model configuration for channel {interaction.channel_id}: {e}"
             )
             return
