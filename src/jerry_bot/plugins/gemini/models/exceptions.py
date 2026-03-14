@@ -12,7 +12,8 @@ Inheritance tree
     │   ├── ChannelNotRegisteredError
     │   └── ChannelAlreadyRegisteredError
     ├── ConversationError              # Conversation-level failures
-    │   └── MessageProcessingError     # Failure while processing a queued message
+    │   ├── MessageProcessingError     # Failure while processing a queued message
+    │   └── ConversationInactivityTimeoutError  # Conversation expired due to inactivity
     ├── ProviderError                  # Base for all provider/model errors
     │   ├── ProviderGenerateError      # Generation failed (non-API reason)
     │   ├── ProviderRateLimitError     # Internal / self-imposed rate limit hit
@@ -92,6 +93,30 @@ class ConversationError(GeminiError):
 
 class MessageProcessingError(ConversationError):
     """Raised when the message queue fails to process a message."""
+
+
+class ConversationInactivityTimeoutError(ConversationError):
+    """Raised when a conversation is stopped after exceeding inactivity timeout."""
+
+    def __init__(
+        self,
+        message: str = "Conversation timed out due to inactivity.",
+        *args: Any,
+        timeout_seconds: Optional[float] = None,
+        channel_id: Optional[int] = None,
+        **kwargs: Any,
+    ):
+        self.timeout_seconds = timeout_seconds
+        self.channel_id = channel_id
+
+        details: list[str] = []
+        if channel_id is not None:
+            details.append(f"channel={channel_id}")
+        if timeout_seconds is not None:
+            details.append(f"timeout={timeout_seconds}s")
+
+        suffix = f" ({', '.join(details)})" if details else ""
+        super().__init__(f"{message}{suffix}", *args, **kwargs)
 
 
 # ── Provider ──────────────────────────────────────────────────────────────
