@@ -30,6 +30,7 @@ ephemeral_mode:
 
   timeout_seconds: 300 # Time in seconds before an ephemeral conversation times out due to inactivity. Adjust as needed.
 
+  provider: "gemini" # Name of the provider to use for ephemeral conversations. If not set, the 'default_provider' will be used.
   model:
     name: "gemini-2.5-flash" # Model to use for ephemeral conversations. Can be the same or different from regular conversations.
 
