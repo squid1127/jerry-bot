@@ -16,6 +16,7 @@ from .provider import ProviderManager
 from .interactions.cog import GeminiCog
 from .models import Channel
 
+
 class Gemini(Plugin):
     """Gemini Plugin."""
 
@@ -56,7 +57,9 @@ class Gemini(Plugin):
         """Unload the Gemini Plugin."""
         if self.cog:
             await self.fw.bot.remove_cog(self.cog.qualified_name)
-            
+        if self.conversation_manager:
+            await self.conversation_manager.stop_all(drain=True)
+
     async def list_channels(self) -> list[Channel]:
         """List all channels with active conversations."""
         if not self.conversation_manager:
@@ -75,7 +78,11 @@ class Gemini(Plugin):
         if not isinstance(message.channel, discord.TextChannel):
             return  # Ignore messages that are not from text channels
 
-        await self.conversation_manager.route_message( message=message
+        allow_ephemeral = bool(self.config and self.config.ephemeral_mode.enabled)
+        await self.conversation_manager.route_message(
+            message=message,
+            allow_ephemeral=allow_ephemeral,
+            create_ephemeral=allow_ephemeral and self.is_mentioned(message),
         )
 
     @property
@@ -87,3 +94,7 @@ class Gemini(Plugin):
     def config(self) -> Optional[GlobalConfig]:
         """Get the current configuration."""
         return self.config_manager.config if self.config_manager else None
+
+    def is_mentioned(self, message: discord.Message) -> bool:
+        """Check if the bot is mentioned in the message."""
+        return self.fw.bot.user in message.mentions
