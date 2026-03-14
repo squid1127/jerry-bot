@@ -4,9 +4,9 @@ import asyncio
 import logging
 from typing import ClassVar
 from ..models import Message
-from ..models.exceptions import FatalError, ProviderError
+from ..models.exceptions import FatalError, ProviderError, ConversationInactivityTimeoutError
 from .message_processor import MessageProcessor
-
+import time
 
 class MessageQueue:
     """Message queue implementation for message processing within Gemini conversations."""
@@ -17,17 +17,37 @@ class MessageQueue:
         self,
         logger: logging.Logger,
         processor: MessageProcessor,
+        inactive_timeout: int | None = None,
     ):
         self._queue: asyncio.Queue[Message] = asyncio.Queue()
         self._task: asyncio.Task | None = None
         self._logger = logger
         self._processor = processor
+        self._inactive_timeout = inactive_timeout
+        self._last_processed_time = time.monotonic()
 
     def enqueue(self, message: Message):
         """Add a message to the queue."""
+        if self._check_inactivity_timeout():
+            raise ConversationInactivityTimeoutError(
+                "Cannot enqueue message because the conversation has been inactive for too long and has been stopped."
+            )
+            
         self._queue.put_nowait(message)
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._worker())
+    
+    def _check_inactivity_timeout(self) -> bool:
+        """Check if the inactivity timeout has been exceeded."""
+        if self._inactive_timeout is None:
+            return False
+        elapsed = time.monotonic() - self._last_processed_time
+        if elapsed > self._inactive_timeout:
+            self._logger.info(
+                f"Inactivity timeout exceeded (elapsed {elapsed:.2f}s), stopping message processor."
+            )
+            return True
+        return False
 
     async def join(self):
         """Wait until all tasks in the queue have been processed."""
