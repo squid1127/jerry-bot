@@ -10,10 +10,9 @@ from discord.ext import commands
 
 from ..models import Channel
 from ..core.manager import ConversationManager
-from .utils import send_ephemeral_response, create_error_embed
+from .utils import send_ephemeral_response, create_error_embed, UserFacingException
 from .channel_editor import ChannelConfigEditor
 from .model_editor import ModelConfigEditor
-
 
 class GeminiCog(PluginCog):
     """Cog for Gemini Plugin to handle Discord events."""
@@ -117,6 +116,56 @@ class GeminiCog(PluginCog):
             interaction,
             error="An unexpected error occurred while trying to disable Gemini for this channel. Please try again later.",
         )
+        
+    @group.command(
+        name="trust", description="[Gemini] Mark this guild as trusted for ephemeral conversations."
+    )
+    async def trust(self, interaction: discord.Interaction):
+        """Mark this channel as trusted for ephemeral conversations, allowing it to be used for temporary conversations that don't require a database entry."""
+        if not await self.check_permissions(interaction):
+            return
+        if not interaction.channel_id or not isinstance(
+            interaction.channel, discord.TextChannel
+        ):
+            await send_ephemeral_response(
+                interaction,
+                error="Could not determine the channel for this interaction.",
+            )
+            return
+        
+        if not interaction.guild_id:
+            raise UserFacingException(
+                "This command can only be used within a server (guild). Could not determine guild_id from interaction."
+            )
+
+        guild = await self.conversation_manager.get_guild(interaction.guild_id, create=True)
+        if not guild:
+            raise UserFacingException   (
+                "An error occurred while trying to access the guild configuration. Please try again later."
+            )
+            
+        updated_guild = await self.conversation_manager.update_guild(guild_id=interaction.guild_id, trusted=not guild.trusted, create=True)
+        if not updated_guild:
+            raise UserFacingException(
+                "An error occurred while trying to update the guild configuration. Please try again later."
+            )
+        status = "**trusted**" if updated_guild.trusted else "***un*trusted**"
+        await send_ephemeral_response(
+            interaction, success=f"This guild has been marked as {status} for ephemeral conversations."
+        )
+    @trust.error
+    async def trust_error(
+        self, interaction: discord.Interaction, error: app_commands.AppCommandError
+    ):
+        """Error handler for the trust command."""
+        self.plugin.logger.error(f"Error in trust command: {error}")
+        if isinstance(error, UserFacingException):
+            await send_ephemeral_response(interaction, error=str(error))
+            return
+        await send_ephemeral_response(
+            interaction,
+            error="An unexpected error occurred while trying to update the trust status for this guild. Please try again later.",
+        )
 
     async def check_permissions(self, interaction: discord.Interaction) -> bool:
         """Check if the user has permission to interact with the Gemini plugin."""
@@ -168,18 +217,17 @@ class GeminiCog(PluginCog):
             )
             return
 
-        channel_id = interaction.channel_id
-        channel = await self.conversation_manager.get_channel(channel_id)
-        if not channel:
+        conversation = await self.conversation_manager.get_conversation(interaction.channel)
+        if not conversation:
             await send_ephemeral_response(
-                interaction, error="Gemini is not enabled for this channel."
+                interaction, error="There is no active Gemini conversation in this channel to reset."
             )
             return
 
-        await self.conversation_manager.stop_conversation(channel_id, drain=False)
+        await self.conversation_manager.stop_conversation(interaction.channel.id, drain=False)
         await interaction.response.send_message(
             embed=discord.Embed(
-                title="Conversation Reset",
+                title="Conversation" + " Dismissed" if conversation.is_ephemeral else "Reset",
                 description="Context and history have been cleared.",
                 color=discord.Color.green(),
             ),
