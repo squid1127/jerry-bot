@@ -17,6 +17,7 @@ class Channel(Model):
     # Prompts and configuration
     prompt = fields.TextField(null=True)
     override_system_prompt = fields.BooleanField(default=False)
+    mention_mode = fields.BooleanField(default=False)
 
     # Metadata
     created_at = fields.DatetimeField(auto_now_add=True)
