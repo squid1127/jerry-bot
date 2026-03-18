@@ -74,8 +74,9 @@ class PollManagerView(ui.LayoutView):
 
     async def render(self):
         """Render the view based on the current state of the poll."""
-        if not await self.refresh_message():
-            return  # If refreshing the message failed, we can't continue rendering
+        if self.state in [PollManagerViewState.MAIN_MENU, PollManagerViewState.MAPPING]:
+            if not await self.refresh_message():
+                return  # If refreshing the message failed, we can't continue rendering
 
         # Clear existing items
         self.clear_items()
@@ -328,7 +329,9 @@ class PollManagerView(ui.LayoutView):
         """Handle the Save button click, saving the updated mappings to the database."""
         await interaction.response.defer(thinking=False)
 
+        new = False
         if not self.poll:
+            new = True
             self.poll = Poll(
                 guild_id=self.interaction.guild_id,
                 channel_id=self.interaction.channel_id,
@@ -350,6 +353,9 @@ class PollManagerView(ui.LayoutView):
 
             # Clear updates and update roles based on the new mappings
             self.mapping_updates.clear()
+            
+            if new:
+                self.manager.add_poll(self.poll)
 
             await self.update_roles()
 
