@@ -1,0 +1,7 @@
+[plugin]
+name = "poll_roles"
+description = "A plugin that allows users to allow discord polls to assign roles based on votes."
+class = "PollRoles"
+
+[db]
+models = ["models"]
