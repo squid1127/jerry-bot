@@ -5,7 +5,6 @@ from ollama import AsyncClient
 import ollama
 from ..models import (
     ModelContext,
-    ModelContextMessage,
     ModelResponseStream,
     ModelContextRole,
 )
@@ -45,7 +44,7 @@ class OllamaProvider(Provider):
         self, context: ModelContext
     ) -> AsyncIterator[ModelResponseStream]:
         """Generate a response from the Ollama model based on the provided context."""
-                
+
         # Convert ModelContext to Ollama's expected format
         messages = []
         if context.prompt:
@@ -57,7 +56,9 @@ class OllamaProvider(Provider):
 
         model = context.model.name
         if not await self.model_exists(model):
-            raise ProviderGenerateError(f"Model '{model}' does not exist locally in Ollama. Note: You may need to manually pull the model.")
+            raise ProviderGenerateError(
+                f"Model '{model}' does not exist locally in Ollama. Note: You may need to manually pull the model."
+            )
 
         # Call the Ollama API
         try:
