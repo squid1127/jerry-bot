@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, TYPE_CHECKING
 
-from ..models import ModelContext, Model, ModelResponseStream
+from ..models import LLMContext, LLMProfile, LLMResponseStream
 from ..config.provider_config import ProviderConfig
 
 if TYPE_CHECKING:
@@ -14,21 +14,23 @@ class Provider(ABC):
     """Abstract base class for LLM providers."""
 
     def __init__(
-        self, provider_config: ProviderConfig, global_config: "GlobalConfig", name: str
+        self, provider_config: ProviderConfig, name: str
     ):
         self.provider_config = provider_config
-        self.global_config = global_config
         self._name = name
 
     @abstractmethod
-    async def generate(
-        self, context: ModelContext
-    ) -> AsyncIterator[ModelResponseStream]:
+    async def generate(self, context: LLMContext) -> AsyncIterator[LLMResponseStream]:
         """Async iterator                if not event_set and first_message_event is not None:
-                    first_message_event.set()
-                    event_set = True method that yields model responses based on the provided context."""
+        first_message_event.set()
+        event_set = True method that yields model responses based on the provided context.
+        """
         yield  # type: ignore
         raise NotImplementedError("Subclasses must implement the generate method.")
+
+    async def model_exists(self, model_name: str) -> bool:
+        """Check if a model with the given name exists in the provider."""
+        return True  # Default implementation assumes all models exist; override if provider has a fixed model set.
 
     @property
     def name(self) -> str:
@@ -36,9 +38,9 @@ class Provider(ABC):
         return self._name
 
     @property
-    def default_model(self) -> Model:
+    def default_llm_profile(self) -> LLMProfile:
         """Get the default model configuration for this provider."""
-        return Model.from_config(self.provider_config.default_model)
+        return LLMProfile.from_config(self.provider_config.default_model, self.name)
 
     @property
     def friendly_name(self) -> str:

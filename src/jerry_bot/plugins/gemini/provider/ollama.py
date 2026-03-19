@@ -4,8 +4,8 @@ from .base import Provider
 from ollama import AsyncClient
 import ollama
 from ..models import (
-    ModelContext,
-    ModelResponseStream,
+    LLMContext,
+    LLMResponseStream,
     ModelContextRole,
 )
 from ..config import ProviderConfig, GlobalConfig
@@ -16,10 +16,8 @@ from ..models.exceptions import ProviderAPIError, ProviderGenerateError
 class OllamaProvider(Provider):
     """Provider implementation for Ollama LLMs."""
 
-    def __init__(
-        self, provider_config: ProviderConfig, global_config: GlobalConfig, name: str
-    ):
-        super().__init__(provider_config, global_config, name)
+    def __init__(self, provider_config: ProviderConfig, name: str):
+        super().__init__(provider_config, name)
 
         headers = {}
         if provider_config.api_key:
@@ -40,9 +38,7 @@ class OllamaProvider(Provider):
         except Exception as e:
             raise ProviderAPIError(f"Error checking model existence: {e}") from e
 
-    async def generate(
-        self, context: ModelContext
-    ) -> AsyncIterator[ModelResponseStream]:
+    async def generate(self, context: LLMContext) -> AsyncIterator[LLMResponseStream]:
         """Generate a response from the Ollama model based on the provided context."""
 
         # Convert ModelContext to Ollama's expected format
@@ -54,7 +50,7 @@ class OllamaProvider(Provider):
             role = "user" if msg.role == ModelContextRole.USER else "assistant"
             messages.append({"role": role, "content": msg.content})
 
-        model = context.model.name
+        model = context.profile.name
         if not await self.model_exists(model):
             raise ProviderGenerateError(
                 f"Model '{model}' does not exist locally in Ollama. Note: You may need to manually pull the model."
@@ -66,6 +62,6 @@ class OllamaProvider(Provider):
                 model=model, messages=messages, stream=True
             )
             async for chunk in generator:  # type: ignore
-                yield ModelResponseStream(content=chunk["message"]["content"])
+                yield LLMResponseStream(content=chunk["message"]["content"])
         except Exception as e:
             raise ProviderAPIError(f"Ollama API returned an error response: {e}") from e
