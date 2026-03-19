@@ -4,12 +4,12 @@ from discord import TextChannel
 from discord.ext.commands import Bot
 from logging import Logger
 
+from ..dc_chat import OutputContext
+
 from .context import SessionContext
 from .session import ConversationSession
-from ..models import OutputContext, Channel, ConfigurationError
-from ..config import GlobalConfig
+from ..models import Channel, ConfigurationError
 from ..repo import Repositories
-
 
 class ConversationFactory:
     """Factory for creating conversation sessions and their contexts."""
@@ -32,27 +32,15 @@ class ConversationFactory:
         self._logger = logger
         self._repos = repos
 
-    def generate_output_context(self, channel_id: int) -> OutputContext | None:
-        """Generate an OutputContext object for a given channel ID."""
-        dc_guild = self._bot.get_guild(channel_id)
-        dc_channel = dc_guild.get_channel(channel_id) if dc_guild else None
-
-        if not (dc_guild and dc_channel and isinstance(dc_channel, TextChannel)):
-            return None
-
-        return OutputContext(
-            guild=dc_guild,
-            channel=dc_channel,
-        )
-
     async def create_session_context(
-        self, channel_id: int, channel: Channel | None = None
+        self, channel_id: int, output_context: OutputContext, channel: Channel | None = None
     ) -> SessionContext:
         """
         Create a SessionContext for a given channel ID, loading necessary data from repositories.
 
         Args:
             channel_id: The ID of the channel for which to create the session context.
+            output_context: The output context for the session.
             channel: The channel object for which to create the session context.
         Returns:
             A SessionContext instance populated with data from the repositories and generated output context.
@@ -60,12 +48,6 @@ class ConversationFactory:
         Raises:
             ConfigurationError: If any required data (output context, channel record, guild record, LLM profiles) cannot be found or generated.
         """
-
-        output_context = self.generate_output_context(channel_id)
-        if not output_context:
-            raise ConfigurationError(
-                f"Could not generate output context for channel ID {channel_id}"
-            )
 
         if channel:
             if not channel.is_ephemeral:
@@ -112,10 +94,16 @@ class ConversationFactory:
         context.set_active_profile(llm_profiles[0])
 
         return context
+    
+    async def has_channel(self, channel_id: int) -> bool:
+        """Check if a channel record exists for the given channel ID."""
+        channel = await self._repos.channel_repo.get_channel(channel_id)
+        return channel is not None
 
     async def create_conversation_session(
         self,
         channel_id: int,
+        output_context: OutputContext,
         logger: Logger | None = None,
         channel: Channel | None = None,
     ) -> ConversationSession:
@@ -124,6 +112,7 @@ class ConversationFactory:
 
         Args:
             channel_id: The ID of the channel for which to create the conversation session.
+            output_context: The output context to initialize the session with.
             logger: Override logger for the session. If None, the factory's logger will be used.
             channel: If ephemeral, the Channel object for which to create the session.
 
@@ -133,5 +122,5 @@ class ConversationFactory:
         Raises:
             ConfigurationError: If the session context cannot be created due to missing data.
         """
-        context = await self.create_session_context(channel_id, channel)
+        context = await self.create_session_context(channel_id=channel_id, output_context=output_context, channel=channel)
         return ConversationSession(context=context, logger=logger or self._logger)
