@@ -16,10 +16,11 @@ from .database import LLMProfileRecord
 class LLMProfile:
     """Dataclass representing a specific LLM profile, which may include provider-specific overrides and generic model parameters."""
 
-    name: str
+    model_name: str
     provider_name: str
     overrides: Dict[str, Any] = field(default_factory=dict)
     failover_options: Dict[str, Any] = field(default_factory=dict)
+    id: Optional[int] = None  # Optional ID field for database records
 
     # Generic Model parameters
     prompt: Optional[str] = None
@@ -34,7 +35,7 @@ class LLMProfile:
     ) -> "LLMProfile":
         """Create a LLMProfile instance from a LLMProfileConfig."""
         return cls(
-            name=config.name,
+            model_name=config.name,
             provider_name=provider_name,
             overrides=config.overrides,
             prompt=config.prompt,
@@ -48,7 +49,7 @@ class LLMProfile:
     def from_record(cls, entry: LLMProfileRecord) -> "LLMProfile":
         """Create a LLMProfile instance from a LLMProfileRecord database record."""
         return cls(
-            name=entry.model_name,
+            model_name=entry.model_name,
             provider_name=entry.provider_name,
             failover_options=entry.failover_options,
             overrides=entry.overrides,
@@ -57,12 +58,13 @@ class LLMProfile:
             max_tokens=entry.max_tokens,
             top_p=entry.top_p,
             top_k=entry.top_k,
+            id=entry.id,
         )
 
     def to_record(self, **kwargs) -> LLMProfileRecord:
         """Convert this LLMProfile instance into a LLMProfileRecord for database storage."""
         return LLMProfileRecord(
-            model_name=self.name,
+            model_name=self.model_name,
             provider_name=self.provider_name,
             overrides=self.overrides,
             prompt=self.prompt,
