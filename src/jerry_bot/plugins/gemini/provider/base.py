@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 class Provider(ABC):
     """Abstract base class for LLM providers."""
 
-    def __init__(
-        self, provider_config: ProviderConfig, name: str
-    ):
+    def __init__(self, provider_config: ProviderConfig, name: str):
         self.provider_config = provider_config
         self._name = name
 
@@ -25,11 +23,13 @@ class Provider(ABC):
         first_message_event.set()
         event_set = True method that yields model responses based on the provided context.
         """
+        
         yield  # type: ignore
         raise NotImplementedError("Subclasses must implement the generate method.")
 
     async def model_exists(self, model_name: str) -> bool:
-        """Check if a model with the given name exists in the provider."""
+        """Check if a model with the given name exists in the provider. If not implemented by the provider, defaults to True for all models."""
+        
         return True  # Default implementation assumes all models exist; override if provider has a fixed model set.
 
     @property
