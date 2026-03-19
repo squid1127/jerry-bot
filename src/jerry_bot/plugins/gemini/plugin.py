@@ -2,19 +2,26 @@
 
 from typing import Optional
 import discord
-from discord.ext import commands
 from pathlib import Path
 
 # squid_core imports
-from squid_core import Plugin, PluginCog, Framework
+from squid_core import Plugin, Framework
 from squid_core.decorators import DiscordEventListener
 
 # Plugin imports
 from .config import ConfigManager, GlobalConfig
-from .core.manager import ConversationManager
-from .provider import ProviderManager
-from .interactions.cog import GeminiCog
+from .core import ConversationManager, UIService
+from .dc_chat import InputProcessor, OutputContext
+
+from .dc_config.cog import GeminiCog
 from .models import Channel
+from .repo import (
+    Repositories,
+    ChannelRepository,
+    GuildRepository,
+    LLMProfileRepository,
+    ProviderRegistry,
+)
 
 
 class Gemini(Plugin):
@@ -23,9 +30,11 @@ class Gemini(Plugin):
     def __init__(self, framework: Framework):
         super().__init__(framework)
         self.cog: Optional[GeminiCog] = None
+        self.ui_service: Optional[UIService] = None
         self.config_manager: Optional[ConfigManager] = None
         self.conversation_manager: Optional[ConversationManager] = None
-        self.provider_manager = None
+        self.repos: Optional[Repositories] = None
+        self.input_processor = InputProcessor()
 
     async def preload(self):
         """Pre-load setup for Gemini Plugin."""
@@ -41,14 +50,18 @@ class Gemini(Plugin):
                 "Configuration not loaded before loading plugin. This should not happen."
             )
 
-        self.provider_manager = ProviderManager(global_config=self.config)
+        repos = await self.init_repos()
         self.conversation_manager = ConversationManager(
             logger=self.logger,
-            config=self.config,
-            provider_manager=self.provider_manager,
+            repos=repos,
+            bot=self.fw.bot,
+        )
+        self.ui_service = UIService(
+            repos=repos, conversation_manager=self.conversation_manager
         )
         self.cog = GeminiCog(
-            plugin=self, conversation_manager=self.conversation_manager
+            plugin=self,
+            ui_service=self.ui_service,
         )
 
         await self.fw.bot.add_cog(self.cog)
@@ -62,10 +75,29 @@ class Gemini(Plugin):
 
     async def list_channels(self) -> list[Channel]:
         """List all channels with active conversations."""
-        if not self.conversation_manager:
-            self.logger.error("Conversation manager not initialized.")
+        if not self.repos:
+            self.logger.error("Repositories not initialized.")
             return []
-        return await self.conversation_manager.list_channels()
+        return await self.repos.channel_repo.get_all()
+
+    async def init_repos(self) -> Repositories:
+        """Initialize the repository context for the plugin."""
+        if not self.config:
+            raise ValueError(
+                "Configuration not loaded before initializing repositories. This should not happen."
+            )
+
+        self.repos = Repositories(
+            channel_repo=ChannelRepository(),
+            guild_repo=GuildRepository(),
+            llm_profile_repo=LLMProfileRepository(),
+            provider_registry=ProviderRegistry(self.config),
+            global_config=self.config,
+        )
+        await self.repos.channel_repo.load_all()
+        await self.repos.guild_repo.load_all()
+        await self.repos.llm_profile_repo.load_all()
+        return self.repos
 
     @DiscordEventListener()
     async def on_message(self, message: discord.Message):
@@ -73,16 +105,24 @@ class Gemini(Plugin):
         if not self.conversation_manager:
             self.logger.error("Conversation manager not initialized.")
             return
+        if not self.input_processor:
+            self.logger.error("Input processor not initialized.")
+            return
         if message.author == self.fw.bot.user:
             return  # Ignore messages from the bot itself
         if not isinstance(message.channel, discord.TextChannel):
             return  # Ignore messages that are not from text channels
+        if not message.guild:
+            return  # Ignore messages that are not from guilds
 
         allow_ephemeral = bool(self.config and self.config.ephemeral_mode.enabled)
         await self.conversation_manager.route_message(
-            message=message,
+            message=self.input_processor.process(message),
+            channel_id=message.channel.id,
             allow_ephemeral=allow_ephemeral,
-            create_ephemeral=allow_ephemeral and self.is_mentioned(message),
+            create_mentionable=self.is_mentioned(message),
+            quiet=True,
+            output_context=OutputContext(channel=message.channel, guild=message.guild),
         )
 
     @property
