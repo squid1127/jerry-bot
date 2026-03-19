@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from ..models.enums import ProviderType
 
-class ModelConfig(BaseModel):
+
+class LLMProfileConfig(BaseModel):
     """Pydantic model for individual model configuration within a provider."""
 
     name: str = Field(..., description="The name of the model.")
@@ -39,7 +40,7 @@ class ProviderConfig(BaseModel):
     friendly_name: Optional[str] = Field(
         None, description="A user-friendly name for the provider."
     )
-    default_model: ModelConfig = Field(
+    default_model: LLMProfileConfig = Field(
         ..., description="The default model configuration for this provider."
     )
 
@@ -60,17 +61,17 @@ class ProviderConfig(BaseModel):
         None,
         description="Optional API key or authentication token for the provider (if applicable).",
     )
-    
-    @model_validator(mode="after") # type: ignore
-    def validate_provider_config(cls, config: "ProviderConfig") -> "ProviderConfig": 
+
+    @model_validator(mode="after")  # type: ignore
+    def validate_provider_config(cls, config: "ProviderConfig") -> "ProviderConfig":
         """Custom validation logic for provider configuration."""
         if config.type == ProviderType.GEMINI and not config.api_key:
-                raise ValueError("Gemini provider requires an API key.")
-        
+            raise ValueError("Gemini provider requires an API key.")
+
         elif config.type == ProviderType.OLLAMA and not config.endpoint:
             raise ValueError("Ollama provider requires an API endpoint.")
-        
+
         elif config.type == ProviderType.OPENROUTER and not config.api_key:
             raise ValueError("OpenRouter provider requires an API key.")
-        
+
         return config
