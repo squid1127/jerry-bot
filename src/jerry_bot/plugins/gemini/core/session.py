@@ -3,17 +3,13 @@
 from logging import Logger
 from typing import TYPE_CHECKING, Optional
 
+from ..dc_chat import OutputContext
+
 from .context import SessionContext
-from ..models import ChannelRecord, GuildRecord, Message, OutputContext, LLMProfile
-from ..tool_calls import (
-    BaseFunctionCall,
-    FunctionCallExecutor,
-    FunctionCallRegistry,
-    FunctionDefinition,
-)
+from ..models import ChannelRecord, GuildRecord, Message, LLMProfile
 from .message_queue import MessageQueue
 from .turn_engine import TurnEngine
-from ..input import LLMContextGenerator
+from ..dc_chat import LLMContextGenerator
 
 
 class ConversationSession:
