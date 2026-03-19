@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Union
-import discord
 
 from .enums import MessageSource, MessageDestination, ModelContextRole
 from .function_call import FunctionCall
@@ -42,7 +41,7 @@ class BaseMessage(ABC):
     def destination(self) -> MessageDestination:
         """Get the message destination."""
         pass
-    
+
     @property
     def context_role(self) -> ModelContextRole:
         """Get the model context role corresponding to the message source."""
@@ -50,22 +49,14 @@ class BaseMessage(ABC):
             return ModelContextRole.MODEL
         return ModelContextRole.USER
 
+
 @dataclass(frozen=True, slots=True)
 class UserMessage(BaseMessage):
     """Chat message from a user to the model."""
 
     user: Participant
-    content: Optional[str] = None
-    # Discord objects (Eww)
-    attachments: Optional[list[discord.Attachment]] = None
-    discord_msg: Optional[discord.Message] = None  # Original Discord message for reference and further processing
-
-    def __post_init__(self):
-        """Validate that at least content or attachments is provided."""
-        if self.content is None and self.attachments is None:
-            raise ValueError(
-                "Content or attachments must be provided for user messages."
-            )
+    content: str
+    raw_content: Optional[str] = None  # Original content before any preprocessing
 
     @property
     def source(self) -> MessageSource:
@@ -74,17 +65,6 @@ class UserMessage(BaseMessage):
     @property
     def destination(self) -> MessageDestination:
         return MessageDestination.MODEL
-
-    @classmethod
-    def from_discord_message(cls, message: discord.Message) -> "UserMessage":
-        """Create a UserMessage instance from a Discord message."""
-        user = Participant(
-            id=message.author.id,
-            username=message.author.name,
-            display_name=message.author.display_name,
-        )
-
-        return cls(user=user, content=message.content, discord_msg=message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +88,28 @@ class ModelMessage(BaseMessage):
     @property
     def destination(self) -> MessageDestination:
         return MessageDestination.USER
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionResponseMessage(BaseMessage):
+    """Function/tool response message fed back to the model."""
+
+    function_call: FunctionCall
+    response: str
+    error: bool = False
+
+    @property
+    def source(self) -> MessageSource:
+        return MessageSource.FUNCTION
+
+    @property
+    def destination(self) -> MessageDestination:
+        return MessageDestination.MODEL
+
+    @property
+    def content(self) -> str:
+        """Return textual response content for compatibility with renderers."""
+        return self.response
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +139,9 @@ class ExceptionMessage(BaseMessage):
 
     error: Exception
     fatal: bool = False  # Indicates if this error should halt the conversation
-    message: Optional[Message] = None  # The message being processed when the error occurred
+    message: Optional[Message] = (
+        None  # The message being processed when the error occurred
+    )
 
     @property
     def source(self) -> MessageSource:
@@ -153,7 +157,7 @@ class ExceptionMessage(BaseMessage):
         return (
             MessageDestination.MODEL
         )  # Non-fatal errors passed to model for handling/logging
-        
+
     @property
     def content(self) -> str:
         """Get the string representation of the error for logging or model processing."""
@@ -161,4 +165,10 @@ class ExceptionMessage(BaseMessage):
 
 
 # Type alias for uniform handling in pipelines
-Message = Union[UserMessage, ModelMessage, SystemMessage, ExceptionMessage]
+Message = Union[
+    UserMessage,
+    ModelMessage,
+    FunctionResponseMessage,
+    SystemMessage,
+    ExceptionMessage,
+]
