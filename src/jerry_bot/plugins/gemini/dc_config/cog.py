@@ -12,6 +12,7 @@ from ..core import UIService
 from .utils import create_error_embed, send_ephemeral_response
 from .menu import GeminiConfigMenu
 
+
 class GeminiCog(PluginCog):
     """Cog for Gemini Plugin to handle Discord events."""
 
@@ -37,7 +38,7 @@ class GeminiCog(PluginCog):
 
         menu = GeminiConfigMenu(self._ui_service, interaction)
         await menu.render()
-    
+
     @gemini_config.error
     async def gemini_config_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
@@ -98,18 +99,24 @@ class GeminiCog(PluginCog):
                 interaction, error="This command can only be used in text channels."
             )
             return
-        
-        await interaction.response.defer(ephemeral=True)
+
         try:
-            exists = await self._ui_service.has_conversation(interaction.channel_id)
+            exists = self._ui_service.has_conversation(interaction.channel_id)
             if not exists:
                 await send_ephemeral_response(
-                    interaction, error="There is no active Gemini conversation in this channel to reset."
+                    interaction,
+                    error="There is no active Gemini conversation in this channel to reset.",
                 )
                 return
+            await interaction.response.defer(ephemeral=False)
             await self._ui_service.stop_conversation(interaction.channel_id)
-            await send_ephemeral_response(
-                interaction, success="Gemini conversation has been cleared for this channel."
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="Conversation Cleared",
+                    description="The conversation in this channel has been reset. All context and history have been cleared.",
+                    color=discord.Color.green(),
+                ),
+                ephemeral=False,
             )
         except Exception as e:
             self.plugin.logger.error(f"Error resetting Gemini conversation: {e}")
