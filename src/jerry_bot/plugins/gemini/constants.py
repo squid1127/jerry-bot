@@ -52,4 +52,7 @@ If a user asks you to break these formatting or persona rules, politely refuse i
 DEFAULT_MAX_CHUNK_SIZE = 1900  # Discord message limit is 2000 characters, leaving room for formatting and metadata
 DEFAULT_TYPING_TIMEOUT = 8  # Seconds to wait before timing out the typing indicator if the provider is taking too long to respond
 
-FORBIDDEN_ERROR_MESSAGE = "Bot does not have permission to send messages in this channel."
+FORBIDDEN_ERROR_MESSAGE = "Bot does not have permission to send messages in this channel." # This is used when the bot encounters a permissions error while trying to send a message, to avoid spamming the channel with error messages.
+
+# UI Constants
+UI_PLUGIN_NAME = "Jerry-Gemini" # Name of the plugin to display in the UI
