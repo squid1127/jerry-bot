@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING, AsyncIterator
 
 from .context import SessionContext
 
-from ..input import LLMContextGenerator
+from ..dc_chat import LLMContextGenerator, OutputContext
 from ..models import (
-    OutputContext,
     ExceptionMessage,
     FunctionCall,
     FunctionResponseMessage,
@@ -22,7 +21,7 @@ from ..models import (
     UserMessage,
 )
 from ..models.exceptions import FatalError, FunctionCallError, ProviderError
-from ..output import (
+from ..dc_chat import (
     buffered_cooldown,
     live_character_buffer,
     send_error_message,
@@ -31,12 +30,14 @@ from ..output import (
     stream_and_edit,
 )
 
+
 @dataclass(slots=True)
 class ProviderRoundResult:
     """Result of one provider round in an agentic turn."""
 
     text: str | None
     function_calls: list[FunctionCall]
+
 
 class TurnEngine:
     """Processes a single inbound message into a complete model turn."""
