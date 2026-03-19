@@ -13,6 +13,7 @@ class GuildRepository:
         """
         self._cache: dict[int, GuildRecord] = {}
         self.warm_start = warm_start
+        self._is_loaded = False if warm_start else True
         
     async def load_all(self):
         """Pre-load all guild records into the cache."""
@@ -20,6 +21,7 @@ class GuildRepository:
         records = await GuildRecord.all()
         for record in records:
             self._cache[record.guild_id] = record
+        self._is_loaded = True
 
     async def get_guild(self, guild_id: int, skip_cache: bool = False) -> GuildRecord | None:
         """Get a guild by ID, using cache if available.
@@ -29,7 +31,9 @@ class GuildRepository:
             skip_cache: If True, bypass the cache and query the database directly, also bypassing warm_start.
             
         Returns:
-            The GuildRecord object if found, otherwise None."""
+            The GuildRecord object if found, otherwise None.
+        """
+        self._check_loaded()
         if not skip_cache:
             if guild_id in self._cache:
                 return self._cache[guild_id]
@@ -56,3 +60,13 @@ class GuildRepository:
             
         if self.warm_start or refresh:
             await self.get_guild(guild_id, skip_cache=True)
+            
+    def _check_loaded(self):
+        """Internal method to check if the cache has been loaded, and raise an error if not."""
+        if not self._is_loaded:
+            raise ValueError("Guild cache has not been loaded. Please call load_all() before accessing guild records.")
+            
+    @property
+    def is_loaded(self) -> bool:
+        """Whether the cache has been loaded with guild records."""
+        return self._is_loaded
