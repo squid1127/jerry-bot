@@ -2,8 +2,8 @@
 
 from .base import Provider
 from ..models import (
-    ModelContext,
-    ModelResponseStream,
+    LLMContext,
+    LLMResponseStream,
     ModelContextRole,
 )
 from ..config import ProviderConfig, GlobalConfig
@@ -19,17 +19,13 @@ logger = getLogger(__name__)
 class OpenRouterProvider(Provider):
     """Provider implementation for OpenRouter (OpenAI-compatible API)."""
 
-    def __init__(
-        self, provider_config: ProviderConfig, global_config: GlobalConfig, name: str
-    ):
-        super().__init__(provider_config, global_config, name)
+    def __init__(self, provider_config: ProviderConfig, name: str):
+        super().__init__(provider_config, name)
         self.client = OpenRouter(
             api_key=provider_config.api_key,
         )
 
-    async def generate(
-        self, context: ModelContext
-    ) -> AsyncIterator[ModelResponseStream]:
+    async def generate(self, context: LLMContext) -> AsyncIterator[LLMResponseStream]:
         """Generate a streaming response from OpenRouter based on the provided context."""
         messages = []
         if context.prompt:
@@ -40,16 +36,16 @@ class OpenRouterProvider(Provider):
             messages.append({"role": role, "content": msg.content})
 
         kwargs = {
-            "model": context.model.name,
+            "model": context.profile.name,
             "messages": messages,
             "stream": True,
         }
-        if context.model.temperature is not None:
-            kwargs["temperature"] = context.model.temperature
-        if context.model.max_tokens is not None:
-            kwargs["max_tokens"] = context.model.max_tokens
-        if context.model.top_p is not None:
-            kwargs["top_p"] = context.model.top_p
+        if context.profile.temperature is not None:
+            kwargs["temperature"] = context.profile.temperature
+        if context.profile.max_tokens is not None:
+            kwargs["max_tokens"] = context.profile.max_tokens
+        if context.profile.top_p is not None:
+            kwargs["top_p"] = context.profile.top_p
 
         try:
             stream = await self.client.chat.send_async(**kwargs)
@@ -61,7 +57,7 @@ class OpenRouterProvider(Provider):
                 content = delta.content or None
                 reasoning = getattr(delta, "reasoning", None)
                 if content:
-                    yield ModelResponseStream(content=content)
+                    yield LLMResponseStream(content=content)
                 elif reasoning:
                     logger.info(f"Reasoning token: {reasoning!r}")
         except Exception as e:
