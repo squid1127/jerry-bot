@@ -16,7 +16,7 @@ from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from ..gemini import Gemini as GeminiPlugin
     from ..gemini.models import (
-        ChannelRecord as GeminiChannel,
+        Channel as GeminiChannel,
         GuildRecord as GeminiGuild,
     )
 
@@ -176,13 +176,12 @@ class AutoReplyPlugin(Plugin):
 
         channels: list[GeminiChannel] = await gemini_plugin.list_channels()
         for channel in channels:
-            guild: GeminiGuild | None = await channel.guild
             ignore = AutoReplyIgnore(
-                guild_id=guild.guild_id if guild else None,
+                guild_id=channel.guild_id if channel.guild_id else None,
                 discord_type=IgnoreType.CHANNEL,
                 discord_id=channel.channel_id,
             )
             self.logger.info(
-                f"Adding auto-reply ignore for jerry-gemini channel {channel.channel_id} (guild: {guild.guild_id if guild else 'N/A'})"
+                f"Adding auto-reply ignore for jerry-gemini channel {channel.channel_id} (guild: {channel.guild_id if channel.guild_id else 'N/A'})"
             )
             await ignore.save()
