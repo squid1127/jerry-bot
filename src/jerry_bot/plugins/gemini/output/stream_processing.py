@@ -1,17 +1,17 @@
 """Various async iterators for processing model response streams, such as splitting by paragraphs or extracting content."""
 
 from typing import AsyncIterator
-from ..models import ModelResponseStream
+from ..models import LLMResponseStream
 import asyncio
 
-from .constants import DEFAULT_MAX_CHUNK_SIZE
+from ..constants import DEFAULT_MAX_CHUNK_SIZE
 
 
 async def split_paragraphs(
-    iterator: AsyncIterator[ModelResponseStream],
+    iterator: AsyncIterator[LLMResponseStream],
     separator: str = "\n\n",
     start_flag: bool = False,
-) -> AsyncIterator[ModelResponseStream]:
+) -> AsyncIterator[LLMResponseStream]:
     """Async iterator that takes a stream of strings and yields chunks of text split by paragraphs, while respecting code blocks.
 
     Args:
@@ -30,30 +30,28 @@ async def split_paragraphs(
         # Process the buffer for complete paragraphs
         while separator in buffer:
             chunk, buffer = buffer.split(separator, 1)
-            yield ModelResponseStream(content=chunk.strip(), start=start_flag)
+            yield LLMResponseStream(content=chunk.strip(), start=start_flag)
 
         # Check for code block delimiters to avoid splitting inside code blocks
         if "```" in buffer:
             parts = buffer.split("```")
             for i in range(len(parts) - 1):
                 if i % 2 == 0:  # Outside code block
-                    yield ModelResponseStream(
-                        content=parts[i].strip(), start=start_flag
-                    )
+                    yield LLMResponseStream(content=parts[i].strip(), start=start_flag)
                 else:  # Inside code block
-                    yield ModelResponseStream(
+                    yield LLMResponseStream(
                         content=f"```{parts[i]}```", start=start_flag
                     )
             buffer = parts[-1]  # Remaining part after the last code block
 
     # Yield any remaining buffer content as a final chunk
     if buffer.strip():
-        yield ModelResponseStream(content=buffer.strip(), start=start_flag)
+        yield LLMResponseStream(content=buffer.strip(), start=start_flag)
 
 
 async def enforce_cooldown(
-    iterator: AsyncIterator[ModelResponseStream], cooldown: float
-) -> AsyncIterator[ModelResponseStream]:
+    iterator: AsyncIterator[LLMResponseStream], cooldown: float
+) -> AsyncIterator[LLMResponseStream]:
     """Async iterator that enforces a cooldown between yielding items from the input iterator.
 
     Args:
@@ -74,11 +72,11 @@ async def enforce_cooldown(
 
 
 async def buffered_cooldown(
-    iterator: AsyncIterator[ModelResponseStream],
+    iterator: AsyncIterator[LLMResponseStream],
     cooldown: float,
     separator: str = "",
     buffer_size: int = DEFAULT_MAX_CHUNK_SIZE,
-) -> AsyncIterator[ModelResponseStream]:
+) -> AsyncIterator[LLMResponseStream]:
     """Async iterator that merges chunks received within the cooldown window into a single chunk,
     yielding when the window expires or the buffer would exceed the character limit.
 
@@ -97,7 +95,7 @@ async def buffered_cooldown(
     # A producer task feeds items into a queue so that timing out a queue.get()
     # (via asyncio.shield) never corrupts the underlying iterator — unlike calling
     # asyncio.wait_for directly on __anext__(), which cancels the generator coroutine.
-    queue: asyncio.Queue[ModelResponseStream | None | Exception] = asyncio.Queue()
+    queue: asyncio.Queue[LLMResponseStream | None | Exception] = asyncio.Queue()
 
     async def _producer() -> None:
         try:
@@ -167,14 +165,14 @@ async def buffered_cooldown(
                 if len(buffer) + len(response.content) > buffer_size:
                     # Would overflow — flush and start a fresh window.
                     if buffer:
-                        yield ModelResponseStream(content=buffer)
+                        yield LLMResponseStream(content=buffer)
                     buffer = response.content
                     deadline = asyncio.get_event_loop().time() + cooldown
                 else:
                     buffer += response.content + separator
 
             if buffer:
-                yield ModelResponseStream(content=buffer)
+                yield LLMResponseStream(content=buffer)
                 buffer = ""
 
     finally:
@@ -184,13 +182,13 @@ async def buffered_cooldown(
             pending_get.cancel()
 
     if buffer:
-        yield ModelResponseStream(content=buffer)
+        yield LLMResponseStream(content=buffer)
 
 
 async def live_character_buffer(
-    iterator: AsyncIterator[ModelResponseStream],
+    iterator: AsyncIterator[LLMResponseStream],
     buffer_size: int = DEFAULT_MAX_CHUNK_SIZE,
-) -> AsyncIterator[ModelResponseStream]:
+) -> AsyncIterator[LLMResponseStream]:
     """Async iterator that forwards all chunks from the input iterator, but sets the 'start' flag so that the output can be treated as a live-updating buffer of text, with a specified maximum size."""
     buffer = ""
 
@@ -199,8 +197,8 @@ async def live_character_buffer(
             continue
 
         if len(buffer) + len(response.content) > buffer_size:
-            yield ModelResponseStream(content=response.content, start=True)
+            yield LLMResponseStream(content=response.content, start=True)
             buffer = response.content
         else:
-            yield ModelResponseStream(content=response.content, start=False)
+            yield LLMResponseStream(content=response.content, start=False)
             buffer += response.content

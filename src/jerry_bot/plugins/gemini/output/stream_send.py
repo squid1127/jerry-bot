@@ -1,18 +1,18 @@
 """Stream and send model output as messages dynamically."""
 
 from typing import AsyncIterator
-from ..models import ChannelContext, ModelResponseStream, FatalError
+from ..models import OutputContext, LLMResponseStream, FatalError
 import discord
 import asyncio
 
-from .constants import DEFAULT_TYPING_TIMEOUT, FORBIDDEN_ERROR_MESSAGE
+from ..constants import DEFAULT_TYPING_TIMEOUT, FORBIDDEN_ERROR_MESSAGE
 
 
 async def stream_and_send(
-    message_generator: AsyncIterator[ModelResponseStream],
-    channel_context: ChannelContext,
+    message_generator: AsyncIterator[LLMResponseStream],
+    channel_context: OutputContext,
     first_message_event: asyncio.Event | None = None,
-) -> ModelResponseStream:
+) -> LLMResponseStream:
     """Stream and send each chunk to the Discord channel as it is generated.
 
     Args:
@@ -40,14 +40,14 @@ async def stream_and_send(
     except discord.Forbidden as e:
         raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
 
-    return ModelResponseStream(content=buffer)
+    return LLMResponseStream(content=buffer)
 
 
 async def stream_and_edit(
-    message_generator: AsyncIterator[ModelResponseStream],
-    channel_context: ChannelContext,
+    message_generator: AsyncIterator[LLMResponseStream],
+    output: OutputContext,
     first_message_event: asyncio.Event | None = None,
-) -> ModelResponseStream:
+) -> LLMResponseStream:
     """Stream and send each chunk to the Discord channel as it is generated, editing the same message with new content instead of sending multiple messages.
 
     Args:
@@ -57,7 +57,7 @@ async def stream_and_edit(
     Returns:
         ModelResponseStream: The full response content after streaming is complete.
     """
-    channel = channel_context.channel
+    channel = output.channel
     sent_message = None
     buffer = ""
     global_buffer = ""
@@ -84,11 +84,11 @@ async def stream_and_edit(
     except discord.Forbidden as e:
         raise FatalError(FORBIDDEN_ERROR_MESSAGE) from e
 
-    return ModelResponseStream(content=global_buffer)
+    return LLMResponseStream(content=global_buffer)
 
 
 def start_typing_until_event(
-    channel_context: ChannelContext,
+    channel_context: OutputContext,
     timeout: float = DEFAULT_TYPING_TIMEOUT,
 ) -> tuple[asyncio.Task, asyncio.Event]:
     """Start the typing indicator and return a task and event to control it.
@@ -133,7 +133,7 @@ def start_typing_until_event(
 
 
 async def send_success_message(
-    channel_context: ChannelContext, content: str, title: str = "Success ✅"
+    channel_context: OutputContext, content: str, title: str = "Success ✅"
 ) -> None:
     """Send a success message to the channel."""
     channel = channel_context.channel
@@ -145,10 +145,10 @@ async def send_success_message(
 
 
 async def send_error_message(
-    channel_context: ChannelContext, content: str, title: str = "Error ❌"
+    output: OutputContext, content: str, title: str = "Error ❌"
 ) -> None:
     """Send an error message to the channel."""
-    channel = channel_context.channel
+    channel = output.channel
     embed = discord.Embed(title=title, description=content, color=discord.Color.red())
     try:
         await channel.send(embed=embed)
