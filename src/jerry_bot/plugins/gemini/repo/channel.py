@@ -44,15 +44,16 @@ class ChannelRepository:
             if channel_id in self._cache:
                 return self._cache[channel_id]
 
-            if self.warm_start:
-                return None  # If warm_start is enabled, we assume all channels are already loaded in the cache
+            if self.warm_start and active:
+                return None  # If warm_start is enabled, we assume all channels are already loaded in the cache, unless active=False, in which case we always query the database to check for inactive channels
 
         record = await ChannelRecord.get_or_none(channel_id=channel_id)
         if not record or (active and not record.active):
             return None
 
         channel = Channel.from_record(record)
-        self._cache[channel_id] = channel
+        if record.active:  # Only cache active channels
+            self._cache[channel_id] = channel
         return channel
 
     async def invalidate_cache(self, channel_id: int, refresh: bool = False) -> None:
