@@ -11,6 +11,7 @@ from .session import ConversationSession
 from ..models import Channel, ConfigurationError
 from ..repo import Repositories
 
+
 class ConversationFactory:
     """Factory for creating conversation sessions and their contexts."""
 
@@ -33,7 +34,10 @@ class ConversationFactory:
         self._repos = repos
 
     async def create_session_context(
-        self, channel_id: int, output_context: OutputContext, channel: Channel | None = None
+        self,
+        channel_id: int,
+        output_context: OutputContext,
+        channel: Channel | None = None,
     ) -> SessionContext:
         """
         Create a SessionContext for a given channel ID, loading necessary data from repositories.
@@ -94,11 +98,10 @@ class ConversationFactory:
         context.set_active_profile(llm_profiles[0])
 
         return context
-    
-    async def has_channel(self, channel_id: int) -> bool:
-        """Check if a channel record exists for the given channel ID."""
-        channel = await self._repos.channel_repo.get_channel(channel_id)
-        return channel is not None
+
+    async def get_channel(self, channel_id: int) -> Channel | None:
+        """Retrieve a channel record for the given channel ID."""
+        return await self._repos.channel_repo.get_channel(channel_id)
 
     async def create_conversation_session(
         self,
@@ -122,5 +125,7 @@ class ConversationFactory:
         Raises:
             ConfigurationError: If the session context cannot be created due to missing data.
         """
-        context = await self.create_session_context(channel_id=channel_id, output_context=output_context, channel=channel)
+        context = await self.create_session_context(
+            channel_id=channel_id, output_context=output_context, channel=channel
+        )
         return ConversationSession(context=context, logger=logger or self._logger)

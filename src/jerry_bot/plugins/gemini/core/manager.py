@@ -33,30 +33,45 @@ class ConversationManager:
         self._logger = logger
         self._repos = repos
 
-    async def get_session(
-        self, channel_id: int, output_context: OutputContext | None = None, create: bool = False
+    def get_session(
+        self, channel_id: int,
     ) -> ConversationSession | None:
         """
-        Retrieve an existing conversation session for a given channel ID, or create one if it doesn't exist.
+        Retrieve an existing conversation session for a given channel ID.
 
         Args:
             channel_id: The ID of the Discord channel to retrieve or create a session for.
-            output_context: The output context for the session.
-            create: Whether to create a new session if one does not already exist.
         Returns:
-            The ConversationSession for the given channel ID, or None if it does not exist and create is False.
+            The ConversationSession for the given channel ID, or None if it does not exist.
         """
 
         if channel_id in self._sessions:
             return self._sessions[channel_id]
-
-        if not create:
-            return None
         
-        if output_context is None:
-            raise ConfigurationError("Output context must be provided when creating a new session")
+    async def get_or_create_session(
+        self, channel_id: int, output_context: OutputContext, create_if_mentionable: bool = False, allow_ephemeral: bool = False
+    ) -> ConversationSession | None:
+        
+        """
+        Retrieve an existing conversation session for a given channel ID, or create a new one if it does not exist.
+        
+        Args:
+            channel_id: The ID of the Discord channel to retrieve or create a session for.
+            output_context: The output context to use when creating a new session. Required if create_if_mentionable is True.
+            create_if_mentionable: Whether to create a new session if the channel is mentionable but does not have an active session. Defaults to False.
+            allow_ephemeral: Whether to allow the creation of ephemeral sessions for channels that are not already active. Defaults to False.
+        Returns:
+            The ConversationSession for the given channel ID, or None if it does not exist and create_if_mentionable is False.
+        """
 
-        if not await self._factory.has_channel(channel_id):
+        session = self.get_session(channel_id=channel_id)
+        if session:
+            return session
+
+        channel = await self._factory.get_channel(channel_id)
+        if channel is None:
+            return None
+        if channel.mention_mode and not create_if_mentionable:
             return None
     
         # Create a new session context and session
@@ -110,7 +125,12 @@ class ConversationManager:
 
         """
 
-        session = await self.get_session(channel_id=channel_id, create=True, output_context=output_context)
+        session = await self.get_or_create_session(
+            channel_id=channel_id,
+            output_context=output_context,
+            create_if_mentionable=create_mentionable,
+            allow_ephemeral=allow_ephemeral,
+        )
         if not session:
             if quiet:
                 return
