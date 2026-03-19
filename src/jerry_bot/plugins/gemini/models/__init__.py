@@ -15,7 +15,7 @@ from .database import ChannelRecord, GuildRecord, LLMProfileRecord
 from .function_call import FunctionCall
 from .provider import ProviderModel
 from .llm import LLMProfile, LLMContext, LLMContextMessage, LLMResponseStream
-from .channel import OutputContext, Channel
+from .channel import Channel
 from .exceptions import (
     GeminiError,
     FatalError,
@@ -65,7 +65,6 @@ __all__ = [
     "LLMContextMessage",
     "LLMResponseStream",
     # Context
-    "OutputContext",
     "Channel",
     # Exceptions
     "GeminiError",

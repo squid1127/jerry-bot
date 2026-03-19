@@ -2,17 +2,8 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union
-import discord
 
 from .database import ChannelRecord
-
-
-@dataclass(frozen=True, slots=True)
-class OutputContext:
-    """Dataclass representing the output context for a conversation, including channel and guild objects."""
-
-    channel: discord.TextChannel
-    guild: discord.Guild
 
 
 @dataclass(frozen=True, slots=True)
