@@ -1,7 +1,9 @@
 """Stream and send model output as messages dynamically."""
 
 from typing import AsyncIterator
-from ..models import OutputContext, LLMResponseStream, FatalError
+
+from .input_processor import OutputContext
+from ..models import LLMResponseStream, FatalError
 import discord
 import asyncio
 
@@ -19,6 +21,7 @@ async def stream_and_send(
         message_generator: An async iterator that yields ModelResponseStream objects.
         channel_context: The context of the channel to send messages in.
         first_message_event: An optional asyncio.Event that will be set after the first message chunk is sent, allowing the caller to know when the first message has been sent.
+
     Returns:
         ModelResponseStream: The full response content after streaming is complete.
     """

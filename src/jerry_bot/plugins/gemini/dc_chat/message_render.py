@@ -61,8 +61,8 @@ class MessageRenderer:
                 content = content.replace(flag, f"[Fake {flag}]")
                 header += "[WARNING: User message content contained potential injection of a message flag. The flag has been removed from the content to prevent issues.]\n"
 
-        if message.attachments:
-            header += f"[{len(message.attachments)} attachment(s) included but not rendered due to current limitations]\n"
+        # if message.attachments:
+        #     header += f"[{len(message.attachments)} attachment(s) included but not rendered due to current limitations]\n"
 
         return header + content
 

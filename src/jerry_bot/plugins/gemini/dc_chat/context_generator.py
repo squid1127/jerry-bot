@@ -43,20 +43,24 @@ class LLMContextGenerator:
         """Generate the prompt for the model based on the configuration."""
         # Start with the global prompt if it exists
         prompt_parts: dict[str, str] = {}
-        if self._context.global_config.global_prompt:
-            prompt_parts["base"] = self._context.global_config.global_prompt
+        if self._context.channel.override_system_prompt:
+            prompt_parts["base"] = self._context.channel.prompt or ""
+        
+        else:
+            if self._context.global_config.global_prompt:
+                prompt_parts["base"] = self._context.global_config.global_prompt
 
-        # Add model-specific prompt if it exists
-        if self._context.llm_profile.prompt:
-            prompt_parts["profile"] = self._context.llm_profile.prompt
+            # Add model-specific prompt if it exists
+            if self._context.llm_profile.prompt:
+                prompt_parts["profile"] = self._context.llm_profile.prompt
 
-        # Add guild-specific prompt if it exists
-        if self._context.guild.prompt:
-            prompt_parts["guild"] = self._context.guild.prompt
+            # Add guild-specific prompt if it exists
+            if self._context.guild.prompt:
+                prompt_parts["guild"] = self._context.guild.prompt
 
-        # Add channel-specific prompt if it exists
-        if self._context.channel.prompt:
-            prompt_parts["channel"] = self._context.channel.prompt
+            # Add channel-specific prompt if it exists
+            if self._context.channel.prompt:
+                prompt_parts["channel"] = self._context.channel.prompt
 
         # Convert the prompt parts into a single prompt string
         prompt = ""
