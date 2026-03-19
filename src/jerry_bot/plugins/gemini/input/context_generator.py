@@ -2,53 +2,61 @@
 
 from typing import TYPE_CHECKING, Optional
 
-from ..models import Message, ModelContext, ModelContextMessage, Model, Guild, Channel
+from ..models import (
+    Message,
+    LLMContext,
+    LLMContextMessage,
+    LLMProfile,
+    GuildRecord,
+    ChannelRecord,
+)
+
 if TYPE_CHECKING:
     from ..config.global_config import GlobalConfig
 from .message_render import MessageRenderer
 
+from ..core.context import SessionContext
 
-class ContextGenerator:
+
+class LLMContextGenerator:
     """Generates the context for a model response based on the conversation history and model configuration."""
-    
-    def __init__(self, global_config: "GlobalConfig", guild_config: "Guild", model_config: "Model", channel_config: Optional["Channel"] = None, ephemeral: bool = False):
-        self.model_config = model_config
-        self.guild_config = guild_config
-        self.global_config = global_config
 
-        self.channel_config = channel_config
-        self.ephemeral = ephemeral
+    def __init__(
+        self,
+        context: SessionContext,
+    ):
         self.renderer = MessageRenderer()
+        self._context = context
 
-    def generate_context(self, messages: list[Message]) -> ModelContext:
+    def generate_context(self, messages: list[Message]) -> LLMContext:
         """Generate the model context from a list of messages."""
         rendered_messages = []
         for message in messages:
             rendered_messages.extend(self._message_to_context_message(message))
-        return ModelContext(
+        return LLMContext(
             prompt=self.make_prompt(),
             messages=rendered_messages,
-            model=self.model_config,
+            profile=self._context.llm_profile,
         )
-        
+
     def make_prompt(self) -> str:
         """Generate the prompt for the model based on the configuration."""
         # Start with the global prompt if it exists
         prompt_parts: dict[str, str] = {}
-        if self.global_config.global_prompt:
-            prompt_parts['base'] = self.global_config.global_prompt
-    
+        if self._context.global_config.global_prompt:
+            prompt_parts["base"] = self._context.global_config.global_prompt
+
         # Add model-specific prompt if it exists
-        if self.model_config.prompt:
-            prompt_parts['model'] = self.model_config.prompt
-    
+        if self._context.llm_profile.prompt:
+            prompt_parts["profile"] = self._context.llm_profile.prompt
+
         # Add guild-specific prompt if it exists
-        if self.guild_config.prompt:
-            prompt_parts['guild'] = self.guild_config.prompt
-            
+        if self._context.guild.prompt:
+            prompt_parts["guild"] = self._context.guild.prompt
+
         # Add channel-specific prompt if it exists
-        if self.channel_config and self.channel_config.prompt:
-            prompt_parts['channel'] = self.channel_config.prompt
+        if self._context.channel.prompt:
+            prompt_parts["channel"] = self._context.channel.prompt
 
         # Convert the prompt parts into a single prompt string
         prompt = ""
@@ -56,10 +64,12 @@ class ContextGenerator:
             prompt += f"[{name.upper()}]\n{part}\n\n"
         return prompt.strip()
 
-    def _message_to_context_message(self, message: Message) -> list[ModelContextMessage]:
+    def _message_to_context_message(self, message: Message) -> list[LLMContextMessage]:
         """Convert a Message object to a ModelContextMessage."""
         rendered_content = self.renderer.render(message)
-        return [ModelContextMessage(
-            role=message.context_role,
-            content=rendered_content,
-        )]
+        return [
+            LLMContextMessage(
+                role=message.context_role,
+                content=rendered_content,
+            )
+        ]
