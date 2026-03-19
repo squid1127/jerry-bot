@@ -158,6 +158,6 @@ class UIService:
         """Stop the conversation session for a given channel ID."""
         await self._conversation_manager.stop_session(channel_id)
         
-    async def has_conversation(self, channel_id: int) -> bool:
+    def has_conversation(self, channel_id: int) -> bool:
         """Check if there is an active conversation session for a given channel ID."""
-        return await self._conversation_manager.get_session(channel_id, create=False) is not None
+        return self._conversation_manager.get_session(channel_id) is not None
