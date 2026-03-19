@@ -44,9 +44,9 @@ class SimpleGamesCog(PluginCog):
                 embed=discord.Embed(
                     description="Number of players must be 2 or more.",
                     title="Rock, Paper, Scissors",
-                    ephemeral=True,
                     color=discord.Color.red(),
-                )
+                ),
+                ephemeral=True,
             )
             return
         rps_game = RPSGame(interaction, players)
