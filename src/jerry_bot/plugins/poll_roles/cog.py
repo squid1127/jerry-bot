@@ -60,6 +60,11 @@ class PollContextMenu(app_commands.ContextMenu):
                 interaction,
             )
             return
+        if isinstance(message.channel, discord.Thread):
+            await generic_error_view(
+                "PollRoles does not support polls in threads.", interaction
+            )
+            return
 
         # Check if this poll is in our cache
         poll = await self._manager.get_inactive_poll(
