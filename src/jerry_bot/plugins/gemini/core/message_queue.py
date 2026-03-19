@@ -2,11 +2,27 @@
 
 import asyncio
 import logging
-from typing import ClassVar
+from typing import ClassVar, Protocol
 from ..models import Message
-from ..models.exceptions import FatalError, ProviderError, ConversationInactivityTimeoutError
-from .message_processor import MessageProcessor
+from ..models.exceptions import (
+    FatalError,
+    ProviderError,
+    ConversationInactivityTimeoutError,
+)
 import time
+
+
+class TurnHandler(Protocol):
+    """Protocol for types that can execute a single conversation turn."""
+
+    async def run_turn(self, message: Message) -> None:
+        """Run one turn for a queued message."""
+
+    async def handle_exceptions(
+        self, exception: Exception, message: Message | None = None
+    ) -> None:
+        """Handle an exception raised while processing a queued message."""
+
 
 class MessageQueue:
     """Message queue implementation for message processing within Gemini conversations."""
@@ -16,14 +32,18 @@ class MessageQueue:
     def __init__(
         self,
         logger: logging.Logger,
-        processor: MessageProcessor,
+        turn_handler: TurnHandler,
         inactive_timeout: int | None = None,
     ):
         self._queue: asyncio.Queue[Message] = asyncio.Queue()
         self._task: asyncio.Task | None = None
         self._logger = logger
-        self._processor = processor
+        self._turn_handler = turn_handler
         self._inactive_timeout = inactive_timeout
+        self._last_processed_time = time.monotonic()
+
+    def _mark_activity(self):
+        """Record recent conversation activity for inactivity timeout checks."""
         self._last_processed_time = time.monotonic()
 
     def enqueue(self, message: Message):
@@ -32,11 +52,12 @@ class MessageQueue:
             raise ConversationInactivityTimeoutError(
                 "Cannot enqueue message because the conversation has been inactive for too long and has been stopped."
             )
-            
+
+        self._mark_activity()
         self._queue.put_nowait(message)
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._worker())
-    
+
     def _check_inactivity_timeout(self) -> bool:
         """Check if the inactivity timeout has been exceeded."""
         if self._inactive_timeout is None:
@@ -66,9 +87,9 @@ class MessageQueue:
     async def _process_message(
         self, message: Message, attempt: int | str = "unknown"
     ) -> Exception | None:
-        """Process a single message, returning any exception that occurs."""
+        """Process a single queued message, returning any exception that occurs."""
         try:
-            response: Message | None = await self._processor.process_message(message)
+            await self._turn_handler.run_turn(message)
         except asyncio.CancelledError:
             raise
         except FatalError as e:
@@ -86,10 +107,8 @@ class MessageQueue:
                 f"Error processing message (attempt {attempt}/{self.MAX_RETRIES}): {e}"
             )
             return e
-        else:
-            if response:
-                return await self._process_with_retries(response)
-            return None
+
+        return None
 
     async def _process_with_retries(self, message: Message):
         """Process a message with retry logic."""
@@ -103,15 +122,17 @@ class MessageQueue:
             self._logger.error(
                 f"Failed to process message after {attempt} attempts: {message}"
             )
-            await self._processor.handle_exceptions(error, message)
+            await self._turn_handler.handle_exceptions(error, message)
 
     async def _worker(self):
         """Worker that processes tasks from the queue."""
         while True:
             message = await self._queue.get()
-
-            await self._process_with_retries(message)
-            self._queue.task_done()
+            try:
+                await self._process_with_retries(message)
+            finally:
+                self._mark_activity()
+                self._queue.task_done()
 
     @property
     def is_running(self) -> bool:
