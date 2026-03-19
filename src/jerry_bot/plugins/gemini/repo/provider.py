@@ -2,13 +2,13 @@
 
 from typing import ClassVar, Dict, Type
 
-from .base import Provider
+from ..provider.base import Provider
 from ..config import GlobalConfig
 from ..models.enums import ProviderType
 
-from .ollama import OllamaProvider
-from .gemini import GeminiProvider
-from .openrouter import OpenRouterProvider
+from ..provider.ollama import OllamaProvider
+from ..provider.gemini import GeminiProvider
+from ..provider.openrouter import OpenRouterProvider
 
 PROVIDER_CLASSES: Dict[ProviderType, Type[Provider]] = {
     ProviderType.OLLAMA: OllamaProvider,
@@ -16,11 +16,11 @@ PROVIDER_CLASSES: Dict[ProviderType, Type[Provider]] = {
     ProviderType.OPENROUTER: OpenRouterProvider,
 }
 
-class ProviderManager:
+class ProviderRegistry:
     """Manages the initialization and retrieval of LLM providers."""
 
     def __init__(self, global_config: GlobalConfig):
-        """Initialize the ProviderManager with the given global configuration."""
+        """Initialize the ProviderRegistry   with the given global configuration."""
         self.global_config = global_config
         self._providers: Dict[str, Provider] = {}
 
@@ -36,7 +36,7 @@ class ProviderManager:
                 )
 
             # Instantiate the provider and store it
-            self._providers[name] = provider_class(config, self.global_config, name)
+            self._providers[name] = provider_class(config, name)
 
     def get_provider(self, name: str) -> Provider:
         """
