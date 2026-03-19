@@ -36,7 +36,7 @@ class OpenRouterProvider(Provider):
             messages.append({"role": role, "content": msg.content})
 
         kwargs = {
-            "model": context.profile.name,
+            "model": context.profile.model_name,
             "messages": messages,
             "stream": True,
         }
