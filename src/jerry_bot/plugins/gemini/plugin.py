@@ -117,7 +117,7 @@ class Gemini(Plugin):
 
         allow_ephemeral = bool(self.config and self.config.ephemeral_mode.enabled)
         await self.conversation_manager.route_message(
-            message=self.input_processor.process(message),
+            message=await self.input_processor.process(message),
             channel_id=message.channel.id,
             allow_ephemeral=allow_ephemeral,
             create_mentionable=self.is_mentioned(message),
