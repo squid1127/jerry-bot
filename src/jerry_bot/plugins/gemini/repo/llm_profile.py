@@ -26,6 +26,7 @@ class LLMProfileRepository:
         for record in records:
             profile = LLMProfile.from_record(record)
             self._cache.setdefault(record.channel_id, []).append(profile)
+        self._is_loaded = True
 
     async def get_profiles(
         self, channel_id: int, skip_cache: bool = False

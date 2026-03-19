@@ -50,7 +50,7 @@ class OllamaProvider(Provider):
             role = "user" if msg.role == ModelContextRole.USER else "assistant"
             messages.append({"role": role, "content": msg.content})
 
-        model = context.profile.name
+        model = context.profile.model_name
         if not await self.model_exists(model):
             raise ProviderGenerateError(
                 f"Model '{model}' does not exist locally in Ollama. Note: You may need to manually pull the model."

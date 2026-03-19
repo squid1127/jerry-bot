@@ -94,7 +94,7 @@ class GeminiProvider(Provider):
 
         try:
             async for chunk in await self.client.aio.models.generate_content_stream(  # type: ignore[misc]
-                model=context.profile.name,
+                model=context.profile.model_name,
                 contents=contents,
                 config=config,
             ):
