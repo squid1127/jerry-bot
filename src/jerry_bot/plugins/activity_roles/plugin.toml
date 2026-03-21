@@ -1,6 +1,6 @@
 [plugin]
 name = "activity_roles"
-description = "Activity Roles Plugin for best_bot."
+description = "Activity Roles Plugin for Jerry Bot."
 class = "ActivityRolesPlugin"
 
 [db]
