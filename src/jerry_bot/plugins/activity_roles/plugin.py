@@ -490,7 +490,7 @@ class ActivityRolesCog(PluginCog):
     @tasks.loop(minutes=15)
     async def flush_activity_cache_task(self) -> None:
         """Periodic task to flush activity cache."""
-        self.logger.info("Flushing activity cache.")
+        self.logger.debug("Flushing activity cache.")
         await self.plugin.activity_tracker.flush_cache()
         
     async def cog_load(self) -> None:
