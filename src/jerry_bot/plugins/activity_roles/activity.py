@@ -1,6 +1,6 @@
 """Activity tracking for Activity Roles plugin."""
 
-from redis import Redis
+from redis.asyncio import Redis
 import squid_core
 from datetime import datetime, timedelta, timezone
 import asyncio
@@ -30,7 +30,10 @@ class ActivityTracker:
     @property
     def redis(self) -> Redis:
         """Get the Redis client from the framework."""
-        return self.plugin.fw.redis.client  # type: ignore
+        if not self.plugin.fw.redis or not self.plugin.fw.redis.client:
+            raise RuntimeError("Redis client is not available in the framework")
+        
+        return self.plugin.fw.redis.client
 
     async def activity(
         self, guild_id: int, user_id: int, last_active: datetime, ignore_exceptions: bool = True
@@ -118,7 +121,7 @@ class ActivityTracker:
                 break
         
         if not redis_data:
-            self.logger.info("No activity entries to flush from Redis.")
+            self.logger.debug("No activity entries to flush from Redis.")
             return
             
         # Fetch all existing entries in one query
