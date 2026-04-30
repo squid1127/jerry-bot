@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, TYPE_CHECKING
 
-from ..models import LLMContext, LLMProfile, LLMResponseStream
+from ..models import LLMContext, LLMProfile, LLMResponseStream, ProviderCapability
 from ..config.provider_config import ProviderConfig
 
 if TYPE_CHECKING:
@@ -46,3 +46,10 @@ class Provider(ABC):
     def friendly_name(self) -> str:
         """Get a user-friendly name for the provider, falling back to the provider name if not set."""
         return self.provider_config.friendly_name or self.name
+
+    @property
+    @abstractmethod
+    def capabilities(self) -> set[ProviderCapability]:
+        """The set of capabilities supported by this provider, such as tool calls, system prompts, streaming, etc. This allows the conversation engine to adapt its behavior based on what the provider supports.
+        """
+        raise NotImplementedError("Subclasses must implement the capabilities property to indicate supported features.")
