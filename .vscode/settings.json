@@ -10,6 +10,7 @@
     "greyple",
     "ollama",
     "randchoice",
+    "tictactoe",
     "timeparse"
   ],
   "python.analysis.typeCheckingMode": "standard",
