@@ -12,7 +12,7 @@ from ..dc_chat import LLMContextGenerator, OutputContext
 from ..models import (
     ExceptionMessage,
     FunctionCall,
-    FunctionResponseMessage,
+    ToolResponseMessage,
     Message,
     LLMContext,
     ModelMessage,
@@ -127,7 +127,7 @@ class TurnEngine:
             self._logger.info(f"Processing ModelMessage: {message.content}")
         self._history.append(message)
 
-    def _record_function_response(self, message: FunctionResponseMessage) -> None:
+    def _record_function_response(self, message: ToolResponseMessage) -> None:
         """Persist a function response message in turn history."""
         outcome = "error" if message.error else "success"
         self._logger.info(
