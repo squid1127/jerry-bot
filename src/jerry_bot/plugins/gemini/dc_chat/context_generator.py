@@ -32,7 +32,7 @@ class LLMContextGenerator:
         """Generate the model context from a list of messages."""
         rendered_messages = []
         for message in messages:
-            rendered_messages.extend(self._message_to_context_message(message))
+            rendered_messages.append(self._message_to_context_message(message))
         return LLMContext(
             prompt=self.make_prompt(),
             messages=rendered_messages,
@@ -45,7 +45,7 @@ class LLMContextGenerator:
         prompt_parts: dict[str, str] = {}
         if self._context.channel.override_system_prompt:
             prompt_parts["base"] = self._context.channel.prompt or ""
-        
+
         else:
             if self._context.global_config.global_prompt:
                 prompt_parts["base"] = self._context.global_config.global_prompt
@@ -68,12 +68,10 @@ class LLMContextGenerator:
             prompt += f"[{name.upper()}]\n{part}\n\n"
         return prompt.strip()
 
-    def _message_to_context_message(self, message: Message) -> list[LLMContextMessage]:
+    def _message_to_context_message(self, message: Message) -> LLMContextMessage:
         """Convert a Message object to a ModelContextMessage."""
         rendered_content = self.renderer.render(message)
-        return [
-            LLMContextMessage(
-                role=message.context_role,
-                content=rendered_content,
-            )
-        ]
+        return LLMContextMessage(
+            role=message.context_role,
+            content=rendered_content,
+        )
