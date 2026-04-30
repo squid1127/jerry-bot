@@ -3,12 +3,15 @@
 from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
 from .models.enums import PlaybackState
 from .queue import MusicQueue
+
 from pathlib import Path
+
 import logging
 import discord
 import asyncio
 import weakref
 import inspect
+
 class GuildMusicPlayer:
     """Manages music playback for a specific guild."""
 
@@ -20,7 +23,7 @@ class GuildMusicPlayer:
         self.state: PlaybackState = PlaybackState.STOPPED
         
         if not playback_dir.is_dir():
-            raise NotADirectoryError(f"Playback directory should exsist and be a directory: {playback_dir}")
+            raise NotADirectoryError(f"Playback directory should exist and be a directory: {playback_dir}")
 
         self.playback_dir = playback_dir
         self.queue: MusicQueue = MusicQueue()
@@ -48,6 +51,8 @@ class GuildMusicPlayer:
                 
     async def _player_loop(self):
         """Main loop for the music player."""
+        if self.guild.voice_client is not None:
+            await self.guild.voice_client.disconnect(force=True)
         if self.connection is None:
             if self.channel is None:
                 self.logger.error(f"Cannot start player loop: No voice channel set for guild {self.guild.id}")
@@ -124,9 +129,10 @@ class GuildMusicPlayer:
             before_options="-nostdin",
         )
         
+        if self.connection is None:
+            raise RuntimeError("Voice connection is not established.")
         self.connection.play(source, after=finished_callback)
         await finished.wait()
-        
                 
     async def add_track(self, track: MusicTrack | list[MusicTrack]):
         """Add a track to the playback queue."""

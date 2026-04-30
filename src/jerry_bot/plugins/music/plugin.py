@@ -28,17 +28,19 @@ class MusicPlayerPlugin(Plugin):
             target_directory=self.path / "tracks",
             logger=self.logger,
         )
-        self.cog = MusicPlayerCog(self)
+        self.cog = MusicPlayerCog(self, self)  # Plugin also serves as the player manager
         self.players: dict[int, GuildMusicPlayer] = {}
+        self.initial_import_task: asyncio.Task | None = None
 
     async def load(self):
         """Load the Music Player Plugin."""
         self.logger.info("Music Player initializing...")
+        
         await self.imports.init_directories()
         await self.framework.bot.add_cog(self.cog)
 
         self.logger.info("Starting initial import...")
-        asyncio.create_task(self.imports.import_all())
+        self.initial_import_task =asyncio.create_task(self.imports.import_all())
         self.logger.info("Music Player initialized.")
         
 
@@ -51,7 +53,13 @@ class MusicPlayerPlugin(Plugin):
             await self.framework.bot.remove_cog(self.cog.qualified_name)
             
         self.logger.info("Unloaded Music Player.")
-
+        
+        if self.initial_import_task is not None:
+            self.initial_import_task.cancel()
+            try:
+                await self.initial_import_task
+            except asyncio.CancelledError:
+                self.logger.info("Initial import task cancelled during unload.")
 
     @CLICommandDec(
         name="music",
