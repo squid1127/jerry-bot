@@ -5,11 +5,15 @@ from squid_core import Plugin as PluginBase, PluginCog, Framework
 
 from .models.db import SupportThreadConfig
 from .thread import SupportThreadInstance
+from .constants import (
+    SUPPORT_THREAD_ERROR_TITLE,
+)
 
 import discord
-from discord import app_commands, datetime
+from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
+
 
 class SupportThreadsPlugin(PluginBase):
     """Plugin class for SupportThreads."""
@@ -114,8 +118,8 @@ class SupportThreadsCog(PluginCog):
         interaction: discord.Interaction,
         channel: discord.TextChannel,
         apply_perms: bool,
-        support_role: discord.Role = None,
-        description: str = None,
+        support_role: discord.Role | None = None,
+        description: str | None = None,
     ):
         """Setup support threads in the guild."""
         await interaction.response.defer(ephemeral=True)
@@ -139,7 +143,7 @@ class SupportThreadsCog(PluginCog):
                     f"Failed to edit channel {channel.id} for support thread setup: {e}"
                 )
                 embed = discord.Embed(
-                    title="❌ Error",
+                    title=SUPPORT_THREAD_ERROR_TITLE,
                     description=f"An error occurred while applying permissions to {channel.mention}.",
                     color=0xFF0000,  # Red
                 )
@@ -151,15 +155,23 @@ class SupportThreadsCog(PluginCog):
                 color=0x00FF00,  # Green
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+        if not interaction.guild:
+            embed = discord.Embed(
+                title=SUPPORT_THREAD_ERROR_TITLE,
+                description="This command can only be used within a guild.",
+                color=0xFF0000,  # Red
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
 
-        # Check if configuration already exists
+        # Check if configuration already exists for this channel
         existing_config = await SupportThreadConfig.filter(
-            guild_id=interaction.guild.id
+            threads_channel_id=channel.id
         ).first()
         if existing_config:
             embed = discord.Embed(
                 title="⚠️ Already Configured",
-                description="Support threads are already configured in this guild.",
+                description=f"Support threads are already configured in {channel.mention}.",
                 color=0xFFA500,  # Orange
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -194,7 +206,7 @@ class SupportThreadsCog(PluginCog):
         """Error handler for setup_support_threads command."""
         self.logger.error(f"Error in setup_support_threads command: {error}")
         embed = discord.Embed(
-            title="❌ Error",
+            title=SUPPORT_THREAD_ERROR_TITLE,
             description="An error occurred while setting up support threads.",
             color=0xFF0000,  # Red
         )
@@ -214,7 +226,7 @@ class SupportThreadsCog(PluginCog):
         # Check if we're in a thread
         if not isinstance(interaction.channel, discord.Thread):
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="This command can only be used in a thread.",
                 color=0xFF0000,  # Red
             )
@@ -226,7 +238,7 @@ class SupportThreadsCog(PluginCog):
         # Check if this is a support thread
         if thread.parent is None:
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="Could not find the parent channel for this thread.",
                 color=0xFF0000,  # Red
             )
@@ -236,7 +248,7 @@ class SupportThreadsCog(PluginCog):
         instance = self.plugin.get_instance(thread.parent.id)
         if instance is None:
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="This is not a support thread.",
                 color=0xFF0000,  # Red
             )
@@ -258,7 +270,7 @@ class SupportThreadsCog(PluginCog):
             await interaction.followup.send(embed=embed, ephemeral=True)
         except (discord.Forbidden, discord.HTTPException):
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="Failed to close the thread. Please check bot permissions.",
                 color=0xFF0000,  # Red
             )
@@ -271,7 +283,7 @@ class SupportThreadsCog(PluginCog):
         """Error handler for force_close_thread command."""
         self.logger.error(f"Error in force_close_thread command: {error}")
         embed = discord.Embed(
-            title="❌ Error",
+            title=SUPPORT_THREAD_ERROR_TITLE,
             description="An error occurred while force closing the thread.",
             color=0xFF0000,  # Red
         )
@@ -281,33 +293,71 @@ class SupportThreadsCog(PluginCog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     @support_group.command(
-        name="create", description="[SupportThreads] Create a support thread on behalf of a user."
+        name="create",
+        description="[SupportThreads] Create a support thread on behalf of a user.",
     )
-    @app_commands.describe(user="The user to create a support thread for.")
+    @app_commands.describe(
+        user="The user to create a support thread for.",
+        channel="The support threads channel (required if multiple exist in the guild).",
+    )
     async def create_for_user(
-        self, interaction: discord.Interaction, user: discord.Member
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+        channel: discord.TextChannel | None = None,
     ):
         """Create a support thread on behalf of a user."""
         await interaction.response.defer(ephemeral=True)
 
-        # Find the support thread instance for this guild
-        instances = self.plugin.get_guild_instances(interaction.guild.id)
-        if not instances:
+        if not interaction.guild:
             embed = discord.Embed(
-                title="❌ Error",
-                description="Support threads are not configured in this guild.",
+                title=SUPPORT_THREAD_ERROR_TITLE,
+                description="This command can only be used within a guild.",
                 color=0xFF0000,  # Red
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
-        # Use the first instance (assuming one per guild)
-        instance = instances[0]
-        channel = instance.channel
+        target_channel: discord.TextChannel | None = None
+        if channel:
+            instance = self.plugin.get_instance(channel.id)
+            if not instance:
+                embed = discord.Embed(
+                    title=SUPPORT_THREAD_ERROR_TITLE,
+                    description=f"Support threads are not configured in {channel.mention}.",
+                    color=0xFF0000,  # Red
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            target_channel = channel
+        else:
+            # Find the support thread instance for this guild
+            instances = self.plugin.get_guild_instances(interaction.guild.id)
+            if not instances:
+                embed = discord.Embed(
+                    title=SUPPORT_THREAD_ERROR_TITLE,
+                    description="Support threads are not configured in this guild.",
+                    color=0xFF0000,  # Red
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
 
-        if channel is None:
+            if len(instances) > 1:
+                embed = discord.Embed(
+                    title=SUPPORT_THREAD_ERROR_TITLE,
+                    description="Multiple support thread channels are configured. Please specify the `channel` parameter.",
+                    color=0xFF0000,  # Red
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+
+            # Use the only instance
+            instance = instances[0]
+            target_channel = instance.channel
+
+        if target_channel is None or not isinstance(interaction.user, discord.Member):
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="Could not find the support threads channel.",
                 color=0xFF0000,  # Red
             )
@@ -315,7 +365,7 @@ class SupportThreadsCog(PluginCog):
             return
 
         # Check for existing threads
-        existing_threads = await instance.get_existing_threads(channel, user)
+        existing_threads = await instance.get_existing_threads(target_channel, user)
         if existing_threads:
             if len(existing_threads) == 1:
                 description = f"{user.mention} already has an open support thread: {existing_threads[0].mention}"
@@ -343,7 +393,7 @@ class SupportThreadsCog(PluginCog):
             await interaction.followup.send(embed=embed, ephemeral=True)
         else:
             embed = discord.Embed(
-                title="❌ Error",
+                title=SUPPORT_THREAD_ERROR_TITLE,
                 description="Failed to create the support thread.",
                 color=0xFF0000,  # Red
             )
@@ -356,7 +406,7 @@ class SupportThreadsCog(PluginCog):
         """Error handler for create_for_user command."""
         self.logger.error(f"Error in create_for_user command: {error}")
         embed = discord.Embed(
-            title="❌ Error",
+            title=SUPPORT_THREAD_ERROR_TITLE,
             description="An error occurred while creating the support thread.",
             color=0xFF0000,  # Red
         )
@@ -376,6 +426,9 @@ class SupportThreadsCog(PluginCog):
         self, thread: discord.Thread, member: discord.Member
     ):
         """Handle thread member leave events to close support threads if needed."""
+        if thread.parent is None:
+            return
+
         instance = self.plugin.get_instance(thread.parent.id)
         if instance is None:
             return
@@ -386,20 +439,33 @@ class SupportThreadsCog(PluginCog):
         await instance.handle_thread_member_leave(thread, member)
 
     @support_group.command(
-        name="disable", description="[SupportThreads] Delete support threads configuration in the guild."
+        name="disable",
+        description="[SupportThreads] Delete support threads configuration for a specific channel.",
     )
-    async def delete_support_threads(self, interaction: discord.Interaction):
-        """Delete support threads configuration in the guild."""
+    @app_commands.describe(channel="The channel to disable support threads in.")
+    async def delete_support_threads(
+        self, interaction: discord.Interaction, channel: discord.TextChannel
+    ):
+        """Delete support threads configuration for a specific channel."""
         await interaction.response.defer(ephemeral=True)
+
+        if not interaction.guild:
+            embed = discord.Embed(
+                title=SUPPORT_THREAD_ERROR_TITLE,
+                description="This command can only be used within a guild.",
+                color=0xFF0000,  # Red
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
 
         # Find existing configuration
         existing_config = await SupportThreadConfig.filter(
-            guild_id=interaction.guild.id
+            threads_channel_id=channel.id
         ).first()
         if not existing_config:
             embed = discord.Embed(
                 title="⚠️ Not Configured",
-                description="Support threads are not configured in this guild.",
+                description=f"Support threads are not configured in {channel.mention}.",
                 color=0xFFA500,  # Orange
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -420,7 +486,7 @@ class SupportThreadsCog(PluginCog):
         # Send confirmation message
         embed = discord.Embed(
             title="✅ Deletion Complete",
-            description="Support threads configuration has been deleted for this guild.",
+            description=f"Support threads configuration has been deleted for {channel.mention}.",
             color=0x00FF00,  # Green
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
@@ -432,7 +498,7 @@ class SupportThreadsCog(PluginCog):
         """Error handler for delete_support_threads command."""
         self.logger.error(f"Error in delete_support_threads command: {error}")
         embed = discord.Embed(
-            title="❌ Error",
+            title=SUPPORT_THREAD_ERROR_TITLE,
             description="An error occurred while deleting support threads configuration.",
             color=0xFF0000,  # Red
         )
