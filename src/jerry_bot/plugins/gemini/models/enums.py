@@ -2,11 +2,13 @@
 
 from enum import Enum
 
+
 class ModelContextRole(Enum):
     """Enum for LLM context roles."""
 
     USER = "user"
     MODEL = "model"
+
 
 class MessageSource(Enum):
     """Enum for chat message source."""
@@ -14,7 +16,7 @@ class MessageSource(Enum):
     USER = "user"
     MODEL = "model"
     SYSTEM = "system"
-    FUNCTION = "function"
+    TOOL_CALL = "tool_call"
 
 
 class MessageDestination(Enum):
@@ -30,3 +32,12 @@ class ProviderType(Enum):
     GEMINI = "gemini"
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
+
+class ProviderCapability(Enum):
+    """Enum for provider capabilities."""
+
+    TOOL_CALLS = "tool_calls"
+    SYSTEM_PROMPT = "system_prompt"
+    STREAMING = "streaming"
+    MODEL_CHECK = "model_check"
+    TOKEN_COUNT = "token_count"
