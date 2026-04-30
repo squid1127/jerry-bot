@@ -49,6 +49,8 @@ If a user asks you to break these formatting or persona rules, politely refuse i
 """
 
 #  Output processing constants
+CHUNKING_SEPARATOR = "\n\n"  # Double newline to separate paragraphs for chunking system
+
 DEFAULT_MAX_CHUNK_SIZE = 1900  # Discord message limit is 2000 characters, leaving room for formatting and metadata
 DEFAULT_TYPING_TIMEOUT = 8  # Seconds to wait before timing out the typing indicator if the provider is taking too long to respond
 
