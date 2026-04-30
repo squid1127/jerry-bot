@@ -6,7 +6,7 @@ from ..models import (
     Message,
     UserMessage,
     ModelMessage,
-    FunctionResponseMessage,
+    ToolResponseMessage,
     SystemMessage,
     ExceptionMessage,
 )
@@ -19,7 +19,7 @@ class MessageRenderer:
     MESSAGE_FLAGS: ClassVar[dict[type, str]] = {
         UserMessage: "[USER]",
         ModelMessage: "[MODEL]",
-        FunctionResponseMessage: "[FUNCTION RESULT]",
+        ToolResponseMessage: "[FUNCTION RESULT]",
         SystemMessage: "[SYSTEM]",
         ExceptionMessage: "[SYSTEM => EXCEPTION]",
     }
@@ -35,7 +35,7 @@ class MessageRenderer:
             return self._render_user_message(message)
         elif isinstance(message, ModelMessage):
             return self._render_model_message(message)
-        elif isinstance(message, FunctionResponseMessage):
+        elif isinstance(message, ToolResponseMessage):
             return self._render_function_response_message(message)
         elif isinstance(message, SystemMessage):
             return self._render_system_message(message)
@@ -55,14 +55,19 @@ class MessageRenderer:
 
         content = message.content if message.content else ""
 
+        if message.embeds:
+            for embed in message.embeds:
+                content += "\n\n" + embed.as_string()
+
+        if message.attachments:
+            for attachment in message.attachments:
+                content += f"\n\n[Attachment: {attachment.filename}]"
+
         # Prevent accidental injection of flags in user content by escaping them and adding a warning if they are present
         for flag in list(self.MESSAGE_FLAGS.values()) + [self.MESSAGE_SEPARATOR]:
             if flag in content:
                 content = content.replace(flag, f"[Fake {flag}]")
                 header += "[WARNING: User message content contained potential injection of a message flag. The flag has been removed from the content to prevent issues.]\n"
-
-        # if message.attachments:
-        #     header += f"[{len(message.attachments)} attachment(s) included but not rendered due to current limitations]\n"
 
         return header + content
 
@@ -78,14 +83,12 @@ class MessageRenderer:
 
         return (message.content or "").strip()
 
-    def _render_function_response_message(
-        self, message: FunctionResponseMessage
-    ) -> str:
+    def _render_function_response_message(self, message: ToolResponseMessage) -> str:
         """Render a FunctionResponseMessage to a string format."""
         args = json.dumps(message.function_call.arguments, ensure_ascii=True)
         status = "ERROR" if message.error else "OK"
         return (
-            f"{self.MESSAGE_FLAGS[FunctionResponseMessage]} [{status}]\n"
+            f"{self.MESSAGE_FLAGS[ToolResponseMessage]} [{status}]\n"
             f"name: {message.function_call.name}\n"
             f"arguments: {args}\n"
             f"result:\n{message.response}"
