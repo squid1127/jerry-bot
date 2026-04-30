@@ -1,12 +1,14 @@
 """Data models for the Gemini plugin."""
 
-from .enums import MessageSource, MessageDestination, ProviderType, ModelContextRole
+from .enums import MessageSource, MessageDestination, ProviderType, ModelContextRole, ProviderCapability
 from .message import (
     Participant,
+    Attachment,
+    Embed,
     BaseMessage,
     UserMessage,
     ModelMessage,
-    FunctionResponseMessage,
+    ToolResponseMessage,
     SystemMessage,
     ExceptionMessage,
     Message,
@@ -42,12 +44,15 @@ __all__ = [
     "MessageDestination",
     "ProviderType",
     "ModelContextRole",
+    "ProviderCapability",
     # Chat models
     "Participant",
+    "Attachment",
+    "Embed",
     "BaseMessage",
     "UserMessage",
     "ModelMessage",
-    "FunctionResponseMessage",
+    "ToolResponseMessage",
     "SystemMessage",
     "ExceptionMessage",
     "Message",
