@@ -116,8 +116,12 @@ class Gemini(Plugin):
             return  # Ignore messages that are not from guilds
 
         allow_ephemeral = bool(self.config and self.config.ephemeral_mode.enabled)
+        processed_message = await self.input_processor.process(message)
+        if not processed_message:
+            return
+
         await self.conversation_manager.route_message(
-            message=await self.input_processor.process(message),
+            message=processed_message,
             channel_id=message.channel.id,
             allow_ephemeral=allow_ephemeral,
             create_mentionable=self.is_mentioned(message),
