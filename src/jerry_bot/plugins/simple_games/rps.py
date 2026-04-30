@@ -123,7 +123,7 @@ class RPSGame(discord.ui.LayoutView):
             return []
 
         # Count how many players chose each option
-        choice_counts = {choice: 0 for choice in Choice}
+        choice_counts = dict.fromkeys(Choice, 0)
         for choice in self.choices.values():
             choice_counts[choice] += 1
 
