@@ -5,6 +5,7 @@ from ..models import (
     LLMContext,
     LLMResponseStream,
     ModelContextRole,
+    ProviderCapability
 )
 from ..config import ProviderConfig, GlobalConfig
 from typing import AsyncIterator
@@ -62,3 +63,12 @@ class OpenRouterProvider(Provider):
                     logger.info(f"Reasoning token: {reasoning!r}")
         except Exception as e:
             raise ProviderAPIError(f"OpenRouter API error: {e}") from e
+
+    @property
+    def capabilities(self) -> set[ProviderCapability]:
+        """OpenRouter supports tool calls, system prompts, and streaming."""
+        return {
+            ProviderCapability.TOOL_CALLS,
+            ProviderCapability.SYSTEM_PROMPT,
+            ProviderCapability.STREAMING,
+        }

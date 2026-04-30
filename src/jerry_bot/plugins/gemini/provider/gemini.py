@@ -11,6 +11,7 @@ from ..models import (
     LLMContext,
     ModelContextRole,
     LLMResponseStream,
+    ProviderCapability
 )
 from ..config import ProviderConfig
 from ..models.exceptions import ProviderAPIError
@@ -134,3 +135,13 @@ class GeminiProvider(Provider):
             raise ProviderAPIError(
                 f"Unexpected error checking model existence for '{model_name}': {e}"
             ) from e
+
+    @property
+    def capabilities(self) -> set[ProviderCapability]:
+        """Gemini supports tool calls, system prompts, and streaming."""
+        return {
+            ProviderCapability.TOOL_CALLS,
+            ProviderCapability.SYSTEM_PROMPT,
+            ProviderCapability.STREAMING,
+            ProviderCapability.MODEL_CHECK,
+        }

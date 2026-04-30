@@ -7,6 +7,7 @@ from ..models import (
     LLMContext,
     LLMResponseStream,
     ModelContextRole,
+    ProviderCapability
 )
 from ..config import ProviderConfig, GlobalConfig
 from typing import AsyncIterator
@@ -65,3 +66,12 @@ class OllamaProvider(Provider):
                 yield LLMResponseStream(content=chunk["message"]["content"])
         except Exception as e:
             raise ProviderAPIError(f"Ollama API returned an error response: {e}") from e
+
+    @property
+    def capabilities(self) -> set[ProviderCapability]:
+        """Ollama supports system prompts and streaming."""
+        return {
+            ProviderCapability.SYSTEM_PROMPT,
+            ProviderCapability.STREAMING,
+            ProviderCapability.MODEL_CHECK,
+        }
