@@ -22,6 +22,10 @@
             "command": "./scripts/run.sh",
             "options": {
                 "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
             }
         }
     ]
