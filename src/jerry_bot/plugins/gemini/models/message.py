@@ -1,8 +1,9 @@
 """Chat message models for Gemini plugin."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Union
+from datetime import datetime
 
 from .enums import MessageSource, MessageDestination, ModelContextRole
 from .function_call import FunctionCall
@@ -24,6 +25,44 @@ class Participant:
     def mention(self) -> str:
         """Get the Discord mention string for the user."""
         return f"<@{self.id}>"
+
+@dataclass(frozen=True, slots=True)    
+class Attachment:
+    """Dataclass for a chat attachment."""
+
+    filename: str
+    content: bytes
+    mime_type: Optional[str] = None  # e.g., "image/png", "application/pdf", etc.
+
+@dataclass(frozen=True, slots=True)
+class Embed:
+    """Dataclass for a chat embed."""
+
+    title: Optional[str] = None
+    description: Optional[str] = None
+    author: Optional[str] = None
+    fields: Optional[dict[str, str]] = None  # e.g., {"Field Name": "Field Value"}
+    footer: Optional[str] = None
+    
+    def as_string(self) -> str:
+        """Convert the embed to a string representation for model processing."""
+        parts = []
+        if self.title:
+            parts.append(f"[Embed: **{self.title}**]")
+        if self.author:
+            parts.append(f"by {self.author}")
+        if self.description:
+            parts.append(self.description)
+        if self.fields:
+            for name, value in self.fields.items():
+                parts.append(f"**{name}:** {value}")
+        if self.footer:
+            parts.append(f"*{self.footer}*")
+        return "\n".join(parts)
+    
+    def __str__(self) -> str:
+        """String representation of the embed for logging or model processing."""
+        return self.as_string()
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,8 +94,10 @@ class UserMessage(BaseMessage):
     """Chat message from a user to the model."""
 
     user: Participant
-    content: str
-    raw_content: Optional[str] = None  # Original content before any preprocessing
+    content: Optional[str] = None
+    attachments: Optional[list[Attachment]] = None
+    embeds: Optional[list[Embed]] = None
+    sent_at: datetime = field(default_factory=datetime.now)
 
     @property
     def source(self) -> MessageSource:
@@ -73,6 +114,7 @@ class ModelMessage(BaseMessage):
 
     content: Optional[str] = None
     function_call: Optional[FunctionCall] = None
+    sent_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
         """Validate that at least content or function_call is provided."""
@@ -91,16 +133,17 @@ class ModelMessage(BaseMessage):
 
 
 @dataclass(frozen=True, slots=True)
-class FunctionResponseMessage(BaseMessage):
-    """Function/tool response message fed back to the model."""
+class ToolResponseMessage(BaseMessage):
+    """Tool response message fed back to the model."""
 
     function_call: FunctionCall
     response: str
     error: bool = False
+    sent_at: datetime = field(default_factory=datetime.now)
 
     @property
     def source(self) -> MessageSource:
-        return MessageSource.FUNCTION
+        return MessageSource.TOOL_CALL
 
     @property
     def destination(self) -> MessageDestination:
@@ -117,6 +160,7 @@ class SystemMessage(BaseMessage):
     """System message to the user."""
 
     content: str
+    sent_at: datetime = field(default_factory=datetime.now)
 
     @property
     def source(self) -> MessageSource:
@@ -142,6 +186,7 @@ class ExceptionMessage(BaseMessage):
     message: Optional[Message] = (
         None  # The message being processed when the error occurred
     )
+    sent_at: datetime = field(default_factory=datetime.now)
 
     @property
     def source(self) -> MessageSource:
@@ -168,7 +213,7 @@ class ExceptionMessage(BaseMessage):
 Message = Union[
     UserMessage,
     ModelMessage,
-    FunctionResponseMessage,
+    ToolResponseMessage,
     SystemMessage,
     ExceptionMessage,
 ]
