@@ -16,7 +16,6 @@ The plugin supports various response types:
 ### Random Text Reply YAML Format
 For the Random Text Reply type, the response payload should be formatted in YAML as follows:
 ```yaml
-responses:
   - "First possible reply."
   - "Second possible reply."
   - "Third possible reply."
