@@ -1,5 +1,7 @@
 """Global configuration model for Gemini plugin."""
 
+from __future__ import annotations
+
 from typing import Optional, Dict
 from pydantic import BaseModel, Field
 
