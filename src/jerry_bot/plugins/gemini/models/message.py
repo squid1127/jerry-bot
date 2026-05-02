@@ -1,5 +1,7 @@
 """Chat message models for Gemini plugin."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, Union
@@ -7,6 +9,7 @@ from datetime import datetime
 
 from .enums import MessageSource, MessageDestination, ModelContextRole
 from .function_call import FunctionCall
+
 
 @dataclass(frozen=True, slots=True)
 class Participant:
@@ -26,13 +29,15 @@ class Participant:
         """Get the Discord mention string for the user."""
         return f"<@{self.id}>"
 
-@dataclass(frozen=True, slots=True)    
+
+@dataclass(frozen=True, slots=True)
 class Attachment:
     """Dataclass for a chat attachment."""
 
     filename: str
     content: bytes
     mime_type: Optional[str] = None  # e.g., "image/png", "application/pdf", etc.
+
 
 @dataclass(frozen=True, slots=True)
 class Embed:
@@ -43,7 +48,7 @@ class Embed:
     author: Optional[str] = None
     fields: Optional[dict[str, str]] = None  # e.g., {"Field Name": "Field Value"}
     footer: Optional[str] = None
-    
+
     def as_string(self) -> str:
         """Convert the embed to a string representation for model processing."""
         parts = []
@@ -59,7 +64,7 @@ class Embed:
         if self.footer:
             parts.append(f"*{self.footer}*")
         return "\n".join(parts)
-    
+
     def __str__(self) -> str:
         """String representation of the embed for logging or model processing."""
         return self.as_string()
