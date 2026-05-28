@@ -144,7 +144,7 @@ async def handle_cli(plugin: "AutoReplyPlugin", ctx: CLIContext):
                 await ui.render()
 
     except Exception as e:
-        plugin.logger.exception(f"Error rendering AutoReply UI: {e}", exc_info=True)
+        plugin.logger.exception(f"Error rendering AutoReply UI: {e}")
         await ctx.message.reply(
             embed=discord.Embed(
                 title="Error",
