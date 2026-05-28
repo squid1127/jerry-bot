@@ -1,8 +1,6 @@
 """Main Module for AutoReply"""
 
 # squid_core imports
-import asyncio
-import re
 from squid_core.plugin_base import Plugin
 from squid_core.framework import Framework
 from squid_core.decorators import DiscordEventListener, CLICommandDec, RedisSubscribe
@@ -21,17 +19,11 @@ if TYPE_CHECKING:
     )
 
 # local imports
-from .models.db import (
-    AutoReplyRule,
-    AutoReplyRuleData,
-    AutoReplyIgnore,
-    AutoReplyIgnoreData,
-)
-from .models.enums import IgnoreType, ResponseType
+from .models.db import AutoReplyIgnore
+from .models.enums import IgnoreType
 from .cog import AutoReplyCog
-from .ui import AutoReplyMainUI
 from .ar import AutoReply
-
+from .cli_handler import handle_cli
 
 class AutoReplyPlugin(Plugin):
     """AutoReply Plugin."""
@@ -108,25 +100,7 @@ class AutoReplyPlugin(Plugin):
     )
     async def cli_autoreply(self, ctx: CLIContext):
         """CLI command to manage AutoReply plugin."""
-
-        # Type checking got mad somehow
-        if ctx.message is None:
-            raise ValueError(
-                "CLIContext message is None. This command must be invoked with a message context."
-            )
-
-        try:
-            ui = AutoReplyMainUI(ar=self.ar, message_method=ctx.message.reply)
-            await ui.render()
-        except Exception as e:
-            self.logger.error(f"Error rendering AutoReply UI: {e}", exc_info=True)
-            await ctx.message.reply(
-                embed=discord.Embed(
-                    title="Error",
-                    description="Failed to open AutoReply management interface. Please try again.",
-                    color=discord.Color.red(),
-                )
-            )
+        await handle_cli(self, ctx)
 
     @RedisSubscribe(["jerry:auto_reply:reload_cache"])  # type: ignore - squid core decorators break typing somehow
     async def redis_reload_cache(self, message: dict):
