@@ -97,7 +97,7 @@ class AutoReplyMainUI(discord.ui.LayoutView):
             )
 
     async def list_cb(self, interaction: discord.Interaction) -> None:
-        """Callback to open the search modal (not implemented)."""
+        """Callback to open the search modal."""
         try:
             ui = AutoReplySearchUI(auto_reply=self.ar, interaction=interaction)
             await ui.render()
@@ -108,7 +108,7 @@ class AutoReplyMainUI(discord.ui.LayoutView):
             )
 
     async def create_rule_cb(self, interaction: discord.Interaction) -> None:
-        """Callback to create a new rule (not implemented)."""
+        """Callback to create a new rule."""
         try:
             modal = AutoReplyRuleModal(self.ar)
             await interaction.response.send_modal(modal)
