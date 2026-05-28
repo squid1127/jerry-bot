@@ -119,7 +119,7 @@ For `query`, specify a keyword to search or use `id=<rule_id>` to search by rule
 **Rule Management**:
 - `jerry ar -r <rule_id>` or `jerry ar --remove <rule_id>` - Remove an auto-reply rule by its ID.
 - `jerry ar -t <rule_id>` or `jerry ar --toggle <rule_id>` - Toggle an auto-reply rule's active status by its ID.
-- `jerry ar -f` - Reload all auto-reply rules from the database.
+- `jerry ar -f` or `jerry ar --reload` - Reload all auto-reply rules from the database.
 """
 
 SEARCH_RESULT_LIMIT = 20
