@@ -24,7 +24,9 @@ class AutoReply:
             tuple[int | None, IgnoreType, int], AutoReplyIgnoreData
         ] = {}
         self.jinja_manager = JinjaManager(plugin)
-        self.response_handler = ResponseHandler(plugin, self.jinja_manager, plugin.framework.cli)
+        self.response_handler = ResponseHandler(
+            plugin, self.jinja_manager, plugin.framework.cli
+        )
 
     @property
     def fw(self) -> Framework:
@@ -66,16 +68,18 @@ class AutoReply:
     ) -> bool:
         """Check if a message should be ignored based on channel, user, guild, or role ID."""
         role_ids = role_ids or []
-        ignore_checks = [
+        ignore_checks: list[tuple[int | None, IgnoreType, int | None]] = [
             (None, IgnoreType.USER, user_id),
-            (None, IgnoreType.CHANNEL, channel_id),
-            (guild_id, IgnoreType.USER, user_id),
-            (guild_id, IgnoreType.CHANNEL, channel_id),
-            (None, IgnoreType.GUILD, guild_id),
         ]
-        # Add role checks
-        ignore_checks.extend([(None, IgnoreType.ROLE, r_id) for r_id in role_ids])
+
         if guild_id:
+            ignore_checks.extend(
+                [
+                    (guild_id, IgnoreType.USER, user_id),
+                    (guild_id, IgnoreType.CHANNEL, channel_id),
+                    (None, IgnoreType.GUILD, guild_id),
+                ]
+            )
             ignore_checks.extend(
                 [(guild_id, IgnoreType.ROLE, r_id) for r_id in role_ids]
             )
