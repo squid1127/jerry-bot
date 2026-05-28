@@ -51,21 +51,15 @@ class AutoReplyRule(Model):
     def _get_query_method(cls, search_query: str | None):
         if search_query is None:
             return cls.all()
-        try:
-            if search_query.startswith("id="):
+        if search_query.startswith("id="):
+            try:
                 search_query_int = int(search_query[3:])
-            else:
-                search_query_int = int(search_query)
-            return cls.filter(
-                Q(name__icontains=search_query)
-                | Q(trigger__icontains=search_query)
-                | Q(id=search_query_int)
-            )
-        except ValueError:
-            return cls.filter(
-                Q(name__icontains=search_query)
-                | Q(trigger__icontains=search_query)
-            )
+                return cls.filter(Q(id=search_query_int))
+            except ValueError:
+                pass
+        return cls.filter(
+            Q(name__icontains=search_query) | Q(trigger__icontains=search_query)
+        )
 
     @classmethod
     async def search_paginated(
