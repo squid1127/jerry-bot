@@ -56,13 +56,16 @@ class AutoReplyRule(Model):
                 search_query_int = int(search_query[3:])
             else:
                 search_query_int = int(search_query)
+            return cls.filter(
+                Q(name__icontains=search_query)
+                | Q(trigger__icontains=search_query)
+                | Q(id=search_query_int)
+            )
         except ValueError:
-            search_query_int = None
-        return cls.filter(
-            Q(name__icontains=search_query)
-            | Q(trigger__icontains=search_query)
-            | Q(id=search_query_int)
-        )
+            return cls.filter(
+                Q(name__icontains=search_query)
+                | Q(trigger__icontains=search_query)
+            )
 
     @classmethod
     async def search_paginated(
