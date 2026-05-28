@@ -55,7 +55,7 @@ RESPONSE_METHOD_MAPPING: dict[ResponseMethod, RuleSelectOption] = {
     },
     ResponseMethod.LOG: {
         "label": "Log",
-        "description": "Logs the message the CLI channel.",
+        "description": "Logs the message to the CLI channel.",
         "emoji": "📝",
     },
     ResponseMethod.REACTION: {
