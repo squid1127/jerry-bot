@@ -1,3 +1,18 @@
 {
-  "cSpell.words": ["timeparse"]
+  "cSpell.words": [
+    "agentic",
+    "appendleft",
+    "asteval",
+    "autoreply",
+    "blurple",
+    "finalised",
+    "genai",
+    "greyple",
+    "ollama",
+    "randchoice",
+    "tictactoe",
+    "timeparse"
+  ],
+  "python.analysis.typeCheckingMode": "standard",
+  "sonarlint.disableTelemetry": true
 }

@@ -44,8 +44,8 @@ class TicTacToeGame(discord.ui.LayoutView):
         self.interaction = interaction
         self.state = GameState.CHOOSE_OPPONENT
 
-        self.board: dict[int, Player | None] = {i: None for i in range(9)}
-        self.players: dict[Player, discord.User] = {Player.P1: interaction.user}
+        self.board: dict[int, Player | None] = dict.fromkeys(range(9), None)  # 3x3 board represented as a dict
+        self.players: dict[Player, discord.User | discord.Member] = {Player.P1: interaction.user}
         self.current_turn: Player = Player.P1
 
         self.container = self.generate_container()

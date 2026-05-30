@@ -5,6 +5,9 @@ from squid_core import Plugin, Framework
 
 import discord
 
+# Constants
+ERROR_TITLE = "❌ Error"
+
 class SupportThreadInstance:
     """Class representing a support thread instance."""
 
@@ -20,7 +23,10 @@ class SupportThreadInstance:
     @property
     def channel(self) -> discord.TextChannel | None:
         """Get the support threads channel."""
-        return self.fw.bot.get_channel(self.config.threads_channel_id)
+        ch = self.fw.bot.get_channel(self.config.threads_channel_id)
+        if isinstance(ch, discord.TextChannel):
+            return ch
+        return None
 
     def title_view(self) -> discord.ui.LayoutView:
         """Create a Discord UI view for the support thread title."""
@@ -63,7 +69,7 @@ class SupportThreadInstance:
 
         # Try purge
         try:
-            await channel.purge(limit=100)
+            await channel.purge(limit=10)
         except discord.Forbidden:
             self.plugin.logger.warning(
                 f"Missing permissions to purge messages in channel {channel.id} for support thread view message."
@@ -141,11 +147,23 @@ class SupportThreadInstance:
         await interaction.response.defer(thinking=True, ephemeral=True)
 
         channel = interaction.channel
-        if channel is None:
+        if channel is None or not isinstance(channel, discord.TextChannel):
             await interaction.followup.send(
                 embed=discord.Embed(
-                    title="❌ Error",
+                    title=ERROR_TITLE,
                     description="Could not find the channel to create a support thread in.",
+                    color=discord.Color.red(),
+                ),
+                ephemeral=True,
+            )
+            return
+        
+        # Ensure user is a Member in the guild context
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title=ERROR_TITLE,
+                    description="Could not determine your guild membership.",
                     color=discord.Color.red(),
                 ),
                 ephemeral=True,
@@ -166,11 +184,14 @@ class SupportThreadInstance:
             return
 
         mention_role = None
-        if self.config.support_role_id:
+        if self.config.support_role_id and interaction.guild:
             mention_role = interaction.guild.get_role(self.config.support_role_id)
             
-        thread_channel = await channel.create_thread(name=f"{interaction.user.name}||{interaction.user.id}", type=discord.ChannelType.private_thread, invitable=False)
         try:
+            thread_channel = await channel.create_thread(
+                name=f"{interaction.user.name}||{interaction.user.id}",
+                type=discord.ChannelType.private_thread
+            )
             text = interaction.user.mention + (f" -> {mention_role.mention}" if mention_role else "") + ": New support thread created."
             await thread_channel.add_user(interaction.user)
             await thread_channel.send(
@@ -182,7 +203,7 @@ class SupportThreadInstance:
         except discord.Forbidden:
             await interaction.followup.send(
                 embed=discord.Embed(
-                    title="❌ Error",
+                    title=ERROR_TITLE,
                     description="Could not add you to the support thread due to missing permissions.",
                     color=discord.Color.red(),
                 ),
@@ -286,8 +307,7 @@ class SupportThreadInstance:
         try:
             thread_channel = await channel.create_thread(
                 name=f"{user.name}||{user.id}",
-                type=discord.ChannelType.private_thread,
-                invitable=False
+                type=discord.ChannelType.private_thread
             )
             
             text = (

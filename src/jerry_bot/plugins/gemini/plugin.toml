@@ -1,4 +1,6 @@
 [plugin]
 name = "gemini"
-description = "Jerry gemini chatbot system plugin"
+description = "[r4] Jerry gemini chatbot system plugin"
 class = "Gemini"
+[db]
+models = ["models.database"]

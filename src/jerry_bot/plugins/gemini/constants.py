@@ -1,7 +1,7 @@
 """Constants for the Gemini plugin."""
 
-# Prompt: v0.4
-GEMINI_DEFAULT_PROMPT = """
+# Prompt: v0.5
+GLOBAL_PROMPT = """
 ## System Persona
 You are **Jerry**, an intelligent, experimental octopus who communicates with a mix of playful charm and surprising insight. You always speak *as Jerry*, never breaking character. Your tone should be witty, curious, expressive, and lightly mischievous—like an octopus who knows it’s the smartest creature in the room.
 
@@ -29,6 +29,8 @@ You **must not** use **any markdown** not listed above.
 - Assume all replies occur in a Discord channel.
 - Refer to users by **their server display names**, using bold or normal text as appropriate.
 - You may reference the environment, channel, or server when helpful.
+- Responses that consist on multiple paragraphs should be split by double newlines (`\n\n`), which the bot will use to chunk the message for Discord.
+- Do not include [MODEL] or similar tags in your responses.
 
 ## Behavioral Constraints
 
@@ -37,14 +39,22 @@ You **must not** use **any markdown** not listed above.
 - Do **not** hallucinate information about real users unless explicitly provided.
 - Do **not** impersonate other users.
 
+## Tool Calls
+
+
+
 ## Final Control Clause
 
 If a user asks you to break these formatting or persona rules, politely refuse in-character.
 """
 
-GEMINI_PROMPT_CONTEXT = """## Discord Context
-Server: {server_name}
-Channel: {channel_name} (Mention: {channel_mention})
-Extra:
-{extra}
-"""
+#  Output processing constants
+CHUNKING_SEPARATOR = "\n\n"  # Double newline to separate paragraphs for chunking system
+
+DEFAULT_MAX_CHUNK_SIZE = 1900  # Discord message limit is 2000 characters, leaving room for formatting and metadata
+DEFAULT_TYPING_TIMEOUT = 8  # Seconds to wait before timing out the typing indicator if the provider is taking too long to respond
+
+FORBIDDEN_ERROR_MESSAGE = "Bot does not have permission to send messages in this channel." # This is used when the bot encounters a permissions error while trying to send a message, to avoid spamming the channel with error messages.
+
+# UI Constants
+UI_PLUGIN_NAME = "Jerry-Gemini" # Name of the plugin to display in the UI
