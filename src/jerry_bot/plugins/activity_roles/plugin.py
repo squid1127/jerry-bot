@@ -10,11 +10,11 @@ from .activity import ActivityTracker
 from .models.db import ActivityRoleConfig
 
 import discord
-from discord import app_commands, datetime
+from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
 
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from pytimeparse.timeparse import timeparse
 
 def parse_timedelta(time_str: str) -> timedelta:
@@ -112,7 +112,14 @@ class ActivityRolesPlugin(PluginBase):
         elif subcommand == "redis-test":
             # Test Redis connection
             try:
-                pong = await self.fw.redis.client.ping()
+                if self.fw.redis.client is None:
+                    await ctx.respond(
+                        title="Redis Connection Test",
+                        description="Redis client is not available.",
+                        level=EmbedLevel.ERROR,
+                    )
+                    return
+                pong = self.fw.redis.client.ping()
                 if pong:
                     await ctx.respond(
                         title="Redis Connection Test",
@@ -151,6 +158,13 @@ class ActivityRolesPlugin(PluginBase):
             
             # Fetch user activity from Redis
             try:
+                if self.fw.redis.client is None:
+                    await ctx.respond(
+                        title="User Activity Test",
+                        description="Redis client is not available.",
+                        level=EmbedLevel.ERROR,
+                    )
+                    return
                 key_pattern = f"{self.activity_tracker.redis_namespace}:activity:*:{user_id}"
                 keys = await self.fw.redis.client.keys(key_pattern)
                 if not keys:
@@ -255,7 +269,7 @@ class ActivityRolesCog(PluginCog):
             last_active=discord.utils.utcnow()
         )
         
-    @app_commands.command(name="activity-roles", description="Set/update activity roles configuration.")
+    @app_commands.command(name="activity-roles", description="[ActivityRoles] Set/update activity roles configuration.")
     @app_commands.guild_only()
     @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
@@ -274,6 +288,11 @@ class ActivityRolesCog(PluginCog):
         """Command to set or update activity roles configuration."""
         
         await interaction.response.defer(ephemeral=True)
+        
+        if interaction.guild is None:
+            await interaction.followup.send(embed=discord.Embed(title="Error", description="This command can only be used in a guild.", color=discord.Color.red()))
+            return
+        
         try:
             threshold_td = parse_timedelta(activity_threshold)
         except ValueError as e:
@@ -322,7 +341,7 @@ class ActivityRolesCog(PluginCog):
             await interaction.followup.send(embed=response, ephemeral=True)
             
             
-    @app_commands.command(name="activity-role-add-all", description="Add all missing members to the tracking database, defaulting them to inactive.")
+    @app_commands.command(name="activity-role-add-all", description="[ActivityRoles] Add all missing members to the tracking database, defaulting them to inactive.")
     @app_commands.guild_only()
     @app_commands.guild_install()
     @app_commands.default_permissions(manage_roles=True)
@@ -333,6 +352,10 @@ class ActivityRolesCog(PluginCog):
         """Command to add all missing guild members to the tracking database as inactive."""
         
         await interaction.response.defer(ephemeral=True)
+        
+        if interaction.guild is None:
+            await interaction.followup.send(embed=discord.Embed(title="Error", description="This command can only be used in a guild.", color=discord.Color.red()))
+            return
         
         config = await self.plugin.activity_tracker.get_guild_config(interaction.guild.id)
         if config is None:
@@ -490,7 +513,7 @@ class ActivityRolesCog(PluginCog):
     @tasks.loop(minutes=15)
     async def flush_activity_cache_task(self) -> None:
         """Periodic task to flush activity cache."""
-        self.logger.info("Flushing activity cache.")
+        self.logger.debug("Flushing activity cache.")
         await self.plugin.activity_tracker.flush_cache()
         
     async def cog_load(self) -> None:

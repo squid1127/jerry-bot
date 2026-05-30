@@ -13,14 +13,16 @@ dependencies = [
     "aiohttp",                                                           # Plugin: Commands
     "beautifulsoup4",                                                    # Plugin: Commands
     "aiofiles",                                                          # Plugin: Music
-    "mutagen",                                                          # Plugin: Music
-    "discord.py[voice]",                                               # Voice support
+    "mutagen",                                                           # Plugin: Music
+    "discord.py[voice]",                                                 # Voice support
     "squid-core @ git+https://github.com/squid1127/squid-core.git@main",
-    "google-genai", # Plugin: Gemini
-    "jinja2", # Plugin: Auto Reply - Text Template
-    "asteval", # Plugin: Auto Reply - Math Evaluation
+    "google-genai",                                                      # Plugin: Gemini
+    "jinja2",                                                            # Plugin: Auto Reply - Text Template
+    "asteval",                                                           # Plugin: Auto Reply - Math Evaluation
     "numpy (>=2.4.2,<3.0.0)",
     "pytimeparse (>=1.1.8,<2.0.0)",
+    "ollama (>=0.6.1,<0.7.0)",
+    "openrouter (>=0.7.11,<0.10.0)",
 ]
 
 [project.scripts]
@@ -29,4 +31,3 @@ jerry = "jerry_bot.run:main"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-

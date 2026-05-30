@@ -40,7 +40,7 @@ class RPSGame(discord.ui.LayoutView):
 
         self.interaction = interaction
         self.state = GameState.PICK
-        self.choices: dict[discord.User, Choice] = {}
+        self.choices: dict[discord.User | discord.Member, Choice] = {}
         self.players_count = players
         self.container = self.generate_container()
         self.add_item(self.container)
@@ -73,9 +73,10 @@ class RPSGame(discord.ui.LayoutView):
                     )
                 )
             else:
+                expires = (f"\n- *Expires <t:{discord.utils.utcnow().timestamp() + self.timeout}:R>*") if self.timeout else ""
                 container.add_item(
                     discord.ui.TextDisplay(
-                        content=f"(0/{self.players_count}) No choices made yet.\n-# *Expires <t:{int(discord.utils.utcnow().timestamp()) + self.timeout}:R>*"
+                        content=f"(0/{self.players_count}) No choices made yet.{expires}"
                     )
                 )
 
@@ -122,7 +123,7 @@ class RPSGame(discord.ui.LayoutView):
             return []
 
         # Count how many players chose each option
-        choice_counts = {choice: 0 for choice in Choice}
+        choice_counts = dict.fromkeys(Choice, 0)
         for choice in self.choices.values():
             choice_counts[choice] += 1
 
@@ -143,7 +144,7 @@ class RPSGame(discord.ui.LayoutView):
 
         return winners
 
-    async def player_vote(self, user: discord.User, choice: Choice):
+    async def player_vote(self, user: discord.User | discord.Member, choice: Choice):
         if self.state != GameState.PICK:
             return
 

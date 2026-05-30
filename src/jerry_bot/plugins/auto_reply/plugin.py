@@ -1,28 +1,29 @@
 """Main Module for AutoReply"""
 
 # squid_core imports
-import asyncio
-import re
 from squid_core.plugin_base import Plugin
 from squid_core.framework import Framework
 from squid_core.decorators import DiscordEventListener, CLICommandDec, RedisSubscribe
 from squid_core.components.cli import CLIContext, EmbedLevel
 
-# third-party imports
-import discord, yaml, random, datetime, math, asteval
-import jinja2
+# other imports
+import discord
+from typing import Optional, TYPE_CHECKING
+
+# plugin integration imports
+if TYPE_CHECKING:
+    from ..gemini import Gemini as GeminiPlugin
+    from ..gemini.models import (
+        Channel as GeminiChannel,
+        GuildRecord as GeminiGuild,
+    )
 
 # local imports
-from .models.db import (
-    AutoReplyRule,
-    AutoReplyRuleData,
-    AutoReplyIgnore,
-    AutoReplyIgnoreData,
-)
-from .models.enums import IgnoreType, ResponseType
+from .models.db import AutoReplyIgnore
+from .models.enums import IgnoreType
 from .cog import AutoReplyCog
-from .ui import AutoReplyMainUI
 from .ar import AutoReply
+from .cli_handler import handle_cli
 
 class AutoReplyPlugin(Plugin):
     """AutoReply Plugin."""
@@ -32,11 +33,11 @@ class AutoReplyPlugin(Plugin):
 
         self.auto_reply = AutoReply(self)
         self.cog = AutoReplyCog(self, self.ar)
-        
+
     @property
     def ar(self) -> AutoReply:
         return self.auto_reply
-    
+
     async def load(self):
         """Load the AutoReply Plugin."""
         await self.ar.init()
@@ -59,11 +60,11 @@ class AutoReplyPlugin(Plugin):
             if self.ar.check_ignored(
                 channel_id=message.channel.id,
                 user_id=message.author.id,
-                guild_id=message.guild.id if message.guild else None,
-                role_ids=[role.id for role in message.author.roles] if message.guild else None,
+                guild_id=message.guild.id if message.guild else None,  # type: ignore
+                role_ids=[role.id for role in message.author.roles] if message.guild else None,  # type: ignore
             ):
                 return  # Ignore this message
-                
+
             # Content
             content = message.content
             try:
@@ -80,7 +81,7 @@ class AutoReplyPlugin(Plugin):
                 except Exception as e:
                     self.logger.error(
                         f"Error processing rule {rule.db_id} for message {message.id}: {e}",
-                        exc_info=True
+                        exc_info=True,
                     )
 
             if found > 0:
@@ -88,35 +89,26 @@ class AutoReplyPlugin(Plugin):
                     f"Auto-replied {found} times in response to message ID {message.id}."
                 )
         except Exception as e:
-            self.logger.error(f"Unexpected error in on_message handler: {e}", exc_info=True)
+            self.logger.error(
+                f"Unexpected error in on_message handler: {e}", exc_info=True
+            )
 
     @CLICommandDec(
-        "autoreply",
+        "autoreply",  # type: ignore - squid core decorators break typing somehow
         aliases=["ar", "auto_reply"],
         description="Manage AutoReply plugin settings and rules.",
     )
     async def cli_autoreply(self, ctx: CLIContext):
         """CLI command to manage AutoReply plugin."""
-        try:
-            ui = AutoReplyMainUI(ar=self.ar, message_method=ctx.message.reply)
-            await ui.render()
-        except Exception as e:
-            self.logger.error(f"Error rendering AutoReply UI: {e}", exc_info=True)
-            await ctx.message.reply(
-                embed=discord.Embed(
-                    title="Error",
-                    description="Failed to open AutoReply management interface. Please try again.",
-                    color=discord.Color.red(),
-                )
-            )
+        await handle_cli(self, ctx)
 
-    @RedisSubscribe(["jerry:auto_reply:reload_cache"])
+    @RedisSubscribe(["jerry:auto_reply:reload_cache"])  # type: ignore - squid core decorators break typing somehow
     async def redis_reload_cache(self, message: dict):
         """Handle Redis message to reload cache."""
-        
+
         await self.ar.load_cache()
         self.logger.info("AutoReply cache reloaded via Redis message.")
-        
+
         # Send confirmation back if reply_to is specified
         if not isinstance(message, dict):
             return
@@ -130,3 +122,40 @@ class AutoReplyPlugin(Plugin):
                     "ignore_count": len(self.ar.ignore_cache),
                 },
             )
+
+    # Due to current limitations, this can't be down reliably on_load, since there isn't dependency injection or guaranteed load order. Instead, we'll listen for on_ready and then check if the gemini plugin is loaded, and if so, fetch the channels and add them to the ignore list.
+    @DiscordEventListener()  # type: ignore - squid core decorators break typing somehow
+    async def on_ready(self):
+        """Handle bot ready event to integrate with Gemini plugin if available."""
+        try:
+            await self.gemini_integration()
+        except Exception as e:
+            self.logger.error(f"Error during Gemini integration: {e}", exc_info=True)
+
+    async def gemini_integration(self):
+        """Fetch channels from jerry-gemini plugin (if available) and ignore them in auto-reply."""
+
+        gemini_plugin: GeminiPlugin | None = await self.framework.plugins.get_plugin("jerry:gemini")  # type: ignore
+
+        if gemini_plugin is None:
+            self.logger.info(
+                "jerry-gemini plugin not found, skipping Gemini integration."
+            )
+            return
+        if type(gemini_plugin).__name__ != "Gemini":
+            self.logger.info(
+                "jerry-gemini plugin of invalid type, skipping Gemini integration."
+            )
+            return
+
+        channels: list[GeminiChannel] = await gemini_plugin.list_channels()
+        for channel in channels:
+            ignore = AutoReplyIgnore(
+                guild_id=channel.guild_id if channel.guild_id else None,
+                discord_type=IgnoreType.CHANNEL,
+                discord_id=channel.channel_id,
+            )
+            self.logger.info(
+                f"Adding auto-reply ignore for jerry-gemini channel {channel.channel_id} (guild: {channel.guild_id if channel.guild_id else 'N/A'})"
+            )
+            await ignore.save()
