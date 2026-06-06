@@ -103,7 +103,7 @@ class Gemini(Plugin):
     async def on_message(self, message: discord.Message):
         """Event listener for incoming messages to route them to the appropriate conversation."""
         if not self.conversation_manager:
-            self.logger.error("Conversation manager not initialized.")
+            self.logger.debug("Conversation manager not initialized.")
             return
         if not self.input_processor:
             self.logger.error("Input processor not initialized.")
