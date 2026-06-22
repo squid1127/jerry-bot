@@ -5,7 +5,7 @@ from tortoise import fields
 from tortoise.models import Model
 from tortoise.expressions import Q
 from dataclasses import dataclass, field
-import re
+import regex as re
 from functools import cached_property
 from math import ceil
 
