@@ -1,0 +1,17 @@
+{
+  "languages": {
+    "Python": {
+      "prettier": {
+        "allowed": true
+      },
+      "inlay_hints": {
+        "enabled": true
+      },
+      "indent_guides": {
+        "background_coloring": "disabled",
+        "coloring": "indent_aware",
+        "enabled": true
+      }
+    }
+  }
+}
