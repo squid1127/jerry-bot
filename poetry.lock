@@ -1876,14 +1876,14 @@ pydantic = ">=2.9"
 
 [[package]]
 name = "openrouter"
-version = "0.9.2"
+version = "0.10.0"
 description = "Official Python Client SDK for OpenRouter."
 optional = false
 python-versions = ">=3.9.2"
 groups = ["main"]
 files = [
-    {file = "openrouter-0.9.2-py3-none-any.whl", hash = "sha256:c79f9df71bd96572090e26b65514088f989a27ca45b520d50740c0cfd0fd9f06"},
-    {file = "openrouter-0.9.2.tar.gz", hash = "sha256:a3d2d6e2a1f14dcfbe5cc0590fe82fb3073a8834c0a3987e391fc51f222acdcd"},
+    {file = "openrouter-0.10.0-py3-none-any.whl", hash = "sha256:0e318c1ea61fe1c78633dcef97440f43fca7322989d52e5bcea780fabd9150d6"},
+    {file = "openrouter-0.10.0.tar.gz", hash = "sha256:04567dfc39f11f8e4ff693c966f338610bd3032ee7abceb4b71c99409b8a92e4"},
 ]
 
 [package.dependencies]
@@ -3102,4 +3102,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <4.0"
-content-hash = "3fe513f2a914066dca78ed156155fae97a031092e333ace1d6d36da1dbeca827"
+content-hash = "fdae92b9146805b9cbfd191d9f488d01578f5df2daa29186df03c7167b3eaa54"
