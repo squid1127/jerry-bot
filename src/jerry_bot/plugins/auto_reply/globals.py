@@ -5,7 +5,7 @@ import yaml
 from typing import Any
 import random
 import time
-import re
+import regex as re
 from tabulate import tabulate
 
 GLOBALS: dict[str, Any] = {}
