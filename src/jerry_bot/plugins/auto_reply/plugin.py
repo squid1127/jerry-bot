@@ -67,10 +67,6 @@ class AutoReplyPlugin(Plugin):
 
             # Content
             content = message.content
-            try:
-                content = self.ar.reverse_template(content, author=message.author)
-            except Exception as e:
-                self.logger.debug(f"Error reversing templates in message content: {e}")
 
             found = 0
             for rule in self.ar.cache:
