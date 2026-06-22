@@ -21,6 +21,7 @@ class ResponseMethod(IntEnum):
     REPLY_ORIGINAL = auto()
     LOG = auto()
     REACTION = auto()
+    REACT_ORIGINAL = auto()
 
 
 class IgnoreType(IntEnum):
