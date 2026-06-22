@@ -89,7 +89,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         await self.render()
 
     async def edit_rule_cb(self, interaction: discord.Interaction):
-        if self._edit_rule_select is None:
+        if self.rules and len(self.rules) == 1:
             if self.rules:
                 selected_id = self.rules[0].id  # If only one rule, select it by default
             else:
@@ -99,10 +99,17 @@ class AutoReplySearchUI(discord.ui.LayoutView):
                     description="There are no rules to edit.",
                 )
                 return
-        else:
+        elif self._edit_rule_select and self._edit_rule_select.values:
             selected_id = self._edit_rule_select.values[
                 0
             ]  # Get the selected rule ID from the select
+        else:
+            await send_error(
+                interaction,
+                title="No Selection",
+                description="Please select a rule to edit.",
+            )
+            return
         rule = await AutoReplyRule.get_or_none(id=int(selected_id))
         if rule is None:
             await send_error(
