@@ -137,7 +137,12 @@ class AutoReplyRuleData:
 
     def match(self, message: str) -> bool:
         """Check if the message matches the trigger regex."""
-        return bool(self.pattern.search(message))
+        return self.pattern.search(message) is not None
+    
+    def search(self, message: str) -> tuple[str, ...] | None:
+        """Search for the trigger in the message and return the matched groups."""
+        match = self.pattern.search(message)
+        return match.groups() if match else None
 
 
 @dataclass

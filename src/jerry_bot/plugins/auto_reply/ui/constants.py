@@ -92,18 +92,9 @@ Context available in templates:
 - `author`: (discord.User) Author of the trigger message.
 - `channel`: (discord.TextChannel) Trigger message's channel.
 - `guild`: (discord.Guild) Trigger message's guild.
-- `bot`: (discord.ClientUser) The Discord bot user object.
-- `now`: (datetime.datetime) The current UTC time.
-- `math`: (math) The Python math module.
-- `random`: (random) The Python random module.
-- `randint`: (callable) Generates a random integer between two values.
-- `randchoice`: (callable) Selects a random element from a list.
-- `regex_match`: (callable) A function to check if a regex pattern matches a string.
-- `ordinal`: (callable) Converts an integer to its ordinal representation (e.g., 1st, 2nd, 3rd).
-- `yaml_load`: (callable) Loads a YAML string into a Python object.
-- `yaml_dump`: (callable) Dumps a Python object to a YAML string.
-- `json_load`: (callable) Loads a JSON string into a Python object.
-- `json_dump`: (callable) Dumps a Python object to a JSON string.
+- `trigger`: (str) The trigger that activated the auto-reply.
+- `match`: (tuple[str]) The matched portion of the message content.
+{globals_help}
 """
 
 CLI_HELP_MSG = """### AutoReply CLI Command Help:

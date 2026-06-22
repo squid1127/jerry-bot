@@ -12,6 +12,8 @@ import asteval
 import jinja2
 from squid_core import Plugin
 
+from .globals import GLOBALS, GLOBALS_ASTEVAL, global_method
+
 
 class JinjaManager:
     """Manages Jinja2 environment and template rendering."""
@@ -34,73 +36,27 @@ class JinjaManager:
     def _make_globals(self) -> dict:
         """Create global variables for Jinja2 templates."""
 
-        def regex_match(pattern: str, string: str) -> bool:
-            """Check if the regex pattern matches the string."""
-            return re.search(pattern, string) is not None
-
-        def ordinal(n: int) -> str:
-            """Convert an integer to its ordinal representation."""
-            suffix = ["th", "st", "nd", "rd"] + ["th"] * 6
-            if 10 <= n % 100 <= 20:
-                return f"{n}th"
-            else:
-                return f"{n}{suffix[n % 10]}"
-            
-        def yaml_load(s: str) -> Any:
-            """Load a YAML string."""
-            try:
-                return yaml.safe_load(s)
-            except yaml.YAMLError as e:
-                raise ValueError(f"Error parsing YAML: {e}")
-        def yaml_dump(data: Any) -> str:
-            """Dump data to a YAML string."""
-            try:
-                return yaml.safe_dump(data)
-            except yaml.YAMLError as e:
-                raise ValueError(f"Error dumping YAML: {e}")
-        def json_load(s: str) -> Any:
-            """Load a JSON string."""
-            try:
-                return json.loads(s)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Error parsing JSON: {e}")
-        def json_dump(data: Any) -> str:
-            """Dump data to a JSON string."""
-            try:
-                return json.dumps(data, ensure_ascii=False)
-            except (TypeError, ValueError) as e:
-                raise ValueError(f"Error dumping JSON: {e}")
-
-        bot = self.plugin.framework.bot.user
-        now = datetime.datetime.now(datetime.timezone.utc)
-        return {
-            "bot": bot,
-            "now": now,
-            "utcnow": now,
-            "math": math,
-            "randint": random.randint,
-            "randchoice": random.choice,
-            "random": random,
-            "regex_match": regex_match,
-            "ordinal": ordinal,
-            "asteval": self._asteval_eval,
-            "asteval_safe": self._asteval_eval_safe,
-            "yaml_load": yaml_load,
-            "yaml_dump": yaml_dump,
-            "json_load": json_load,
-            "json_dump": json_dump,
-        }
+        base_globals = GLOBALS.copy()
+        base_globals.update(
+            {
+                "asteval": self._asteval_eval,
+                "asteval_safe": self._asteval_eval_safe,
+            }
+        )
+        return base_globals
 
     def _get_asteval_interpreter(self, interpreter_id: int) -> asteval.Interpreter:
         """Get or create an asteval interpreter."""
         if interpreter_id not in self.asteval_interpreters:
             self.asteval_interpreters[interpreter_id] = asteval.Interpreter(
+                symtable=GLOBALS_ASTEVAL.copy(),
                 use_numpy=True,
                 builtins_readonly=True,
                 config={"import": False},
             )
         return self.asteval_interpreters[interpreter_id]
 
+    @global_method(doc="Evaluate a mathematical expression safely. (str, int) -> Any", skip=True)
     def _asteval_eval(self, expr: str, interpreter_id: int = 0) -> Any:
         """Evaluate a mathematical expression safely."""
         self.plugin.logger.info(
@@ -126,6 +82,7 @@ class JinjaManager:
 
         return result
 
+    @global_method(doc="Evaluate a mathematical expression safely, returning error messages. (str, int) -> Any", skip=True)
     def _asteval_eval_safe(self, expr: str, interpreter_id: int = 0) -> Any:
         """Evaluate a mathematical expression safely, returning error messages."""
         self.plugin.logger.info(
@@ -147,7 +104,7 @@ class JinjaManager:
                 )
                 for err in asteval_interpreter.error
             ]
-            return f"## Error\n```\n{'; '.join(errors)}\n```"
+            return f"```\n{'; '.join(errors)}\n```\n-# This function evaluates python code. Use `help()` to see available globals and their descriptions."
 
         return "👍" if result is None else result
 
@@ -162,3 +119,12 @@ class JinjaManager:
         except Exception as e:
             self.plugin.logger.error(f"Unexpected error during Jinja2 rendering: {e}")
             raise
+
+    def help(self) -> str:
+        """Return a help message listing available global functions."""
+        output = "Available global methods:\n"
+        if not self.jinja_env.globals:
+            return "No available methods."
+        for name, func in self.jinja_env.globals.items():
+            output += f"- `{name}`{' - ' + func._help_doc if hasattr(func, '_help_doc') and func._help_doc else ''}\n"
+        return output
