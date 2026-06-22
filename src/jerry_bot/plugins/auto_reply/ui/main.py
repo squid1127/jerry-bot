@@ -123,7 +123,7 @@ class AutoReplyMainUI(discord.ui.LayoutView):
         try:
             view = discord.ui.LayoutView(timeout=None)
             container = discord.ui.Container()
-            container.add_item(discord.ui.TextDisplay(content=HELP_MSG))
+            container.add_item(discord.ui.TextDisplay(content=HELP_MSG.format(globals_help=self.ar.jinja_manager.help())))
             container.add_item(
                 discord.ui.ActionRow(
                     self._button(
