@@ -86,17 +86,6 @@ class AutoReply:
 
         return any(check in self.ignore_cache for check in ignore_checks if check[2])
 
-    def reverse_template(
-        self, text: str, author: discord.User | discord.Member | None = None
-    ) -> str:
-        """Reverse built-in templates to their placeholders."""
-        bot = self.framework.bot.user
-        if bot:
-            text = text.replace(bot.mention, "{bot_mention}")
-        if author:
-            text = text.replace(author.mention, "{author_mention}")
-        return text
-
     async def send_response(self, message: discord.Message, rule: AutoReplyRuleData):
         """Send a response based on the rule's response type."""
         await self.response_handler.send_response(message, rule)

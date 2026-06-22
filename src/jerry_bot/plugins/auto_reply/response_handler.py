@@ -28,7 +28,7 @@ class ResponseHandler:
 
     def _initialize_response_map(self) -> dict[ResponseType, Callable[..., Any]]:
         return {
-            ResponseType.PLAIN: self._get_text_response,
+            ResponseType.PLAIN: lambda message, rule: rule.response_payload,
             ResponseType.TEMPLATE: self._get_template_response,
             ResponseType.RANDOM_YAML: self._get_random_response,
         }
@@ -66,22 +66,6 @@ class ResponseHandler:
         method_handler = self.method_map.get(rule.response_method, self._method_reply)
         await method_handler(message, response_content)
 
-    def _auto_template(
-        self, text: str, author: discord.User | discord.Member | None = None
-    ) -> str:
-        """Define built-in templates for auto-reply responses."""
-        bot = self.plugin.framework.bot.user
-        if bot:
-            text = text.replace("{bot_mention}", bot.mention)
-        if author:
-            text = text.replace("{author_mention}", author.mention)
-        return text
-
-    async def _get_text_response(
-        self, message: discord.Message, rule: AutoReplyRuleData
-    ) -> str | None:
-        return self._auto_template(rule.response_payload, author=message.author)
-
     async def _get_template_response(
         self, message: discord.Message, rule: AutoReplyRuleData
     ) -> str | None:
@@ -94,15 +78,11 @@ class ResponseHandler:
                 channel=message.channel,
                 guild=message.guild,
                 bot=self.plugin.framework.bot,
+                trigger=rule.trigger,
+                match=rule.search(message.content or "") or (),
             )
             if not response_rendered:
-                self.plugin.logger.warning(f"Rule {rule.db_id} rendered empty response")
-                await self._send_error_embed(
-                    message,
-                    "Error",
-                    "The rendered template resulted in an empty response.",
-                    "If you are a bot admin, please check the auto-reply rule configuration.",
-                )
+                self.plugin.logger.debug(f"Rule {rule.db_id} rendered empty response")
                 return None
 
             if len(response_rendered) > 2000:
@@ -128,16 +108,14 @@ class ResponseHandler:
     ) -> str | None:
         try:
             response = self._choose_random(rule.response_payload)
-            return self._auto_template(response, author=message.author)
+            return response
         except ValueError as e:
             self.plugin.logger.error(
                 f"Random response error for rule {rule.db_id}: {e}"
             )
-            await self._send_error_embed(
+            await self._method_log(
                 message,
-                "Error",
-                "Failed to parse random text responses.",
-                "If you are a bot admin, please check the auto-reply rule configuration.",
+                f"Error in random response for rule {rule.db_id}: {e}",
             )
             return None
 
@@ -147,11 +125,9 @@ class ResponseHandler:
         self.plugin.logger.error(
             f"Rule {rule.db_id} has unknown response type: {rule.response_type}"
         )
-        await self._send_error_embed(
+        await self._method_log(
             message,
-            "Error",
-            "Unknown response type configured.",
-            "If you are a bot admin, please check the auto-reply rules.",
+            f"Unknown response type for rule {rule.db_id}: {rule.response_type}",
         )
 
     async def _send_error_embed(
@@ -171,7 +147,7 @@ class ResponseHandler:
         try:
             responses = yaml.safe_load(response_payload)
             if isinstance(responses, list) and responses:
-                return random.choice(responses)
+                return str(random.choice(responses))
             raise ValueError("Response payload is not a valid list.")
         except yaml.YAMLError as e:
             self.plugin.logger.error(f"Error parsing response payload as YAML: {e}")
