@@ -1,7 +1,7 @@
 """Response handler for auto-reply rules."""
 
 import random
-from typing import Any, Callable
+from typing import Any, Callable, Awaitable
 
 import discord
 import yaml
@@ -19,21 +19,21 @@ class ResponseHandler:
         self.plugin = plugin
         self.jinja_manager = jinja_manager
         self.cli_manager = cli_manager
-        self.response_map: dict[ResponseType, Callable[..., Any]] = (
+        self.response_map: dict[ResponseType, Callable[..., Awaitable[str | None]]] = (
             self._initialize_response_map()
         )
-        self.method_map: dict[ResponseMethod, Callable[..., Any]] = (
+        self.method_map: dict[ResponseMethod, Callable[..., Awaitable[None]]] = (
             self._initialize_method_map()
         )
 
-    def _initialize_response_map(self) -> dict[ResponseType, Callable[..., Any]]:
+    def _initialize_response_map(self) -> dict[ResponseType, Callable[..., Awaitable[str | None]]]:
         return {
-            ResponseType.PLAIN: lambda message, rule: rule.response_payload,
+            ResponseType.PLAIN: self._get_plain_response,
             ResponseType.TEMPLATE: self._get_template_response,
             ResponseType.RANDOM_YAML: self._get_random_response,
         }
 
-    def _initialize_method_map(self) -> dict[ResponseMethod, Callable[..., Any]]:
+    def _initialize_method_map(self) -> dict[ResponseMethod, Callable[..., Awaitable[None]]]:
         return {
             ResponseMethod.REPLY: self._method_reply,
             ResponseMethod.SEND_MESSAGE: self._method_send_message,
@@ -65,6 +65,12 @@ class ResponseHandler:
 
         method_handler = self.method_map.get(rule.response_method, self._method_reply)
         await method_handler(message, response_content)
+        
+    # This needs to exist since the response_map expects a coroutine
+    async def _get_plain_response(
+        self, _: discord.Message, rule: AutoReplyRuleData
+    ) -> str:
+        return rule.response_payload
 
     async def _get_template_response(
         self, message: discord.Message, rule: AutoReplyRuleData
