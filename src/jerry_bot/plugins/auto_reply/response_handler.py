@@ -1,6 +1,7 @@
 """Response handler for auto-reply rules."""
 
 import random
+import regex as re
 from typing import Any, Callable, Awaitable
 
 import discord
@@ -12,10 +13,16 @@ from .jinja_manager import JinjaManager
 from .models.db import AutoReplyRuleData
 from .models.enums import ResponseMethod, ResponseType
 
+
 class ResponseHandler:
     """Handles sending responses for auto-reply rules."""
 
-    def __init__(self, plugin: Plugin, jinja_manager: JinjaManager, cli_manager: CLIManager | None = None):
+    def __init__(
+        self,
+        plugin: Plugin,
+        jinja_manager: JinjaManager,
+        cli_manager: CLIManager | None = None,
+    ):
         self.plugin = plugin
         self.jinja_manager = jinja_manager
         self.cli_manager = cli_manager
@@ -26,14 +33,18 @@ class ResponseHandler:
             self._initialize_method_map()
         )
 
-    def _initialize_response_map(self) -> dict[ResponseType, Callable[..., Awaitable[str | None]]]:
+    def _initialize_response_map(
+        self,
+    ) -> dict[ResponseType, Callable[..., Awaitable[str | None]]]:
         return {
             ResponseType.PLAIN: self._get_plain_response,
             ResponseType.TEMPLATE: self._get_template_response,
             ResponseType.RANDOM_YAML: self._get_random_response,
         }
 
-    def _initialize_method_map(self) -> dict[ResponseMethod, Callable[..., Awaitable[None]]]:
+    def _initialize_method_map(
+        self,
+    ) -> dict[ResponseMethod, Callable[..., Awaitable[None]]]:
         return {
             ResponseMethod.REPLY: self._method_reply,
             ResponseMethod.SEND_MESSAGE: self._method_send_message,
@@ -42,6 +53,7 @@ class ResponseHandler:
             ResponseMethod.REPLY_ORIGINAL: self._method_reply_original,
             ResponseMethod.LOG: self._method_log,
             ResponseMethod.REACTION: self._method_react,
+            ResponseMethod.REACT_ORIGINAL: self._method_react_original,
         }
 
     async def send_response(self, message: discord.Message, rule: AutoReplyRuleData):
@@ -65,7 +77,7 @@ class ResponseHandler:
 
         method_handler = self.method_map.get(rule.response_method, self._method_reply)
         await method_handler(message, response_content)
-        
+
     # This needs to exist since the response_map expects a coroutine
     async def _get_plain_response(
         self, _: discord.Message, rule: AutoReplyRuleData
@@ -158,6 +170,10 @@ class ResponseHandler:
         except yaml.YAMLError as e:
             self.plugin.logger.error(f"Error parsing response payload as YAML: {e}")
             raise ValueError("Invalid YAML format.") from e
+        
+    def _split_emojis(self, content: str) -> list[str]:
+        """Split a string into a list of emojis."""
+        return re.split(r"\s+", content)
 
     async def _method_reply(self, message: discord.Message, content: str):
         await message.reply(content)
@@ -190,13 +206,31 @@ class ResponseHandler:
             )
 
     async def _method_react(self, message: discord.Message, content: str):
-        emoji = discord.PartialEmoji.from_str(content)
         try:
-            await message.add_reaction(emoji)
+            for emoji_str in self._split_emojis(content):
+                emoji = discord.PartialEmoji.from_str(emoji_str)
+                await message.add_reaction(emoji)
         except discord.HTTPException as e:
             if e.code == 10014:  # Unknown Emoji
                 self.plugin.logger.warning(
-                    f"Failed to add reaction for rule: Invalid emoji '{content}' - {e}"
+                    f"Failed to add reaction for rule: Invalid emoji in '{content}' - {e}"
                 )
             else:
                 raise
+
+    async def _method_react_original(self, message: discord.Message, content: str):
+        if message.reference and message.reference.message_id:
+            original_message = await message.channel.fetch_message(
+                message.reference.message_id
+            )
+            for emoji_str in self._split_emojis(content):
+                emoji = discord.PartialEmoji.from_str(emoji_str)
+                try:
+                    await original_message.add_reaction(emoji)
+                except discord.HTTPException as e:
+                    if e.code == 10014:  # Unknown Emoji
+                        self.plugin.logger.warning(
+                            f"Failed to add reaction for rule: Invalid emoji in '{content}' - {e}"
+                        )
+                    else:
+                        raise

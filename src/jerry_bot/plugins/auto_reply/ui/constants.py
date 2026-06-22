@@ -13,55 +13,60 @@ class RuleSelectOption(TypedDict):
 RULE_TYPE_MAPPING: dict[ResponseType, RuleSelectOption] = {
     ResponseType.PLAIN: {
         "label": "Plain Text",
-        "description": "Basic text, no formatting or embeds.",
+        "description": "A basic, static text response.",
         "emoji": "💬",
     },
     ResponseType.RANDOM_YAML: {
         "label": "Random Option",
-        "description": "Chooses a random option from a YAML list.",
+        "description": "Picks one random text option from a provided YAML list.",
         "emoji": "🎲",
     },
     ResponseType.TEMPLATE: {
         "label": "Jinja2 Template",
-        "description": "Renders payload as a Jinja2 template with access to message context.",
+        "description": "Evaluates the payload as a Jinja2 template, allowing dynamic variables like message content.",
         "emoji": "🧩",
     },
 }
 RESPONSE_METHOD_MAPPING: dict[ResponseMethod, RuleSelectOption] = {
     ResponseMethod.REPLY: {
         "label": "Reply",
-        "description": "Replies to the message.",
+        "description": "Replies directly to the triggering message.",
         "emoji": "💬",
     },
     ResponseMethod.SEND_MESSAGE: {
         "label": "Send Message",
-        "description": "Sends a message in the same channel.",
+        "description": "Sends a new message in the same channel without specifically replying.",
         "emoji": "✉️",
     },
     ResponseMethod.SEND_AND_DELETE: {
         "label": "Send and Delete",
-        "description": "Delete the source message and send a new message in the same channel.",
+        "description": "Deletes the triggering message and sends a new message in its place.",
         "emoji": "🗑️",
     },
     ResponseMethod.DM: {
         "label": "Direct Message",
-        "description": "Sends a direct message to the user.",
+        "description": "Sends a private Direct Message to the user who triggered the rule.",
         "emoji": "📥",
     },
     ResponseMethod.REPLY_ORIGINAL: {
         "label": "Reply to Original Message",
-        "description": "Replies to the source reply's original message. (Ignores if the source message is not a reply.)",
+        "description": "Replies to the message that the triggering message was replying to (does nothing if not a reply).",
         "emoji": "↩️",
     },
     ResponseMethod.LOG: {
         "label": "Log",
-        "description": "Logs the message to the CLI channel.",
+        "description": "Silently logs the matched message to the CLI console or channel instead of responding.",
         "emoji": "📝",
     },
     ResponseMethod.REACTION: {
         "label": "Reaction",
-        "description": "Adds a reaction to the message. The response payload should be an emoji (Unicode or custom).",
+        "description": "Reacts to the message. The payload must evaluate to emoji separated by spaces (Unicode or custom).",
         "emoji": "😀",
+    },
+    ResponseMethod.REACT_ORIGINAL: {
+        "label": "Reaction on Original Message",
+        "description": "Reacts to the message that the triggering message was replying to (does nothing if not a reply).",
+        "emoji": "🪞",
     },
 }
 
