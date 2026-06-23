@@ -2,7 +2,7 @@
 
 import discord
 from typing import Callable, Optional
-import re
+import regex as re
 
 from ..ar import AutoReply
 from .constants import RULE_TYPE_MAPPING, RESPONSE_METHOD_MAPPING
