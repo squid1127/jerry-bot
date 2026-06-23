@@ -9,6 +9,7 @@ class ResponseType(IntEnum):
     PLAIN = auto()
     RANDOM_YAML = auto()
     TEMPLATE = auto()
+    ASTEVAL = auto()
 
 
 class ResponseMethod(IntEnum):

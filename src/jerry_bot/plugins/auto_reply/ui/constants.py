@@ -26,6 +26,11 @@ RULE_TYPE_MAPPING: dict[ResponseType, RuleSelectOption] = {
         "description": "Evaluates the payload as a Jinja2 template, allowing dynamic variables like message content.",
         "emoji": "🧩",
     },
+    ResponseType.ASTEVAL: {
+        "label": "Asteval Expression",
+        "description": "Evaluates the payload as python code, using the same context as jinja2.",
+        "emoji": "👨‍💻",
+    }
 }
 RESPONSE_METHOD_MAPPING: dict[ResponseMethod, RuleSelectOption] = {
     ResponseMethod.REPLY: {
@@ -81,6 +86,7 @@ The plugin supports various response types:
 - **Plain Text**: Sends a predefined text message.
 - **Random Option**: Chooses a random option from a YAML list.
 - **Jinja2 Template**: Renders payload as a Jinja2 template with access to message context.
+- **Asteval Expression**: Evaluates a Python expression and returns the result.
 ### Random Text Reply YAML Format
 For the Random Text Reply type, the response payload should be formatted in YAML(list[str]) as follows:
 ```yaml
@@ -89,7 +95,7 @@ For the Random Text Reply type, the response payload should be formatted in YAML
   - "Third possible reply."
 ```
 ### Jinja2 Templating
-When using the Text Reply with Jinja2 type, you can utilize Jinja2 templating features to create dynamic responses. Refer to the [Jinja2 documentation](https://jinja.palletsprojects.com/en/3.1.x/) for more information on how to use templates.
+When using the Jinja2 Template type, you can utilize Jinja2 templating features to create dynamic responses. Refer to the [Jinja2 documentation](https://jinja.palletsprojects.com/en/3.1.x/) for more information on how to use templates. If the template evaluates to whitespace, no response will be sent.
 
 Context available in templates:
 - `content`: (str) Trigger message's content
@@ -99,7 +105,9 @@ Context available in templates:
 - `guild`: (discord.Guild) Trigger message's guild.
 - `trigger`: (str) The trigger that activated the auto-reply.
 - `match`: (tuple[str]) The matched portion of the message content.
-{globals_help}
+!!globals_help
+### Asteval Expression
+When using the Asteval Expression type, you can write a Python expression that will be evaluated and the result returned. This uses identical context as the Jinja2 templating. Whatever the last line of the expression evaluates to will be returned as the response. If None or whitespace is returned, no response will be sent.
 """
 
 CLI_HELP_MSG = """### AutoReply CLI Command Help:

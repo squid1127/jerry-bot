@@ -12,7 +12,7 @@ import asteval
 import jinja2
 from squid_core import Plugin
 
-from .globals import GLOBALS, GLOBALS_ASTEVAL, global_method
+from .globals import GLOBALS, GLOBALS_USER_ASTEVAL, global_method
 
 
 class JinjaManager:
@@ -39,8 +39,8 @@ class JinjaManager:
         base_globals = GLOBALS.copy()
         base_globals.update(
             {
-                "asteval": self._asteval_eval,
-                "asteval_safe": self._asteval_eval_safe,
+                "asteval": self._user_asteval_eval,
+                "asteval_safe": self._user_asteval_eval_safe,
             }
         )
         return base_globals
@@ -49,15 +49,17 @@ class JinjaManager:
         """Get or create an asteval interpreter."""
         if interpreter_id not in self.asteval_interpreters:
             self.asteval_interpreters[interpreter_id] = asteval.Interpreter(
-                symtable=GLOBALS_ASTEVAL.copy(),
+                symtable=GLOBALS_USER_ASTEVAL.copy(),
                 use_numpy=True,
                 builtins_readonly=True,
                 config={"import": False},
             )
         return self.asteval_interpreters[interpreter_id]
 
-    @global_method(doc="Evaluate a mathematical expression safely. (str, int) -> Any", skip=True)
-    def _asteval_eval(self, expr: str, interpreter_id: int = 0) -> Any:
+    @global_method(
+        doc="Evaluate a mathematical expression safely. (str, int) -> Any", skip=True
+    )
+    def _user_asteval_eval(self, expr: str, interpreter_id: int = 0) -> Any:
         """Evaluate a mathematical expression safely."""
         self.plugin.logger.info(
             f"Evaluating expression with asteval_eval: {expr} (interpreter_id: {interpreter_id})"
@@ -82,8 +84,11 @@ class JinjaManager:
 
         return result
 
-    @global_method(doc="Evaluate a mathematical expression safely, returning error messages. (str, int) -> Any", skip=True)
-    def _asteval_eval_safe(self, expr: str, interpreter_id: int = 0) -> Any:
+    @global_method(
+        doc="Evaluate a mathematical expression safely, returning error messages. (str, int) -> Any",
+        skip=True,
+    )
+    def _user_asteval_eval_safe(self, expr: str, interpreter_id: int = 0) -> Any:
         """Evaluate a mathematical expression safely, returning error messages."""
         self.plugin.logger.info(
             f"Evaluating expression with asteval_eval_safe: {expr} (interpreter_id: {interpreter_id})"
@@ -118,6 +123,20 @@ class JinjaManager:
             raise
         except Exception as e:
             self.plugin.logger.error(f"Unexpected error during Jinja2 rendering: {e}")
+            raise
+
+    async def render_asteval(self, expr: str, **context) -> Any:
+        """Evaluate a Python expression using the asteval library."""
+        try:
+            interpreter = asteval.Interpreter(
+                user_symbols=context,
+                use_numpy=True,
+                builtins_readonly=True,
+                config={"import": False},
+            )
+            return interpreter(expr)
+        except Exception as e:
+            self.plugin.logger.error(f"Error evaluating asteval expression: {e}")
             raise
 
     def help(self) -> str:

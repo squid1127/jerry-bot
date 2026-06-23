@@ -9,14 +9,14 @@ import regex as re
 from tabulate import tabulate
 
 GLOBALS: dict[str, Any] = {}
-GLOBALS_ASTEVAL: dict[str, Any] = {}
+GLOBALS_USER_ASTEVAL: dict[str, Any] = {}
 
 
 # * Main Decorator
 def global_method(
     name: str | None = None,
     doc: str | None = None,
-    asteval_only: bool = False,
+    user_asteval_only: bool = False,
     skip: bool = False,
 ) -> Any:
     """
@@ -29,9 +29,9 @@ def global_method(
         if doc:
             func._help_doc = doc
         if not skip:
-            if not asteval_only:
+            if not user_asteval_only:
                 GLOBALS[name or func.__name__] = func
-            GLOBALS_ASTEVAL[name or func.__name__] = func
+            GLOBALS_USER_ASTEVAL[name or func.__name__] = func
         return func
 
     return decorator
@@ -147,6 +147,7 @@ def code_block(content: str, language: str | None = None) -> str:
 def table(data: list[list], headers: list[str], tablefmt: str | None = None) -> str:
     return tabulate(data, headers=headers, tablefmt=tablefmt or "pipe")
 
+
 @global_method(
     doc="Convert a list of dictionaries to a table format, which can be passed into the `table` function. (list[dict]) -> tuple[list[tuple], list[str]]"
 )
@@ -155,20 +156,23 @@ def dict_table(records: list[dict]) -> tuple[list[tuple], list[str]]:
     rows = [tuple(r.get(h, "") for h in headers) for r in records]
     return rows, headers
 
+
 # * Asteval-only functions
 
 
 @global_method(
     name="range",
     doc="Generate a list of numbers using range. (*int) -> list",
-    asteval_only=True,
+    user_asteval_only=True,
 )
 def range_list(*args, **kwargs) -> list:
     return list(range(*args, **kwargs))
 
 
 @global_method(
-    name="zip", doc="Zip multiple lists together. (*list) -> list", asteval_only=True
+    name="zip",
+    doc="Zip multiple lists together. (*list) -> list",
+    user_asteval_only=True,
 )
 def zip_list(*args) -> list:
     return list(zip(*args))
@@ -188,15 +192,15 @@ weekdays = (
 
 # Add constants to globals
 GLOBALS.update({"weekdays": weekdays})
-GLOBALS_ASTEVAL.update(
+GLOBALS_USER_ASTEVAL.update(
     {"str": str, "int": int, "float": float, "bool": bool, "weekdays": weekdays}
 )
 
 
 # * Help method
-@global_method(doc="This help message. () -> str", asteval_only=True)
+@global_method(doc="This help message. () -> str", user_asteval_only=True)
 def help():
     output = "**Available methods:**\n"
-    for name, func in GLOBALS_ASTEVAL.items():
+    for name, func in GLOBALS_USER_ASTEVAL.items():
         output += f"- `{name}`{' - ' + func._help_doc if hasattr(func, '_help_doc') and func._help_doc else ''}\n"
     return output
