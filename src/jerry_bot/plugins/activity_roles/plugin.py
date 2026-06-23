@@ -119,7 +119,7 @@ class ActivityRolesPlugin(PluginBase):
                         level=EmbedLevel.ERROR,
                     )
                     return
-                pong = self.fw.redis.client.ping()
+                pong = await self.fw.redis.client.ping()
                 if pong:
                     await ctx.respond(
                         title="Redis Connection Test",
