@@ -40,6 +40,7 @@ class ResponseHandler:
             ResponseType.PLAIN: self._get_plain_response,
             ResponseType.TEMPLATE: self._get_template_response,
             ResponseType.RANDOM_YAML: self._get_random_response,
+            ResponseType.ASTEVAL: self._get_asteval_response,
         }
 
     def _initialize_method_map(
@@ -71,8 +72,10 @@ class ResponseHandler:
                 f"Unexpected error in send_response for rule {rule.db_id}: {e}",
                 exc_info=True,
             )
-
-        if not (response_content and str(response_content).strip()):
+        if response_content is None:
+            return
+        response_content = str(response_content).strip()
+        if not response_content:
             return
 
         method_handler = self.method_map.get(rule.response_method, self._method_reply)
@@ -83,19 +86,18 @@ class ResponseHandler:
         self, _: discord.Message, rule: AutoReplyRuleData
     ) -> str:
         return rule.response_payload
-
-    async def _get_template_response(
-        self, message: discord.Message, rule: AutoReplyRuleData
-    ) -> str | None:
+    
+    async def _get_response_from_method(
+        self, method: Callable[..., Awaitable[Any]], message: discord.Message, rule: AutoReplyRuleData, 
+    ) -> Any:
         try:
-            response_rendered = await self.jinja_manager.render(
+            response_rendered = await method(
                 rule.response_payload,
                 content=message.content,
                 author=message.author,
                 message=message,
                 channel=message.channel,
                 guild=message.guild,
-                bot=self.plugin.framework.bot,
                 trigger=rule.trigger,
                 match=rule.search(message.content or "") or (),
             )
@@ -120,6 +122,24 @@ class ResponseHandler:
                 "If you are a bot admin, check the logs for details.",
             )
             return None
+    
+    async def _get_template_response(
+        self, message: discord.Message, rule: AutoReplyRuleData
+    ) -> str | None:
+        return await self._get_response_from_method(
+            self.jinja_manager.render,
+            message,
+            rule
+        )
+
+    async def _get_asteval_response(
+        self, message: discord.Message, rule: AutoReplyRuleData
+    ) -> str | None:
+        return await self._get_response_from_method(
+            self.jinja_manager.render_asteval,
+            message,
+            rule
+        )
 
     async def _get_random_response(
         self, message: discord.Message, rule: AutoReplyRuleData
