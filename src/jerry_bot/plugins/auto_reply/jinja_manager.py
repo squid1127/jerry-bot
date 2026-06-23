@@ -12,7 +12,7 @@ import asteval
 import jinja2
 from squid_core import Plugin
 
-from .globals import GLOBALS, GLOBALS_USER_ASTEVAL, global_method
+from .globals import GLOBALS, GLOBALS_ASTEVAL, global_method
 
 
 class JinjaManager:
@@ -33,10 +33,12 @@ class JinjaManager:
         env.globals.update(self._make_globals())
         return env
 
-    def _make_globals(self) -> dict:
+    def _make_globals(self, for_asteval: bool = False) -> dict:
         """Create global variables for Jinja2 templates."""
-
-        base_globals = GLOBALS.copy()
+        if for_asteval:
+            base_globals = GLOBALS_ASTEVAL.copy()
+        else:
+            base_globals = GLOBALS.copy()
         base_globals.update(
             {
                 "asteval": self._user_asteval_eval,
@@ -49,7 +51,7 @@ class JinjaManager:
         """Get or create an asteval interpreter."""
         if interpreter_id not in self.asteval_interpreters:
             self.asteval_interpreters[interpreter_id] = asteval.Interpreter(
-                symtable=GLOBALS_USER_ASTEVAL.copy(),
+                symtable=GLOBALS_ASTEVAL.copy(),
                 use_numpy=True,
                 builtins_readonly=True,
                 config={"import": False},
@@ -128,8 +130,10 @@ class JinjaManager:
     async def render_asteval(self, expr: str, **context) -> Any:
         """Evaluate a Python expression using the asteval library."""
         try:
+            symbols = self._make_globals(for_asteval=True)
+            symbols.update(context)
             interpreter = asteval.Interpreter(
-                user_symbols=context,
+                user_symbols=symbols,
                 use_numpy=True,
                 builtins_readonly=True,
                 config={"import": False},

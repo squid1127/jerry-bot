@@ -9,14 +9,14 @@ import regex as re
 from tabulate import tabulate
 
 GLOBALS: dict[str, Any] = {}
-GLOBALS_USER_ASTEVAL: dict[str, Any] = {}
+GLOBALS_ASTEVAL: dict[str, Any] = {}
 
 
 # * Main Decorator
 def global_method(
     name: str | None = None,
     doc: str | None = None,
-    user_asteval_only: bool = False,
+    asteval_only: bool = False,
     skip: bool = False,
 ) -> Any:
     """
@@ -29,9 +29,9 @@ def global_method(
         if doc:
             func._help_doc = doc
         if not skip:
-            if not user_asteval_only:
+            if not asteval_only:
                 GLOBALS[name or func.__name__] = func
-            GLOBALS_USER_ASTEVAL[name or func.__name__] = func
+            GLOBALS_ASTEVAL[name or func.__name__] = func
         return func
 
     return decorator
@@ -163,7 +163,7 @@ def dict_table(records: list[dict]) -> tuple[list[tuple], list[str]]:
 @global_method(
     name="range",
     doc="Generate a list of numbers using range. (*int) -> list",
-    user_asteval_only=True,
+    asteval_only=True,
 )
 def range_list(*args, **kwargs) -> list:
     return list(range(*args, **kwargs))
@@ -172,7 +172,7 @@ def range_list(*args, **kwargs) -> list:
 @global_method(
     name="zip",
     doc="Zip multiple lists together. (*list) -> list",
-    user_asteval_only=True,
+    asteval_only=True,
 )
 def zip_list(*args) -> list:
     return list(zip(*args))
@@ -192,15 +192,15 @@ weekdays = (
 
 # Add constants to globals
 GLOBALS.update({"weekdays": weekdays})
-GLOBALS_USER_ASTEVAL.update(
+GLOBALS_ASTEVAL.update(
     {"str": str, "int": int, "float": float, "bool": bool, "weekdays": weekdays}
 )
 
 
 # * Help method
-@global_method(doc="This help message. () -> str", user_asteval_only=True)
+@global_method(doc="This help message. () -> str", asteval_only=True)
 def help():
     output = "**Available methods:**\n"
-    for name, func in GLOBALS_USER_ASTEVAL.items():
+    for name, func in GLOBALS_ASTEVAL.items():
         output += f"- `{name}`{' - ' + func._help_doc if hasattr(func, '_help_doc') and func._help_doc else ''}\n"
     return output
