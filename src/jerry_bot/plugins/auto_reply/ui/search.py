@@ -127,7 +127,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
             rule.is_active = not rule.is_active
-            await rule.save()
+            await self.ar.set_rule(rule)
             await self.render()
             await interaction.response.defer()  # acknowledge the interaction
             return
@@ -140,6 +140,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
             await rule.delete()
+            await self.ar.load_cache()
             await self.render()
             await interaction.response.defer()  # acknowledge the interaction
             return
