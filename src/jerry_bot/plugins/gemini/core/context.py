@@ -16,6 +16,7 @@ class SessionContext:
 
     channel: Channel
     guild: GuildRecord
+    session_id: str | None
 
     output_context: OutputContext
     llm_profiles: list[LLMProfile]

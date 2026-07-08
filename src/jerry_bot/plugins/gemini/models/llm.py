@@ -83,6 +83,7 @@ class LLMContext:
     profile: LLMProfile
     prompt: str
     messages: list["LLMContextMessage"]
+    session_id: str | None
 
 
 @dataclass(frozen=True, slots=True)

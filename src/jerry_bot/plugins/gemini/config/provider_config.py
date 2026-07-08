@@ -61,6 +61,10 @@ class ProviderConfig(BaseModel):
         None,
         description="Optional API key or authentication token for the provider (if applicable).",
     )
+    http_referer: Optional[str] = Field(
+        None,
+        description="Optional HTTP referer for the provider (if applicable).",
+    )
 
     @model_validator(mode="after")  # type: ignore
     def validate_provider_config(cls, config: "ProviderConfig") -> "ProviderConfig":
