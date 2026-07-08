@@ -1,6 +1,7 @@
 """Main view for the Auto Reply plugin."""
 
 import discord
+from discord.utils import escape_markdown
 from typing import Callable, Optional
 from collections.abc import Sequence
 
@@ -158,10 +159,10 @@ class AutoReplySearchUI(discord.ui.LayoutView):
     async def generate_container(self) -> discord.ui.Container:
         container = discord.ui.Container()
 
-        if self.rules and len(self.rules) == 1:
-            body = f"### Auto-Reply Rule: **{self.rules[0].name}**"
+        if self.rules and len(self.rules) == 1:        
+            body = f"### Auto-Reply Rule: **{escape_markdown(self.rules[0].name)}**"
         elif self.query:
-            body = f"### Search Results for: `{self.query}`"
+            body = f"### Search Results for: `{escape_markdown(self.query)}`"
         else:
             body = "### Auto-Reply Rules"
 
@@ -176,12 +177,12 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
             body += f"\n**ID:** {rule.id}"
-            body += f"\n**Trigger:** `{rule.trigger}`"
+            body += f"\n**Trigger:** ||{escape_markdown(rule.trigger)}||"
             body += f"\n**Response:** {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
             body += f"\n**Active:** {'✅' if rule.is_active else '❌'}"
         else:
             for rule in self.rules:
-                body += f"\n**{rule.id}** - {rule.name} (`{rule.trigger}`, {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')})"
+                body += f"\n**{rule.id}** - {escape_markdown(rule.name)} || {escape_markdown(rule.trigger)} || ▶︎ {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
                 if not rule.is_active:
                     body += " [Inactive]"
 
