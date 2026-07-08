@@ -1,20 +1,12 @@
 """OpenRouter provider for the Gemini plugin."""
 
 from .base import Provider
-from ..models import (
-    LLMContext,
-    LLMResponseStream,
-    ModelContextRole,
-    ProviderCapability
-)
+from ..models import LLMContext, LLMResponseStream, ModelContextRole, ProviderCapability
 from ..config import ProviderConfig, GlobalConfig
 from typing import AsyncIterator
 from ..models.exceptions import ProviderAPIError
 from openrouter import OpenRouter
 
-from logging import getLogger
-
-logger = getLogger(__name__)
 
 
 class OpenRouterProvider(Provider):
@@ -23,7 +15,7 @@ class OpenRouterProvider(Provider):
     def __init__(self, provider_config: ProviderConfig, name: str):
         super().__init__(provider_config, name)
         self.client = OpenRouter(
-            api_key=provider_config.api_key,
+            api_key=provider_config.api_key, http_referer=provider_config.http_referer
         )
 
     async def generate(self, context: LLMContext) -> AsyncIterator[LLMResponseStream]:
@@ -40,6 +32,7 @@ class OpenRouterProvider(Provider):
             "model": context.profile.model_name,
             "messages": messages,
             "stream": True,
+            "cache_control": {"type": "ephemeral"},
         }
         if context.profile.temperature is not None:
             kwargs["temperature"] = context.profile.temperature
@@ -47,10 +40,12 @@ class OpenRouterProvider(Provider):
             kwargs["max_tokens"] = context.profile.max_tokens
         if context.profile.top_p is not None:
             kwargs["top_p"] = context.profile.top_p
+        if context.session_id is not None:
+            kwargs["session_id"] = context.session_id
 
         try:
+            reasoning_list = []
             stream = await self.client.chat.send_async(**kwargs)
-            logger.info(f"OpenRouterProvider.generate called with kwargs: {kwargs}")
             async for chunk in stream:
                 if not chunk.choices:
                     continue
@@ -60,15 +55,16 @@ class OpenRouterProvider(Provider):
                 if content:
                     yield LLMResponseStream(content=content)
                 elif reasoning:
-                    logger.info(f"Reasoning token: {reasoning!r}")
+                    reasoning_list.append(reasoning)
+                    
         except Exception as e:
             raise ProviderAPIError(f"OpenRouter API error: {e}") from e
+
 
     @property
     def capabilities(self) -> set[ProviderCapability]:
         """OpenRouter supports tool calls, system prompts, and streaming."""
         return {
-            ProviderCapability.TOOL_CALLS,
             ProviderCapability.SYSTEM_PROMPT,
             ProviderCapability.STREAMING,
         }

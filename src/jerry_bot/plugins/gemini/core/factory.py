@@ -1,5 +1,7 @@
 """Conversation factory and context builder for the Gemini plugin."""
 
+from uuid import uuid4
+
 from discord import TextChannel
 from discord.ext.commands import Bot
 from logging import Logger
@@ -91,6 +93,7 @@ class ConversationFactory:
             llm_profiles=llm_profiles,
             providers=providers,
             global_config=self._repos.global_config,
+            session_id=self.gen_id()
         )
 
         # Set the active profile to the first one by default
@@ -129,3 +132,6 @@ class ConversationFactory:
             channel_id=channel_id, output_context=output_context, channel=channel
         )
         return ConversationSession(context=context, logger=logger or self._logger)
+
+    def gen_id(self):
+        return "jerry_bot_" + str(uuid4())

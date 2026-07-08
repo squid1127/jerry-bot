@@ -37,6 +37,7 @@ class LLMContextGenerator:
             prompt=self.make_prompt(),
             messages=rendered_messages,
             profile=self._context.llm_profile,
+            session_id=self._context.session_id,
         )
 
     def make_prompt(self) -> str:
