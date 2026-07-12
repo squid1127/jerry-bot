@@ -7,6 +7,7 @@ from .stream_processing import (
     buffered_cooldown,
     live_character_buffer,
     enforce_cooldown,
+    filter_profanity,
 )
 from .stream_send import stream_and_send, stream_and_edit, start_typing_until_event, send_error_message, send_success_message
 from .input_processor import InputProcessor, OutputContext
@@ -23,6 +24,7 @@ __all__ = [
     "buffered_cooldown",
     "live_character_buffer",
     "enforce_cooldown",
+    "filter_profanity",
     # Stream sending utilities
     "stream_and_send",
     "stream_and_edit",

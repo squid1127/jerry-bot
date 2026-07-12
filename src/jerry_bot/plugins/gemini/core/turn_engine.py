@@ -24,6 +24,7 @@ from ..models.exceptions import FatalError, FunctionCallError, ProviderError
 from ..dc_chat import (
     buffered_cooldown,
     live_character_buffer,
+    filter_profanity,
     send_error_message,
     split_paragraphs,
     start_typing_until_event,
@@ -205,13 +206,15 @@ class TurnEngine:
         typing_task, event = start_typing_until_event(self._context.output_context)
 
         pipeline = stream_and_edit(
-            live_character_buffer(
-                buffered_cooldown(
-                    split_paragraphs(
-                        self._extract_text_chunks(generator, function_calls)
+            filter_profanity(
+                live_character_buffer(
+                    buffered_cooldown(
+                        split_paragraphs(
+                            self._extract_text_chunks(generator, function_calls)
+                        ),
+                        cooldown=cooldown,
+                        separator="\n\n",
                     ),
-                    cooldown=cooldown,
-                    separator="\n\n",
                 ),
             ),
             output=self._context.output_context,
