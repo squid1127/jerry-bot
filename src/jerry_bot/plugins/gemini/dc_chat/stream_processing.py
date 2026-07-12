@@ -3,9 +3,11 @@
 from typing import AsyncIterator
 from ..models import LLMResponseStream
 import asyncio
+import re
 
-from ..constants import DEFAULT_MAX_CHUNK_SIZE
+from ..constants import DEFAULT_MAX_CHUNK_SIZE, FILTER_PROFANITY_PATTERN, FILTER_PROFANITY_REPLACEMENT
 
+FILTER_PROFANITY_REGEX = re.compile(FILTER_PROFANITY_PATTERN, re.IGNORECASE)
 
 async def split_paragraphs(
     iterator: AsyncIterator[LLMResponseStream],
@@ -202,3 +204,14 @@ async def live_character_buffer(
         else:
             yield LLMResponseStream(content=response.content, start=False)
             buffer += response.content
+
+async def filter_profanity(
+    iterator: AsyncIterator[LLMResponseStream],
+) -> AsyncIterator[LLMResponseStream]:
+    """Async iterator that filters out profanity from the input stream using a regex pattern."""
+    async for response in iterator:
+        if response.content is None:
+            continue
+
+        filtered_content = FILTER_PROFANITY_REGEX.sub(FILTER_PROFANITY_REPLACEMENT, response.content)
+        yield LLMResponseStream(content=filtered_content, start=response.start)
