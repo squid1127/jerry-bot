@@ -11,21 +11,7 @@ import discord
 from discord import app_commands
 
 from .constants import *
-
-class CommandsPlugin(PluginBase):
-    """Plugin class for Commands."""
-
-    def __init__(self, framework: Framework):
-        super().__init__(framework)
-        self.cog = StaticCommands(self)
-
-    async def load(self) -> None:
-        """Load the Commands plugin."""
-        await self.fw.bot.add_cog(self.cog)
-
-    async def unload(self) -> None:
-        """Unload the Commands plugin."""
-        await self.fw.bot.remove_cog(self.cog.__class__.__name__)
+from .at_everyone import StaticCommandAtEveryoneCog
 
 
 class StaticCommands(PluginCog):
@@ -132,75 +118,6 @@ class StaticCommands(PluginCog):
                         "Sorry, I can't help you. It's just that bad. :P"
                     )
 
-    # Mention command (idk why)
-    class MentionType(Enum):
-        EVERYONE = "everyone"
-        HERE = "here"
-        USER = "user"
-
-    class MentionMode(Enum):
-        INTERACTION = "Interaction (Followup)"
-        MESSAGE = "Message (Send as bot)"
-        EPHEMERAL = "Ephemeral (Copyable)"
-
-    async def generate_mention_list(
-        self, guild: discord.Guild, mention_type: MentionType, role: discord.Role = None
-    ) -> list[str]:
-        if role:
-            members = role.members
-        else:
-            # Use guild.members which is cached instead of fetching all members
-            # This requires the Members intent to be enabled
-            members = guild.members
-            if not members:
-                # Fallback to fetch if cache is empty (shouldn't happen with proper intents)
-                self.logger.warning(
-                    "Guild members cache is empty. Fetching members from API (slow). "
-                    "Ensure Members intent is enabled."
-                )
-                members = []
-                async for member in guild.fetch_members(limit=None):
-                    members.append(member)
-        
-        # Use list comprehension for better performance
-        if mention_type == self.MentionType.EVERYONE:
-            mentions = [member.mention for member in members if not member.bot]
-        elif mention_type in (self.MentionType.HERE, self.MentionType.USER):
-            mentions = [
-                member.mention 
-                for member in members 
-                if not member.bot and member.status != discord.Status.offline
-            ]
-        else:
-            mentions = []
-        
-        return mentions
-
-    def compress_mentions(
-        self, mentions: list[str], max_length: int = 2000
-    ) -> list[str]:
-        chunks = []
-        current_chunk_parts = []
-        current_length = 0
-        for mention in mentions:
-            mention_len = len(mention)
-            # Account for the space separator
-            needed_length = mention_len + (1 if current_chunk_parts else 0)
-            
-            if current_length + needed_length > max_length:
-                # Start a new chunk
-                if current_chunk_parts:
-                    chunks.append(" ".join(current_chunk_parts))
-                current_chunk_parts = [mention]
-                current_length = mention_len
-            else:
-                current_chunk_parts.append(mention)
-                current_length += needed_length
-        
-        # Add the last chunk
-        if current_chunk_parts:
-            chunks.append(" ".join(current_chunk_parts))
-        return chunks
 
     @app_commands.command(
         name="at-everyone", description="[Commands] Mentions everyone in the server, user by user."
@@ -219,7 +136,7 @@ class StaticCommands(PluginCog):
         interaction: discord.Interaction,
         yes: bool = False,
         type: MentionType = MentionType.EVERYONE,
-        role: discord.Role = None,
+        role: discord.Role | None = None,
         mode: MentionMode = MentionMode.INTERACTION,
     ):
         """Mentions everyone in the server, user by user."""
@@ -381,3 +298,21 @@ class StaticCommands(PluginCog):
             return
         
         await interaction.followup.send(f"*{answer}*")
+        
+class CommandsPlugin(PluginBase):
+    """Plugin class for Commands."""
+
+    def __init__(self, framework: Framework):
+        super().__init__(framework)
+        self.cog = StaticCommands(self)
+        self.at_everyone_cog = StaticCommandAtEveryoneCog(self)
+
+    async def load(self) -> None:
+        """Load the Commands plugin."""
+        await self.fw.bot.add_cog(self.cog)
+        await self.fw.bot.add_cog(self.at_everyone_cog)
+
+    async def unload(self) -> None:
+        """Unload the Commands plugin."""
+        await self.fw.bot.remove_cog(self.cog.qualified_name)
+        await self.fw.bot.remove_cog(self.cog.qualified_name)
