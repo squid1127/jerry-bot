@@ -1,6 +1,6 @@
 """Main plugin file for Commands plugin."""
 
-from squid_core.plugin_base import Plugin as PluginBase, PluginCog
+from squid_core import Plugin, PluginCog
 from squid_core.framework import Framework
 
 from enum import Enum
@@ -21,8 +21,8 @@ class StaticCommands(PluginCog):
     Static commands that don't really do much, including api commands
     """
 
-    def __init__(self, plugin: CommandsPlugin):
-        self.plugin: CommandsPlugin = plugin
+    def __init__(self, plugin: Plugin):
+        self.plugin: Plugin = plugin
         self.bot = plugin.fw.bot
         self.logger = plugin.logger
         self.perms = plugin.fw.perms
@@ -118,101 +118,88 @@ class StaticCommands(PluginCog):
                         "Sorry, I can't help you. It's just that bad. :P"
                     )
 
+    # async def at_everyone_command(
+    #     self,
+    #     interaction: discord.Interaction,
+    #     yes: bool = False,
+    #     type: MentionType = MentionType.EVERYONE,
+    #     role: discord.Role | None = None,
+    #     mode: MentionMode = MentionMode.INTERACTION,
+    # ):
+    #     """Mentions everyone in the server, user by user."""
+    #     if not await self.perms.interaction_check(interaction):
+    #         return
 
-    @app_commands.command(
-        name="at-everyone", description="[Commands] Mentions everyone in the server, user by user."
-    )
-    @app_commands.describe(
-        yes="Confirm you want to do this, which you probably don't.",
-        type="Simple filters for who to mention",
-        mode="How to send the mentions",
-        role="Filter by a specific role",
-    )
-    @app_commands.guild_install()
-    @app_commands.guild_only()  # No dms
-    @app_commands.default_permissions(mention_everyone=True)
-    async def at_everyone_command(
-        self,
-        interaction: discord.Interaction,
-        yes: bool = False,
-        type: MentionType = MentionType.EVERYONE,
-        role: discord.Role | None = None,
-        mode: MentionMode = MentionMode.INTERACTION,
-    ):
-        """Mentions everyone in the server, user by user."""
-        if not await self.perms.interaction_check(interaction):
-            return
+    #     if not yes:
+    #         await interaction.response.send_message(
+    #             "",
+    #             embed=discord.Embed(
+    #                 title="Are you sure?",
+    #                 description="Are you sure this is a good idea? You're gonna get banned bro :( Don't care? Then run the command again with `yes` set to `true`.",
+    #                 color=discord.Color.red(),
+    #             ),
+    #             ephemeral=True,
+    #         )
+    #         return
+    #     if role is None or role.is_default():
+    #         role = None  # No role filter
+    #         # Check permissions
+    #         if not interaction.user.guild_permissions.mention_everyone:
+    #             await interaction.response.send_message(
+    #                 "",
+    #                 embed=discord.Embed(
+    #                     title="Sorry bud",
+    #                     description="You need the `Mention Everyone` permission to do this command without a role filter. Technically this is 100% still possible since Discord only cares if *I* have the permission, but I'm not going to allow that because that would not be nice.",
+    #                     color=discord.Color.red(),
+    #                 ),
+    #                 ephemeral=True,
+    #             )
+    #             return
+    #     else:
+    #         # Check permissions, need to be able to mention the role
+    #         if (
+    #             not interaction.user.guild_permissions.mention_everyone
+    #             and not role.mentionable
+    #         ):
+    #             await interaction.response.send_message(
+    #                 "",
+    #                 embed=discord.Embed(
+    #                     title="Sorry bud",
+    #                     description="You need the `Mention Everyone` permission to do this command without a role filter. Technically this is 100% still possible since Discord only cares if *I* have the permission, but I'm not going to allow that because that would not be nice.",
+    #                     color=discord.Color.red(),
+    #                 ),
+    #                 ephemeral=True,
+    #             )
+    #             return
+    #     await interaction.response.defer(
+    #         ephemeral=(mode != self.MentionMode.INTERACTION)
+    #     )
+    #     try:
+    #         mentions = await self.generate_mention_list(interaction.guild, type, role)
+    #         if not mentions:
+    #             await interaction.followup.send("No members to mention.")
+    #             return
 
-        if not yes:
-            await interaction.response.send_message(
-                "",
-                embed=discord.Embed(
-                    title="Are you sure?",
-                    description="Are you sure this is a good idea? You're gonna get banned bro :( Don't care? Then run the command again with `yes` set to `true`.",
-                    color=discord.Color.red(),
-                ),
-                ephemeral=True,
-            )
-            return
-        if role is None or role.is_default():
-            role = None  # No role filter
-            # Check permissions
-            if not interaction.user.guild_permissions.mention_everyone:
-                await interaction.response.send_message(
-                    "",
-                    embed=discord.Embed(
-                        title="Sorry bud",
-                        description="You need the `Mention Everyone` permission to do this command without a role filter. Technically this is 100% still possible since Discord only cares if *I* have the permission, but I'm not going to allow that because that would not be nice.",
-                        color=discord.Color.red(),
-                    ),
-                    ephemeral=True,
-                )
-                return
-        else:
-            # Check permissions, need to be able to mention the role
-            if (
-                not interaction.user.guild_permissions.mention_everyone
-                and not role.mentionable
-            ):
-                await interaction.response.send_message(
-                    "",
-                    embed=discord.Embed(
-                        title="Sorry bud",
-                        description="You need the `Mention Everyone` permission to do this command without a role filter. Technically this is 100% still possible since Discord only cares if *I* have the permission, but I'm not going to allow that because that would not be nice.",
-                        color=discord.Color.red(),
-                    ),
-                    ephemeral=True,
-                )
-                return
-        await interaction.response.defer(
-            ephemeral=(mode != self.MentionMode.INTERACTION)
-        )
-        try:
-            mentions = await self.generate_mention_list(interaction.guild, type, role)
-            if not mentions:
-                await interaction.followup.send("No members to mention.")
-                return
+    #         chunks = self.compress_mentions(mentions)
+    #         if mode == self.MentionMode.INTERACTION:
+    #             for chunk in chunks:
+    #                 await interaction.followup.send(chunk)
+    #         elif mode == self.MentionMode.MESSAGE:
+    #             for chunk in chunks:
+    #                 await interaction.channel.send(chunk)
+    #             await interaction.followup.send("✅ Sent all mentions.", ephemeral=True)
+    #         elif mode == self.MentionMode.EPHEMERAL:
+    #             for chunk in chunks:
+    #                 await interaction.followup.send(chunk, ephemeral=True)
 
-            chunks = self.compress_mentions(mentions)
-            if mode == self.MentionMode.INTERACTION:
-                for chunk in chunks:
-                    await interaction.followup.send(chunk)
-            elif mode == self.MentionMode.MESSAGE:
-                for chunk in chunks:
-                    await interaction.channel.send(chunk)
-                await interaction.followup.send("✅ Sent all mentions.", ephemeral=True)
-            elif mode == self.MentionMode.EPHEMERAL:
-                for chunk in chunks:
-                    await interaction.followup.send(chunk, ephemeral=True)
-
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "Missing necessary permissions running this command.",
-                ephemeral=True,
-            )
-        except Exception as e:
-            self.logger.error(f"Error in at_everyone_command: {e}")
-            await interaction.followup.send("Something broke :(", ephemeral=True)
+    #     except discord.Forbidden:
+    #         await interaction.followup.send(
+    #             "Missing necessary permissions running this command.",
+    #             ephemeral=True,
+    #         )
+    #     except Exception as e:
+    #         self.logger.error(f"Error in at_everyone_command: {e}")
+    #         await interaction.followup.send("Something broke :(", ephemeral=True)
 
     @app_commands.command(name="cat", description="[Commands] Sends a random cat image.")
     async def cat_command(self, interaction: discord.Interaction):
@@ -299,7 +286,7 @@ class StaticCommands(PluginCog):
         
         await interaction.followup.send(f"*{answer}*")
         
-class CommandsPlugin(PluginBase):
+class CommandsPlugin(Plugin):
     """Plugin class for Commands."""
 
     def __init__(self, framework: Framework):
