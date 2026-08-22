@@ -1,0 +1,7 @@
+[plugin]
+name = "tts"
+description = "Text-to-Speech plugin for Jerry Bot."
+class = "TTSPlugin"
+
+# [db]
+# models = ["models.db"]
