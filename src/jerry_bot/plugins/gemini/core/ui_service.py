@@ -141,6 +141,21 @@ class UIService:
 
         await self._repos.llm_profile_repo.invalidate_cache(channel_id)
         return LLMProfile.from_record(profile)
+    
+    async def delete_llm_profile(self, channel_id: int, profile_id: int) -> None:
+        """Delete an LLM profile for a given channel and invalidate the cache for that channel.
+
+        Args:
+            channel_id: The ID of the channel to which the LLM profile belongs.
+            profile_id: The ID of the LLM profile to delete.
+        """
+        profile = await LLMProfileRecord.get_or_none(id=profile_id, channel_id=channel_id)
+        if not profile:
+            raise ValueError(
+                f"LLM Profile with ID {profile_id} for channel {channel_id} not found."
+            )
+        await profile.delete()
+        await self._repos.llm_profile_repo.invalidate_cache(channel_id)
 
     # * Provider Operations *#
     def get_providers(self) -> list[str]:

@@ -86,6 +86,13 @@ class ProfileHandler:
 
     async def edit_profile_show(self, interaction: discord.Interaction):
         """Show modal to edit existing LLM profile"""
+        if self.menu.llm_profile_tab == LLMProfileTab.DELETE:
+            await self.delete_profile(interaction)
+            return
+        elif self.menu.llm_profile_tab == LLMProfileTab.FAIL_OVER:
+            await self.edit_failover(interaction)
+            return
+        
         from .llm_profile_modal import LLMProfileModal
 
         values = interaction.data["values"]  # type: ignore
@@ -142,15 +149,38 @@ class ProfileHandler:
 
         await self.menu.render()
 
-    async def toggle_tab(self, interaction: discord.Interaction):
+    async def toggle_tab(self, interaction: discord.Interaction, delete: bool = False, defer: bool = True):
         """Toggle between PROFILE and FAIL_OVER tabs"""
-        await interaction.response.defer()
-        self.menu.llm_profile_tab = (
-            LLMProfileTab.FAIL_OVER
-            if self.menu.llm_profile_tab == LLMProfileTab.PROFILE
-            else LLMProfileTab.PROFILE  # Toggle between PROFILE(1) and FAIL_OVER(2)
-        )
+        if defer:
+            await interaction.response.defer()
+        if delete:
+            self.menu.llm_profile_tab = LLMProfileTab.DELETE
+        else:
+            self.menu.llm_profile_tab = (
+                LLMProfileTab.FAIL_OVER
+                if self.menu.llm_profile_tab == LLMProfileTab.PROFILE
+                else LLMProfileTab.PROFILE  # Toggle between PROFILE(1) and FAIL_OVER(2)
+            )
         await self.menu.render()
+        
+    async def delete_profile(self, interaction: discord.Interaction):
+        """Delete the selected LLM profile"""
+        await interaction.response.defer()
+        values = interaction.data["values"]  # type: ignore
+        if not values:
+            await self.menu._handle_error("No LLM profile selected for deletion.")
+            return
+
+        profile_id = int(values[0])
+        try:
+            await self.menu.service.delete_llm_profile(
+                channel_id=self.menu.channel_id, profile_id=profile_id
+            )
+        except Exception as e:
+            await self.menu._handle_error(f"Failed to delete LLM profile: {str(e)}")
+            return
+
+        await self.toggle_tab(interaction, defer=False)  # Switch back to PROFILE tab after deletion
 
 
 class GuildHandler:

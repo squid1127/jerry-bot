@@ -70,7 +70,11 @@ class GeminiConfigMenu(ui.LayoutView):
     async def flow_tab_next(self, interaction: discord.Interaction):
         """Delegate to profile handler"""
         await self.profile_handler.toggle_tab(interaction)
-
+    
+    async def flow_tab_delete(self, interaction: discord.Interaction):
+        """Delegate to profile handler"""
+        await self.profile_handler.toggle_tab(interaction, delete=True)
+    
     # Guild-related flows
     async def flow_create_guild(self, interaction: discord.Interaction):
         """Delegate to guild handler"""
