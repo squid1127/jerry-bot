@@ -1,7 +1,7 @@
 """ "LLM profile repository and related data models for the Gemini plugin."""
 
-from jerry_bot.plugins.gemini.models import channel
-from jerry_bot.plugins.gemini.models.database import ChannelRecord
+from ..models import channel
+from ..models.database import ChannelRecord
 
 from ..models import LLMProfile, LLMProfileRecord
 
