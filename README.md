@@ -30,6 +30,7 @@ Rather than having formal releases, Jerry-bot uses a `stable` branch to provide 
 ### Incomplete/Need Reworking
 
 - **gemini** - (r4) Sophisticated AI chatbot system leveraging Google Gemini, OpenRouter, or Ollama. Currently partially implemented, but missing core features.
+- **tts** - A text-to-speech system that allows users to generate speech in voice calls. Currently partially implemented
 
 ### Not Implemented (Yet)
 
