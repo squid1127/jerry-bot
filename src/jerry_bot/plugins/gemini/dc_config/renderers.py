@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..core import UIService
     from .menu import GeminiConfigMenu
+from .state_enums import LLMProfileTab, UIState
 
 
 class MenuRenderer:
@@ -122,29 +123,50 @@ class MenuRenderer:
                 description += "\n"
 
         container.add_item(ui.TextDisplay(description))
+        
+        if self.menu.llm_profile_tab == LLMProfileTab.DELETE:
+            button_delete_cancel_profile = ui.Button(
+                label="Cancel",
+                style=discord.ButtonStyle.secondary
+            )
+            button_delete_cancel_profile.callback = self.menu.flow_tab_next
+            container.add_item(ui.ActionRow(button_delete_cancel_profile))
+        else:
+            button_add_profile = ui.Button(
+                label="Add LLM Profile", style=discord.ButtonStyle.green
+            )
+            button_add_profile.callback = self.menu.flow_new_llm_profile_show
 
-        button_add_profile = ui.Button(
-            label="Add LLM Profile", style=discord.ButtonStyle.green
-        )
-        button_add_profile.callback = self.menu.flow_new_llm_profile_show
+            button_tab_next = ui.Button(
+                label=(
+                    "Fail-over Options"
+                    if self.menu.llm_profile_tab == LLMProfileTab.PROFILE
+                    else "Model Options"
+                ),
+                style=discord.ButtonStyle.gray,
+            )
+            button_tab_next.callback = self.menu.flow_tab_next
+            
+            button_delete_profile = ui.Button(
+                label="Delete Profile",
+                style=discord.ButtonStyle.red
+            )
+            button_delete_profile.callback = self.menu.flow_tab_delete
+            container.add_item(ui.ActionRow(button_add_profile, button_tab_next, button_delete_profile))
 
-        button_tab_next = ui.Button(
-            label=(
-                "Fail-over Options"
-                if self.menu.llm_profile_tab.value == 1
-                else "Model Options"
-            ),
-            style=discord.ButtonStyle.gray,
-        )
-        button_tab_next.callback = self.menu.flow_tab_next
-        container.add_item(ui.ActionRow(button_add_profile, button_tab_next))
-
-        if llm_profiles:
+        if llm_profiles:            
+            if self.menu.llm_profile_tab == LLMProfileTab.FAIL_OVER:
+                label = "Edit Fail-over Options"
+            elif self.menu.llm_profile_tab == LLMProfileTab.PROFILE:
+                label = "Edit LLM Profiles"
+            elif self.menu.llm_profile_tab == LLMProfileTab.DELETE:
+                label = "Delete Profile"
+            else:
+                label = "Uhm what? (Unknown tab state)"
+            
             llm_profiles_select = ui.Select(
                 placeholder=(
-                    "Edit LLM Profiles"
-                    if self.menu.llm_profile_tab.value == 1
-                    else "Edit Fail-over Options"
+                    label
                 ),
                 options=[
                     discord.SelectOption(
