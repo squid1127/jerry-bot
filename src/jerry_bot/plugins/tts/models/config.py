@@ -34,9 +34,13 @@ class TTSVoiceConfig(BaseModel):
         ..., description="The sample rate for the generated audio."
     )
     speed: float = Field(..., description="The speed of the generated speech.")
+    lang_code: str = Field(
+        ..., description="The language code for the TTS voice configuration."
+    )
     default: bool = Field(
         default=False, description="Whether this voice configuration is the default."
     )
+
 
 
 class TTSPluginConfig(BaseModel):
