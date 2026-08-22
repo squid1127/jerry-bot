@@ -10,20 +10,31 @@ class TTSRequest(BaseModel):
 
     uuid: str = Field(
         ...,
-        description="UUID4 string for the request",
+        description="UUID4 string for the request. This is used to uniquely identify the request and the generated audio file.",
         examples=["123e4567-e89b-12d3-a456-426614174000"],
     )
-    text: str = Field(..., description="Text to convert to speech")
-    voice: str = Field(..., description="Voice to use for TTS.")
-    speed: float | None = Field(
-        None,
-        description="Speed of the generated speech. If None, the default speed will be used.",
-        examples=[1.0, None],
+    text: str = Field(
+        ...,
+        description="Text to convert to speech. This should be preprocessed to remove any unwanted characters or formatting.",
     )
-    sample_rate: int | None = Field(
-        None,
-        description="Sample rate of the generated audio. If None, the default sample rate will be used.",
-        examples=[24000, None],
+    voice: str = Field(
+        ...,
+        description="Voice to use for TTS. Refer to the documentation for a list of supported voices.",
+    )
+    speed: float = Field(
+        1.0,
+        description="Speed of the generated speech.",
+        examples=[1.0, 0.5, 2.0],
+    )
+    sample_rate: int = Field(
+        24000,
+        description="Sample rate of the generated audio. Note that this changes the playback speed/pitch of the audio. To sound normal, it should be 24000.",
+        examples=[24000, 44100, 48000],
+    )
+    lang_code: str = Field(
+        "a",
+        description="Language code for the TTS pipeline. This is used to select the correct language for a given voice. The default is 'a', which is American English. Refer to the documentation for a list of supported language codes.",
+        examples=["a", "b", "j", "e"],
     )
 
     @classmethod
@@ -66,6 +77,7 @@ class TTSRequest(BaseModel):
             voice=voice_config.voice,
             speed=voice_config.speed,
             sample_rate=voice_config.sample_rate,
+            lang_code=voice_config.lang_code,
         )
 
 

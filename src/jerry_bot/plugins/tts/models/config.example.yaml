@@ -12,55 +12,69 @@ service:
     - "tts.sock"
     - "--write-path" # should match the output_dir below
     - "audio"
-    - "--lang-code"
-    - "a"
-    - "--default-speed"
-    - "1.0"
-    - "--default-sample-rate"
-    - "24000"
 
 output_dir: "audio" # directory to save the generated audio files
 socket_path: "tts.sock" # path to the socket file used for communication with the TTS service
 
 # List of allowed voices for the TTS service.
 voices:
-- name: Jerry
+- name: Jerry (AM, High Pitch)
   voice: am_liam
   speed: 1.0
-  sample_rate: 48000
+  sample_rate: 44100
   default: true
+  lang_code: a
 
-- name: Liam
+- name: Liam (AM)
   voice: am_liam
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Adam
+- name: Adam (AM)
   voice: am_adam
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Heart
+- name: Heart (AF)
   voice: af_heart
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Bella
+- name: Bella (AF)
   voice: af_bella
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Eric
+- name: Eric (AM)
   voice: am_eric
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Michael
+- name: Michael (AM)
   voice: am_michael
   speed: 1.0
   sample_rate: 24000
+  lang_code: a
 
-- name: Echo
-  voice: am_echo
+- name: Dora (EF)
+  voice: ef_dora
   speed: 1.0
   sample_rate: 24000
+  lang_code: e
+
+- name: Alpha (JF)
+  voice: jf_alpha
+  speed: 1.0
+  sample_rate: 24000
+  lang_code: j
+
+- name: Alice (BF)
+  voice: bf_alice
+  speed: 1.0
+  sample_rate: 24000
+  lang_code: b

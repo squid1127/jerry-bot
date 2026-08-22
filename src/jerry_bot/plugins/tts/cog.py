@@ -15,6 +15,19 @@ import discord
 from discord import app_commands
 from uuid import uuid4
 
+async def message(interaction: discord.Interaction, message: str, error: bool = False):
+    """Send a message to the user."""
+    embed = discord.Embed(
+        description=message,
+    )
+    if error:
+        embed.color = discord.Color.red()
+    else:
+        embed.color = discord.Color.green()
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        return
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class TTSCog(PluginCog):
     """Cog for the Text-to-Speech plugin."""
@@ -57,9 +70,9 @@ class TTSCog(PluginCog):
         else:
             voice_object = next((v for v in self.config.voices if v.name == voice), None)
         if voice_object is None:
-            await interaction.followup.send(
+            await message(
+                interaction,
                 "No default voice configuration found. Please set a default voice in the configuration.",
-                ephemeral=True,
             )
             return
             
@@ -76,6 +89,9 @@ class TTSCog(PluginCog):
                     )
                 )
             else:
-                await interaction.followup.send(
-                    "Failed to generate TTS audio.", ephemeral=True
+                await message(
+                    interaction,
+                    "Failed to generate TTS audio.",
+                    error=True
                 )
+
