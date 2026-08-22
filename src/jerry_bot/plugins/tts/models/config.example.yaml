@@ -1,0 +1,66 @@
+#* Configuration for TTS plugin
+
+enabled: false # set to true to enable the TTS plugin
+
+#* TTS Service
+# This plugin requires https://github.com/squid1127/jerry-bot-tts to function properly. Please make sure to set up the TTS service and provide the correct URL below.
+service:
+  use: true # set to false to not run the TTS service
+  command: "jerry-bot-tts"
+  args:
+    - "--socket-path" # should match the socket_path below
+    - "tts.sock"
+    - "--write-path" # should match the output_dir below
+    - "audio"
+    - "--lang-code"
+    - "a"
+    - "--default-speed"
+    - "1.0"
+    - "--default-sample-rate"
+    - "24000"
+
+output_dir: "audio" # directory to save the generated audio files
+socket_path: "tts.sock" # path to the socket file used for communication with the TTS service
+
+# List of allowed voices for the TTS service.
+voices:
+- name: Jerry
+  voice: am_liam
+  speed: 1.0
+  sample_rate: 48000
+  default: true
+
+- name: Liam
+  voice: am_liam
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Adam
+  voice: am_adam
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Heart
+  voice: af_heart
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Bella
+  voice: af_bella
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Eric
+  voice: am_eric
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Michael
+  voice: am_michael
+  speed: 1.0
+  sample_rate: 24000
+
+- name: Echo
+  voice: am_echo
+  speed: 1.0
+  sample_rate: 24000
