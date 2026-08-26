@@ -33,8 +33,8 @@ class TTSVoiceClient:
             timeout (float): Seconds after the last request before the request times out (defaults to 600)
         """
 
-        self.guild = guild
-        self.timeout = timeout
+        self.guild: discord.Guild = guild
+        self.timeout: float = timeout
         self._playback_queue: asyncio.Queue[TTSVoiceQueueItem] = asyncio.Queue()
         self._playback_task: asyncio.Task[None] | None = None
         self._rate_limiter: RateLimiter = RateLimiter(max_calls=10, period=30.0)
@@ -96,23 +96,18 @@ class TTSVoiceClient:
                 pass
             self._timeout_task = None
 
-    async def _play_file(self, item: TTSVoiceQueueItem):
-        """Play a file in the current channel"""
-
-        if item.user.voice is None or item.user.voice.channel is None:
-            raise TTSVoiceConnectionError(f"User {item.user} is not in a voice channel")
-        user_channel = item.user.voice.channel
-
+    async def _ensure_connected(self, channel: discord.VoiceChannel) -> discord.VoiceClient:
+        """Ensure the bot is connected to a specified channel"""
         # Ensure the voice client is connected to the correct channel
         try:
             if (
                 self._voice_client is not None
-                and self._voice_client.channel != user_channel
+                and self._voice_client.channel != channel
             ):
                 await self._voice_client.disconnect(force=True)
-                self._voice_client = await user_channel.connect()
+                self._voice_client = await channel.connect()
             elif self._voice_client is None:
-                self._voice_client = await user_channel.connect()
+                self._voice_client = await channel.connect()
             if not self._voice_client.is_connected():
                 await self._voice_client.connect(reconnect=True, timeout=10.0)
 
@@ -127,7 +122,19 @@ class TTSVoiceClient:
                 f"Failed to connect to voice channel {user_channel}: {e}"
             )
 
-        voice_client = self._voice_client
+        return self._voice_client
+
+    async def _play_file(self, item: TTSVoiceQueueItem):
+        """Play a file in the current channel"""
+
+        if item.user.voice is None or item.user.voice.channel is None:
+            raise TTSVoiceConnectionError(f"User {item.user} is not in a voice channel")
+
+        user_channel = item.user.voice.channel
+        if not isinstance(user_channel, discord.VoiceChannel):
+            raise TTSVoiceConnectionError(f"User {item.user} is in an invalid channel type")
+        
+        voice_client = await self._ensure_connected(user_channel)
 
         if not voice_client.is_connected():
             raise TTSVoiceConnectionError("Voice client is not connected")
