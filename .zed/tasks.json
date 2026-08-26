@@ -1,0 +1,17 @@
+[
+  {
+    "label": "Zed: Serve Ollama",
+    "command": "ollama serve",
+    "show_command": true,
+  },
+  {
+    "label": "Zed: Run App",
+    "command": "ls; ./scripts/run.sh",
+    "show_command": true,
+  },
+  {
+    "label": "Zed: Run App With Podman",
+    "command": "ls; ./scripts/run-pod.sh",
+    "show_command": true,
+  },
+]
