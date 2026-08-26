@@ -1,8 +1,9 @@
 """Main Plugin Module for Text-to-Speech."""
 
 from pathlib import Path
+from typing import override
 
-from squid_core import Framework, Plugin
+from squid_core import Framework, Plugin  # pyright: ignore[reportMissingTypeStubs]
 
 from .cog import TTSCog
 from .models.manager import ConfigManager
@@ -28,6 +29,7 @@ class TTSPlugin(Plugin):
         """Preload the Text-to-Speech Plugin."""
         await self.config_manager.load()
 
+    @override
     async def load(self):
         """Load the Text-to-Speech Plugin."""
         self.logger.info("Text-to-Speech initializing...")
@@ -70,7 +72,7 @@ class TTSPlugin(Plugin):
         await self.cog.socket_client.connect()
         await self.framework.bot.add_cog(self.cog)
 
-
+    @override
     async def unload(self):
         """Unload the Text-to-Speech Plugin."""
         self.logger.info("Text-to-Speech unloading...")
