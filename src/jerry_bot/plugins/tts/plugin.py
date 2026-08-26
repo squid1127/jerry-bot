@@ -8,9 +8,9 @@ from discord import app_commands
 import asyncio
 from pathlib import Path
 
-from .client import TTSSocketClient
+from .socket import TTSSocketClient
 from .cog import TTSCog
-from .models.manager import ConfigManager, TTSPluginConfig
+from .models.manager import ConfigManager
 from .runner import TTSServiceRunner
 
 class TTSPlugin(Plugin):
@@ -24,7 +24,6 @@ class TTSPlugin(Plugin):
         
         self.socket_client: TTSSocketClient|None = None
         self.cog: TTSCog|None = None
-
         
     async def preload(self):
         """Preload the Text-to-Speech Plugin."""
@@ -45,7 +44,7 @@ class TTSPlugin(Plugin):
         socket_path = self.config.socket_path if self.config.socket_path.is_absolute() else cwd / self.config.socket_path
         output_dir = self.config.output_dir if self.config.output_dir.is_absolute() else cwd / self.config.output_dir
         
-        self.socket_client = TTSSocketClient(socket_path, self.logger)
+        self.socket_client = TTSSocketClient(socket_path, self.logger, max_concurrent_requests=self.config.max_concurrent_requests)
         self.cog = TTSCog(self, self.socket_client, output_dir, self.config)
         if self.config.service.use:
             self.service_runner = TTSServiceRunner(self.config, cwd)
@@ -61,6 +60,7 @@ class TTSPlugin(Plugin):
         """Unload the Text-to-Speech Plugin."""
         self.logger.info("Text-to-Speech unloading...")
         if self.cog:
+            await self.cog.stop()
             await self.framework.bot.remove_cog(self.cog.qualified_name)
         if self.socket_client:
             await self.socket_client.disconnect()
