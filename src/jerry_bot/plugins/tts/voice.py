@@ -1,18 +1,18 @@
 """Voice chat handler for TTS"""
 
-import discord
 import asyncio
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+
+import discord
 
 from .models.exceptions import (
-    TTSVoiceError,
     TTSVoiceConnectionError,
+    TTSVoiceError,
     TTSVoiceInUseError,
 )
-
-
 from .models.ratelimit import RateLimiter
+
 
 @dataclass(frozen=True, slots=True, order=True)
 class TTSVoiceQueueItem:
@@ -20,6 +20,7 @@ class TTSVoiceQueueItem:
 
     user: discord.Member
     file: Path
+
 
 class TTSVoiceClient:
     """Represents a voice client connected for tts in a guild."""
@@ -35,9 +36,9 @@ class TTSVoiceClient:
         self.guild = guild
         self.timeout = timeout
         self._playback_queue: asyncio.Queue[TTSVoiceQueueItem] = asyncio.Queue()
-        self._playback_task: asyncio.Task | None = None
+        self._playback_task: asyncio.Task[None] | None = None
         self._rate_limiter: RateLimiter = RateLimiter(max_calls=10, period=30.0)
-        self._timeout_task: asyncio.Task | None = None
+        self._timeout_task: asyncio.Task[None] | None = None
         self._voice_client: discord.VoiceClient | None = None
 
     def enqueue(self, user: discord.Member, file: Path):
@@ -67,7 +68,7 @@ class TTSVoiceClient:
                 await self._play_file(item)
                 await self._reset_timeout()
             except Exception as e:
-                raise TTSVoiceError(f"Error playing {item}: {e}")
+                raise TTSVoiceError(f"Error playing {item}: {e}") from e
             finally:
                 self._playback_queue.task_done()
 
@@ -85,7 +86,7 @@ class TTSVoiceClient:
         while not self._playback_queue.empty():
             self._playback_queue.get_nowait()
             self._playback_queue.task_done()
-        
+
         # Cancel the timeout task if it exists and this stop was not called from the timeout watcher
         if not from_timeout and self._timeout_task is not None:
             self._timeout_task.cancel()
@@ -101,23 +102,30 @@ class TTSVoiceClient:
         if item.user.voice is None or item.user.voice.channel is None:
             raise TTSVoiceConnectionError(f"User {item.user} is not in a voice channel")
         user_channel = item.user.voice.channel
-        
+
         # Ensure the voice client is connected to the correct channel
         try:
-            if self._voice_client is not None and self._voice_client.channel != user_channel:
+            if (
+                self._voice_client is not None
+                and self._voice_client.channel != user_channel
+            ):
                 await self._voice_client.disconnect(force=True)
                 self._voice_client = await user_channel.connect()
             elif self._voice_client is None:
                 self._voice_client = await user_channel.connect()
             if not self._voice_client.is_connected():
                 await self._voice_client.connect(reconnect=True, timeout=10.0)
-                
+
         except discord.ClientException as e:
             raise TTSVoiceInUseError(f"Voice client is already in use: {e}")
         except discord.Forbidden as e:
-            raise TTSVoiceConnectionError(f"Bot does not have permission to connect to the voice channel: {e}")
+            raise TTSVoiceConnectionError(
+                f"Bot does not have permission to connect to the voice channel: {e}"
+            )
         except discord.HTTPException as e:
-            raise TTSVoiceConnectionError(f"Failed to connect to voice channel {user_channel}: {e}")
+            raise TTSVoiceConnectionError(
+                f"Failed to connect to voice channel {user_channel}: {e}"
+            )
 
         voice_client = self._voice_client
 
@@ -149,7 +157,7 @@ class TTSVoiceClient:
             await self.stop(from_timeout=True)
         except asyncio.CancelledError:
             pass
-        
+
     async def _reset_timeout(self):
         """Reset the timeout watcher"""
         if self._timeout_task is not None:
@@ -167,5 +175,5 @@ class TTSVoiceClient:
     @property
     def voice_client(self) -> discord.VoiceClient | None:
         """The voice client for the guild"""
-        
+
         return self._voice_client
