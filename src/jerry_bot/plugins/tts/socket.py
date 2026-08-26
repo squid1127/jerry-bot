@@ -6,11 +6,12 @@ import json
 from logging import Logger
 
 from .models.request import TTSRequest, TTSResponse
+from .models.exceptions import TTSGenerationError, TTSServerConnectionError
 
 class TTSSocketClient:
     """Socket client for interacting with the TTS service."""
 
-    def __init__(self, socket: Path, logger: Logger):
+    def __init__(self, socket: Path, logger: Logger, max_concurrent_requests: int = 5):
         """Initialize the TTS socket client.
 
         Args:
@@ -19,7 +20,8 @@ class TTSSocketClient:
         self._socket = socket
         self._writer: asyncio.StreamWriter | None = None
         self._logger = logger
-        self._pending: dict[str, asyncio.Future] = {}
+        self._pending: dict[str, asyncio.Future[TTSResponse]] = {}
+        self._semaphore = asyncio.Semaphore(max_concurrent_requests)
         self._read_task: asyncio.Task | None = None
         
     async def connect(self) -> None:
@@ -52,10 +54,15 @@ class TTSSocketClient:
             request (TTSRequest): The TTS request to send.
             
         """
-        future = asyncio.Future()
-        self._pending[request.uuid] = future
-        await self._send_request(request)
-        return await future
+        async with self._semaphore:
+            future = asyncio.Future[TTSResponse]()
+            self._pending[request.uuid] = future
+            await self._send_request(request)
+            response = await future
+            if response and response.status != "success":
+                self._logger.error(f"TTS generation failed: {response.message}")
+                raise TTSGenerationError(f"TTS generation failed: {response.message}")
+        return response
     
 
     async def _send_request(self, request: TTSRequest) -> None:
@@ -105,5 +112,5 @@ class TTSSocketClient:
             asyncio.StreamWriter: The stream writer for the socket, or None if not connected.
         """
         if self._writer is None:
-            raise RuntimeError("Socket client is not connected. Try calling 'connect()' first.")
+            raise TTSServerConnectionError("Socket client is not connected. Try calling 'connect()' first.")
         return self._writer

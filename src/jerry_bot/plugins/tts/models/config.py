@@ -56,6 +56,14 @@ class TTSPluginConfig(BaseModel):
     output_dir: Path = Field(
         ..., description="The directory where generated audio files will be saved."
     )
+    max_concurrent_requests: int = Field(
+        default=5,
+        description="The maximum number of concurrent TTS requests allowed (defaults to 5).",
+    )
+    user_timeout: float = Field(
+        default=600.0,
+        description="Seconds after the last request before the voice client and input system are disconnected and cleaned up (defaults to 600).",
+    )
 
     service: TTSServiceConfig = Field(
         ..., description="The configuration for the TTS service command."
