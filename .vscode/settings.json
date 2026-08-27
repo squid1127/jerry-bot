@@ -13,7 +13,7 @@
     "tictactoe",
     "timeparse"
   ],
-  "python.analysis.typeCheckingMode": "standard",
+  "python.analysis.typeCheckingMode": "off",
   "sonarlint.disableTelemetry": true,
   "python-envs.defaultEnvManager": "ms-python.python:poetry",
   "python-envs.defaultPackageManager": "ms-python.python:poetry"
