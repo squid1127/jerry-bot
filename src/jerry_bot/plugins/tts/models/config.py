@@ -1,7 +1,10 @@
 """Configuration model for the text-to-speech plugin."""
 
-from pydantic import BaseModel, Field
 from pathlib import Path
+
+from pydantic import BaseModel, Field
+
+from .enums import PrefixControlDirective
 
 
 class TTSServiceConfig(BaseModel):
@@ -41,6 +44,16 @@ class TTSVoiceConfig(BaseModel):
         default=False, description="Whether this voice configuration is the default."
     )
 
+class NormalizeRule(BaseModel):
+    """Configuration model for parsing rules for TTS input."""
+
+    name: str = Field(..., description="The name of the parsing rule.")
+    pattern: str = Field(
+        ..., description="The regex pattern to match for this parsing rule."
+    )
+    replacement: str = Field(
+        ..., description="The replacement string to use when the pattern matches."
+    )
 
 
 class TTSPluginConfig(BaseModel):
@@ -72,6 +85,14 @@ class TTSPluginConfig(BaseModel):
     voices: list[TTSVoiceConfig] = Field(
         default_factory=list,
         description="A list of available voice configurations for text-to-speech synthesis.",
+    )
+    rules: list[NormalizeRule] = Field(
+        default_factory=list,
+        description="A list of normalization rules for processing input text before sending it to the TTS service.",
+    )
+    prefixes: dict[PrefixControlDirective, str] = Field(
+        default_factory=dict,
+        description="A map of control directives to prefix strings"
     )
 
     @property

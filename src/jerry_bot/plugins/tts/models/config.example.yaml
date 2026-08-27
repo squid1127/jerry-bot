@@ -16,7 +16,7 @@ service:
 output_dir: "audio" # directory to save the generated audio files
 socket_path: "tts.sock" # path to the socket file used for communication with the TTS service
 max_concurrent_requests: 5 # maximum number of concurrent TTS requests allowed (defaults to 5)
-user_timeout: 600.0 # seconds after the last request before the voice client and input system are disconnected and cleaned up (defaults to 600)
+user_timeout: 300.0 # seconds after the last request before the voice client and input system are disconnected and cleaned up (defaults to 300)
 
 # List of allowed voices for the TTS service.
 voices:
