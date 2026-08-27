@@ -20,7 +20,7 @@ class TTSServiceRunner:
         self.config = config
         self.process: asyncio.subprocess.Process | None = None
         self.path = config.service.cwd or default_cwd
-        
+
     async def start(self) -> None:
         """Start the TTS service."""
 
@@ -75,8 +75,6 @@ class TTSServiceRunner:
             raise TimeoutError(
                 f"Timed out after {timeout:.1f}s waiting for TTS socket at '{self.path}'."
             ) from exc
-
-
 
     @property
     def command(self) -> tuple[str, ...]:

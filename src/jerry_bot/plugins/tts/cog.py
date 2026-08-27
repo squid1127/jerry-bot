@@ -1,22 +1,18 @@
 """Cog for the Text-to-Speech plugin."""
 
-from pathlib import Path
-from urllib import response
-
-from squid_core import PluginCog, Plugin
-from squid_core.decorators import DiscordEventListener
-from .socket import TTSSocketClient
-from .models.request import TTSRequest, TTSResponse
-from .models.config import TTSPluginConfig, TTSVoiceConfig
-from .listener import TTSListener
-from .voice import TTSVoiceClient
-
 import asyncio
+from pathlib import Path
 
-from discord.ext import commands
 import discord
 from discord import app_commands
-from uuid import uuid4
+from discord.ext import commands
+from squid_core import Plugin, PluginCog
+
+from .listener import TTSListener
+from .models.config import TTSPluginConfig
+from .models.request import TTSRequest
+from .socket import TTSSocketClient
+from .voice import TTSVoiceClient
 
 GUILD_ONLY_MESSAGE = "This command can only be used in a guild."
 
@@ -49,7 +45,7 @@ class TTSCog(PluginCog):
         super().__init__(plugin)
         self.socket_client: TTSSocketClient = client
         self.output_dir: Path = output_dir
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock = asyncio.Lock()
         self.config: TTSPluginConfig = config
 
         self.listeners: dict[tuple[int, int], TTSListener] = (
@@ -89,7 +85,7 @@ class TTSCog(PluginCog):
         )
         app_commands.describe(voice="The voice to use for TTS.")(listen_command)
         app_commands.choices(voice=choices)(listen_command)
-        
+
         listen_for_command = app_commands.Command(
             name="tts-listen-for",
             description="[TTS] Listen to another user's messages and convert them to speech.",
@@ -105,7 +101,7 @@ class TTSCog(PluginCog):
         )(listen_for_command)
         app_commands.choices(voice=choices)(listen_for_command)
         app_commands.default_permissions(administrator=True)(listen_for_command)
-        
+
         self.fw.bot.tree.add_command(generate_command)
         self.fw.bot.tree.add_command(listen_command)
         self.fw.bot.tree.add_command(listen_for_command)
@@ -171,7 +167,6 @@ class TTSCog(PluginCog):
         except ValueError as e:
             await message(interaction, str(e), error=True)
             return
-
 
     async def tts_listen_for_command(
         self,
