@@ -9,6 +9,7 @@
         "redhat.vscode-yaml",
         "ms-python.vscode-pylance",
         "ms-python.vscode-python-envs",
-
+        "charliermarsh.ruff",
+        "detachhead.basedpyright",
     ]
 }
