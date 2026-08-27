@@ -13,6 +13,8 @@ from .models.exceptions import (
 )
 from .models.ratelimit import RateLimiter
 
+VOICE_DISCONNECT_TIMEOUT = 2.0
+
 
 @dataclass(frozen=True, slots=True, order=True)
 class TTSVoiceQueueItem:
@@ -65,8 +67,8 @@ class TTSVoiceClient:
             item = await self._playback_queue.get()
             try:
                 await self._rate_limiter.acquire()
-                await self._play_file(item)
                 await self._reset_timeout()
+                await self._play_file(item)
             except Exception as e:
                 raise TTSVoiceError(f"Error playing {item}: {e}") from e
             finally:
@@ -76,13 +78,14 @@ class TTSVoiceClient:
         """Stop the playback loop and clear the queue"""
         if self._playback_task is not None:
             self._playback_task.cancel()
-            if self.voice_client is not None and self.voice_client.is_connected():
-                await self.voice_client.disconnect(force=True)
             try:
                 await self._playback_task
             except asyncio.CancelledError:
                 pass
             self._playback_task = None
+
+        await self._try_disconnect(force=True)
+
         while not self._playback_queue.empty():
             self._playback_queue.get_nowait()
             self._playback_queue.task_done()
@@ -96,14 +99,17 @@ class TTSVoiceClient:
                 pass
             self._timeout_task = None
 
-    async def _ensure_connected(self, channel: discord.VoiceChannel) -> discord.VoiceClient:
+    async def _ensure_connected(
+        self, channel: discord.VoiceChannel
+    ) -> discord.VoiceClient:
         """Ensure the bot is connected to a specified channel"""
         # Ensure the voice client is connected to the correct channel
         try:
-            if (
-                self._voice_client is not None
-                and self._voice_client.channel != channel
-            ):
+            # Verify still connected
+            if self._voice_client is not None and not self._voice_client.is_connected():
+                await self._try_disconnect(force=True)
+
+            if self._voice_client is not None and self._voice_client.channel != channel:
                 await self._voice_client.disconnect(force=True)
                 self._voice_client = await channel.connect()
             elif self._voice_client is None:
@@ -132,8 +138,10 @@ class TTSVoiceClient:
 
         user_channel = item.user.voice.channel
         if not isinstance(user_channel, discord.VoiceChannel):
-            raise TTSVoiceConnectionError(f"User {item.user} is in an invalid channel type")
-        
+            raise TTSVoiceConnectionError(
+                f"User {item.user} is in an invalid channel type"
+            )
+
         voice_client = await self._ensure_connected(user_channel)
 
         if not voice_client.is_connected():
@@ -174,6 +182,22 @@ class TTSVoiceClient:
             except asyncio.CancelledError:
                 pass
         self._timeout_task = asyncio.create_task(self._watch_timeout())
+
+    async def _try_disconnect(self, force: bool = False):
+        """Try to disconnect the voice client if it exists, timing out after VOICE_DISCONNECT_TIMEOUT seconds"""
+        voice_client = self._voice_client
+        self._voice_client = (
+            None  # Clear the voice client reference immediately to prevent further use
+        )
+
+        if voice_client is not None and voice_client.is_connected():
+            try:
+                await asyncio.wait_for(
+                    voice_client.disconnect(force=force),
+                    timeout=VOICE_DISCONNECT_TIMEOUT,
+                )
+            except (TimeoutError, discord.DiscordException):
+                pass
 
     def is_empty(self) -> bool:
         """Whether the queue is empty"""
