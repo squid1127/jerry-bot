@@ -4,6 +4,14 @@ class TTSError(RuntimeError):
     """Base error class for TTS errors"""
     pass
 
+class TTSRunnerError(TTSError):
+    """Raised when the TTS runner fails"""
+    pass
+
+class TTSRunnerTimeoutError(TTSRunnerError):
+    """Raised when the TTS runner times out"""
+    pass
+
 class TTSGenerationError(TTSError):
     """Raised when generation of speech fails"""
     pass
