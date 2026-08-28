@@ -44,18 +44,6 @@ class TTSVoiceConfig(BaseModel):
         default=False, description="Whether this voice configuration is the default."
     )
 
-class NormalizeRule(BaseModel):
-    """Configuration model for parsing rules for TTS input."""
-
-    name: str = Field(..., description="The name of the parsing rule.")
-    pattern: str = Field(
-        ..., description="The regex pattern to match for this parsing rule."
-    )
-    replacement: str = Field(
-        ..., description="The replacement string to use when the pattern matches."
-    )
-
-
 class TTSPluginConfig(BaseModel):
     """Configuration model for the text-to-speech plugin."""
 
@@ -86,14 +74,16 @@ class TTSPluginConfig(BaseModel):
         default_factory=list,
         description="A list of available voice configurations for text-to-speech synthesis.",
     )
-    rules: list[NormalizeRule] = Field(
-        default_factory=list,
-        description="A list of normalization rules for processing input text before sending it to the TTS service.",
-    )
-    prefixes: dict[PrefixControlDirective, str] = Field(
+
+    normalize_rules: dict[str, str] = Field(
         default_factory=dict,
-        description="A map of control directives to prefix strings"
+        description="A dict of input rules where keyss are regex patterns and values are replacement strings.",
     )
+    control_rules: dict[str, PrefixControlDirective] = Field(
+        default_factory=dict,
+        description="A dict of control rules where keys are regex patterns and values are control directives.",
+    )
+
 
     @property
     def default_voice(self) -> TTSVoiceConfig | None:
