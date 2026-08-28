@@ -1,7 +1,9 @@
 """Constants for the Auto Reply UI"""
 
-from ..models.enums import ResponseType, ResponseMethod
+from re import compile
 from typing import TypedDict
+
+from ..models.enums import ResponseMethod, ResponseType
 
 
 class RuleSelectOption(TypedDict):
@@ -30,7 +32,7 @@ RULE_TYPE_MAPPING: dict[ResponseType, RuleSelectOption] = {
         "label": "Asteval Expression",
         "description": "Evaluates the payload as python code, using the same context as jinja2.",
         "emoji": "👨‍💻",
-    }
+    },
 }
 RESPONSE_METHOD_MAPPING: dict[ResponseMethod, RuleSelectOption] = {
     ResponseMethod.REPLY: {
@@ -127,3 +129,5 @@ For `query`, specify a keyword to search or use `id=<rule_id>` to search by rule
 """
 
 SEARCH_RESULT_LIMIT = 20
+MENTION_TRIGGER = compile(r"<@\d{17,19}>")
+MENTION_REPLACE = "__<@Mention>__"

@@ -1,14 +1,23 @@
 """Main view for the Auto Reply plugin."""
 
+from collections.abc import Callable, Coroutine
+from typing import Any, Protocol
+
 import discord
-from typing import Callable, Optional
 
 from ..ar import AutoReply
-from .constants import CLI_HELP_MSG, HELP_MSG
 from .common import send_error
-
+from .constants import CLI_HELP_MSG, HELP_MSG
 from .editor import AutoReplyRuleModal
 from .search import AutoReplySearchUI
+
+
+class MessageMethod(Protocol):
+    """An async method that can send messages"""
+
+    def __call__(
+        self, *, view: "AutoReplyMainUI"
+    ) -> Coroutine[Any, Any, discord.Message]: ...
 
 
 class AutoReplyMainUI(discord.ui.LayoutView):
@@ -17,15 +26,16 @@ class AutoReplyMainUI(discord.ui.LayoutView):
     def __init__(
         self,
         auto_reply: AutoReply,
-        message: Optional[discord.Message] = None,
-        message_method: Optional[Callable] = None,
+        message: discord.Message | None = None,
+        message_method: MessageMethod | None = None,
     ) -> None:
         super().__init__(timeout=None)
         if message is None and message_method is None:
             raise ValueError("Either message or message_method must be provided.")
-        self.ar = auto_reply
-        self.message = message
-        self.message_method = message_method
+        self.ar: AutoReply = auto_reply
+        self.message: discord.Message | None = message
+        self.message_method: MessageMethod | None = message_method
+        self.container: discord.ui.Container[Any] | None = None
 
     def _button(
         self, label: str, style: discord.ButtonStyle, callback: Callable
@@ -38,10 +48,7 @@ class AutoReplyMainUI(discord.ui.LayoutView):
         container = discord.ui.Container()
         container.add_item(
             discord.ui.TextDisplay(
-                (
-                    "### Auto Reply Plugin\n"
-                    "Manage your auto-reply rules and settings using the buttons below."
-                )
+                "### Auto Reply Plugin\nManage your auto-reply rules and settings using the buttons below."
             )
         )
 
@@ -123,7 +130,13 @@ class AutoReplyMainUI(discord.ui.LayoutView):
         try:
             view = discord.ui.LayoutView(timeout=None)
             container = discord.ui.Container()
-            container.add_item(discord.ui.TextDisplay(content=HELP_MSG.replace("!!globals_help", self.ar.jinja_manager.help())))
+            container.add_item(
+                discord.ui.TextDisplay(
+                    content=HELP_MSG.replace(
+                        "!!globals_help", self.ar.jinja_manager.help()
+                    )
+                )
+            )
             container.add_item(
                 discord.ui.ActionRow(
                     self._button(
@@ -156,7 +169,7 @@ class AutoReplyCLIHelpUI(discord.ui.LayoutView):
 
     def __init__(
         self,
-        message_method: Callable | None = None,
+        message_method: MessageMethod | None = None,
         interaction: discord.Interaction | None = None,
     ):
         super().__init__(timeout=None)
