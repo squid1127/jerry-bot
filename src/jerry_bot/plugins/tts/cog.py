@@ -278,7 +278,7 @@ class TTSCog(PluginCog):
             # Create a new listener
             listener = TTSListener(
                 member=member,
-                output_dir=self.output_dir,
+                config=self.config,
                 voice_config=voice_object,
                 listen_channel=listen_channel,
                 socket_client=self.socket_client,
