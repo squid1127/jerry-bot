@@ -1,15 +1,17 @@
 """Listener and user input management for the TTS plugin."""
 
-import discord
 import asyncio
-from pathlib import Path
 from logging import Logger
+from pathlib import Path
 
-from .voice import TTSVoiceClient
-from .socket import TTSSocketClient
-from .models.request import TTSRequest, TTSResponse
+import discord
+
 from .models.config import TTSVoiceConfig
-from .models.exceptions import TTSGenerationError, TTSServerConnectionError
+from .models.exceptions import TTSError, TTSGenerationError, TTSServerConnectionError
+from .models.request import TTSRequest, TTSResponse
+from .socket import TTSSocketClient
+from .voice import TTSVoiceClient
+
 
 async def reaction(message: discord.Message, emoji: str):
     """Add a reaction to a message and drop any exceptions."""
@@ -18,10 +20,20 @@ async def reaction(message: discord.Message, emoji: str):
     except (discord.HTTPException, discord.Forbidden):
         pass
 
+
 class TTSListener:
     """A class that listens for a user's input in a specific channel and manages TTS requests for that user."""
 
-    def __init__(self, member: discord.Member, listen_channel: discord.TextChannel, voice_config: TTSVoiceConfig, output_dir: Path, voice_client: TTSVoiceClient, socket_client: TTSSocketClient, logger: Logger):
+    def __init__(
+        self,
+        member: discord.Member,
+        listen_channel: discord.TextChannel,
+        voice_config: TTSVoiceConfig,
+        output_dir: Path,
+        voice_client: TTSVoiceClient,
+        socket_client: TTSSocketClient,
+        logger: Logger,
+    ):
         """
         Initialize the TTSListener.
 
@@ -54,12 +66,12 @@ class TTSListener:
 
         if message.author != self.member:
             return  # Ignore messages from other users
-        
+
         if not message.content.strip():
             return  # Ignore empty messages
-        
+
         await self._generate_for_message(message)
-        
+
     async def _generate_for_message(self, message: discord.Message):
         """
         Generate TTS for the given message and enqueue it for playback.
@@ -69,20 +81,26 @@ class TTSListener:
         """
         try:
             # Generate TTS audio file using the socket client
-            response = await self.socket_client.generate_tts(TTSRequest.from_voice_config(
-                text=message.content,
-                voice_config=self.voice_config
+            response = await self.socket_client.generate_tts(
+                TTSRequest.from_voice_config(
+                    text=message.content, voice_config=self.voice_config
+                )
             )
-            )
-            
+
             if response.filename:
                 if not (self.output_dir / response.filename).exists():
-                    raise FileNotFoundError(f"Generated audio file not found: {response.filename}")
+                    raise FileNotFoundError(
+                        f"Generated audio file not found: {response.filename}"
+                    )
                 # Enqueue the generated audio file for playback
-                self.voice_client.enqueue(self.member, self.output_dir / response.filename)
+                self.voice_client.enqueue(
+                    self.member, self.output_dir / response.filename
+                )
             else:
                 raise ValueError("TTS response failed")
-                
-        except TTSGenerationError as e:
-            self.logger.error(f"Error generating TTS for message '{message.content}': {e}")
+
+        except TTSError as e:
+            self.logger.error(
+                f"Error generating TTS for message '{message.content}': {e}"
+            )
             await reaction(message, "❌")  # Indicate failure with a reaction
