@@ -8,7 +8,6 @@ from .models.exceptions import TTSGenerationError, TTSServerConnectionError
 from .models.request import TTSRequest, TTSResponse
 
 
-
 class TTSSocketClient:
     """Socket client for interacting with the TTS service."""
 
