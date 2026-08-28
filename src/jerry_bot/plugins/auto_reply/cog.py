@@ -1,21 +1,17 @@
 """Cog for Auto Reply Plugin for application commands."""
 
-from squid_core.plugin_base import PluginCog, Plugin
+import discord
+from discord import app_commands as cmds
+from discord.ext import commands
 from squid_core import Framework
 from squid_core.components.perms import PermissionLevel
+from squid_core.plugin_base import Plugin, PluginCog
 
-import discord
-from discord.ext import commands
-from discord import app_commands as cmds
-
+from .ar import AutoReply
 from .models.db import AutoReplyIgnore
 from .models.enums import IgnoreType
 
-from .ar import AutoReply
 
-
-class AutoReplyInteractionError(Exception):
-    """Exception raised when an error occurs in the auto reply interaction."""
 
 
 class AutoReplyCog(PluginCog):
