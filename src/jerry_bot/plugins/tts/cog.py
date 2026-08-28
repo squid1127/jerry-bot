@@ -1,5 +1,18 @@
 """Cog for the Text-to-Speech plugin."""
 
+from pathlib import Path
+from urllib import response
+
+from squid_core import PluginCog, Plugin
+from squid_core.decorators import DiscordEventListener
+
+from jerry_bot.plugins.tts.models.exceptions import TTSGenerationError, TTSServerConnectionError
+from .socket import TTSSocketClient
+from .models.request import TTSRequest, TTSResponse
+from .models.config import TTSPluginConfig, TTSVoiceConfig
+from .listener import TTSListener
+from .voice import TTSVoiceClient
+
 import asyncio
 from pathlib import Path
 
@@ -126,8 +139,12 @@ class TTSCog(PluginCog):
             return
 
         async with self._lock:
-            request = TTSRequest.from_voice_config(text, voice_object)
-            response = await self.socket_client.generate_tts(request)
+            try:
+                request = TTSRequest.from_voice_config(text, voice_object)
+                response = await self.socket_client.generate_tts(request)
+            except TTSServerConnectionError:
+                self.plugin.logger.exception("TTS service connection error running /tts-generate")
+                await message(interaction, message="TTS service failed.")
 
             if response.filename and (self.output_dir / response.filename).exists():
                 await interaction.followup.send(
