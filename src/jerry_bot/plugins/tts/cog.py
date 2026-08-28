@@ -133,6 +133,7 @@ class TTSCog(PluginCog):
             except TTSServerConnectionError:
                 self.plugin.logger.exception("TTS service connection error running /tts-generate")
                 await message(interaction, message="TTS service failed.")
+                return
 
             if response.filename and (self.output_dir / response.filename).exists():
                 await interaction.followup.send(
