@@ -1,16 +1,21 @@
 """Main view for the Auto Reply plugin."""
 
+from collections.abc import Callable, Sequence
+
 import discord
 from discord.utils import escape_markdown
-from typing import Callable, Optional
-from collections.abc import Sequence
 
 from ..ar import AutoReply
-from .constants import RESPONSE_METHOD_MAPPING, RULE_TYPE_MAPPING, SEARCH_RESULT_LIMIT
-from .common import send_error
-from .editor import AutoReplyRuleModal
-
 from ..models.db import AutoReplyRule
+from .common import send_error
+from .constants import (
+    MENTION_REPLACE,
+    MENTION_TRIGGER,
+    RESPONSE_METHOD_MAPPING,
+    RULE_TYPE_MAPPING,
+    SEARCH_RESULT_LIMIT,
+)
+from .editor import AutoReplyRuleModal
 
 
 class AutoReplySearchUI(discord.ui.LayoutView):
@@ -19,10 +24,10 @@ class AutoReplySearchUI(discord.ui.LayoutView):
     def __init__(
         self,
         auto_reply: AutoReply,
-        message: Optional[discord.Message] = None,
-        message_method: Optional[Callable] = None,
-        interaction: Optional[discord.Interaction] = None,
-        query: Optional[str] = None,
+        message: discord.Message | None = None,
+        message_method: Callable | None = None,
+        interaction: discord.Interaction = None,
+        query: str | None = None,
     ) -> None:
         super().__init__(timeout=None)
         if message is None and message_method is None and interaction is None:
@@ -123,7 +128,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         modal = AutoReplyRuleModal(ar=self.ar, rule=rule)
         await interaction.response.send_modal(modal)
         await self.render()
-        
+
     async def toggle_active_cb(self, interaction: discord.Interaction):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
@@ -137,6 +142,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
             title="Multiple Rules",
             description="Please select a single rule to toggle active status.",
         )
+
     async def delete_rule_cb(self, interaction: discord.Interaction):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
@@ -150,7 +156,6 @@ class AutoReplySearchUI(discord.ui.LayoutView):
             title="Multiple Rules",
             description="Please select a single rule to delete.",
         )
-            
 
     async def refresh_cb(self, interaction: discord.Interaction):
         await self.render()
@@ -160,7 +165,7 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         container = discord.ui.Container()
 
         if self.rules and len(self.rules) == 1:
-            body = f"### Auto-Reply Rule: {escape_markdown(self.rules[0].name)}"
+            body = f"### Auto-Reply Rule: {self._sanitize_trigger(self.rules[0].name)}"
         elif self.query:
             body = f"### Search Results for: {escape_markdown(self.query)}"
         else:
@@ -177,12 +182,12 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
             body += f"\n**ID:** {rule.id}"
-            body += f"\n**Trigger:** || {escape_markdown(rule.trigger)} ||"
+            body += f"\n**Trigger:** || {self._sanitize_trigger(rule.trigger)} ||"
             body += f"\n**Response:** {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
             body += f"\n**Active:** {'✅' if rule.is_active else '❌'}"
         else:
             for rule in self.rules:
-                body += f"\n**{rule.id}** - {escape_markdown(rule.name)} ▶︎ || {escape_markdown(rule.trigger)} || ▶︎ {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
+                body += f"\n**{rule.id}** - {self._sanitize_trigger(rule.name)} ▶︎ || {self._sanitize_trigger(rule.trigger)} || ▶︎ {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
                 if not rule.is_active:
                     body += " [Inactive]"
 
@@ -229,7 +234,9 @@ class AutoReplySearchUI(discord.ui.LayoutView):
                 edit_select_actions.add_item(
                     self._button(
                         "Deactivate" if self.rules[0].is_active else "Activate",
-                        discord.ButtonStyle.success if not self.rules[0].is_active else discord.ButtonStyle.danger,
+                        discord.ButtonStyle.success
+                        if not self.rules[0].is_active
+                        else discord.ButtonStyle.danger,
                         self.toggle_active_cb,
                     )
                 )
@@ -289,6 +296,14 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         return btn
 
 
+    def _sanitize_trigger(self, trigger: str) -> str:
+        """Sanitize the trigger by escaping markdown, removing mentions, and stripping whitespace."""
+        trigger = trigger.strip()
+        trigger = discord.utils.escape_markdown(trigger)
+        trigger = MENTION_TRIGGER.sub(MENTION_REPLACE, trigger)
+        return trigger
+
+
 class AutoReplySearchSetPageModal(discord.ui.Modal):
     def __init__(self, current_page: int, max_page: int, callback: Callable):
         super().__init__(title="Go to Page")
@@ -309,7 +324,9 @@ class AutoReplySearchSetPageModal(discord.ui.Modal):
             if 1 <= page <= self.max_page:
                 # Store the desired page number in the modal instance for retrieval after submission
                 self.desired_page = page
-                await interaction.response.defer()  # Acknowledge the interaction without sending a message
+                await (
+                    interaction.response.defer()
+                )  # Acknowledge the interaction without sending a message
 
                 await self._callback(
                     page
