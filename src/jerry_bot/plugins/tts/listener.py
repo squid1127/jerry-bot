@@ -1,14 +1,12 @@
 """Listener and user input management for the TTS plugin."""
 
-import asyncio
 from logging import Logger
-from pathlib import Path
 
 import discord
 
-from .models.config import TTSVoiceConfig
-from .models.exceptions import TTSError, TTSGenerationError, TTSServerConnectionError
-from .models.request import TTSRequest, TTSResponse
+from .models.config import TTSPluginConfig, TTSVoiceConfig
+from .models.exceptions import TTSError
+from .models.request import TTSRequest
 from .socket import TTSSocketClient
 from .voice import TTSVoiceClient
 
@@ -29,7 +27,7 @@ class TTSListener:
         member: discord.Member,
         listen_channel: discord.TextChannel,
         voice_config: TTSVoiceConfig,
-        output_dir: Path,
+        config: TTSPluginConfig,
         voice_client: TTSVoiceClient,
         socket_client: TTSSocketClient,
         logger: Logger,
@@ -41,7 +39,7 @@ class TTSListener:
             member (discord.Member): The Discord member who is listening.
             listen_channel (discord.TextChannel): The channel where the listener is active.
             voice_config (TTSVoiceConfig): The voice configuration for the TTS.
-            output_dir (Path): The directory where TTS audio files will be saved.
+            config (TTSPluginConfig): The plugin configuration.
             voice_client (TTSVoiceClient): The voice client used for TTS playback.
             socket_client (TTSSocketClient): The socket client used for TTS requests.
             logger (Logger): The logger for logging events and errors.
@@ -51,7 +49,7 @@ class TTSListener:
         self.listen_channel = listen_channel
         self.voice_client = voice_client
         self.socket_client = socket_client
-        self.output_dir = output_dir
+        self.config = config
         self.logger = logger
 
     async def handle_message(self, message: discord.Message):
@@ -88,13 +86,13 @@ class TTSListener:
             )
 
             if response.filename:
-                if not (self.output_dir / response.filename).exists():
+                if not (self.config.output_dir / response.filename).exists():
                     raise FileNotFoundError(
                         f"Generated audio file not found: {response.filename}"
                     )
                 # Enqueue the generated audio file for playback
                 self.voice_client.enqueue(
-                    self.member, self.output_dir / response.filename
+                    self.member, self.config.output_dir / response.filename
                 )
             else:
                 raise ValueError("TTS response failed")
