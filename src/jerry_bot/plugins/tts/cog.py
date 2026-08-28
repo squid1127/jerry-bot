@@ -1,18 +1,5 @@
 """Cog for the Text-to-Speech plugin."""
 
-from pathlib import Path
-from urllib import response
-
-from squid_core import PluginCog, Plugin
-from squid_core.decorators import DiscordEventListener
-
-from jerry_bot.plugins.tts.models.exceptions import TTSGenerationError, TTSServerConnectionError
-from .socket import TTSSocketClient
-from .models.request import TTSRequest, TTSResponse
-from .models.config import TTSPluginConfig, TTSVoiceConfig
-from .listener import TTSListener
-from .voice import TTSVoiceClient
-
 import asyncio
 from pathlib import Path
 
@@ -23,6 +10,7 @@ from squid_core import Plugin, PluginCog
 
 from .listener import TTSListener
 from .models.config import TTSPluginConfig
+from .models.exceptions import TTSServerConnectionError
 from .models.request import TTSRequest
 from .socket import TTSSocketClient
 from .voice import TTSVoiceClient
