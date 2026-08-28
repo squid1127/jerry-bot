@@ -3,9 +3,13 @@
 from pathlib import Path
 from typing import override
 
-from squid_core import Framework, Plugin  # pyright: ignore[reportMissingTypeStubs]
+from squid_core import Framework, Plugin
 
 from .cog import TTSCog
+from .models.exceptions import (
+    TTSRunnerError,
+    TTSRunnerTimeoutError,
+)
 from .models.manager import ConfigManager
 from .runner import TTSServiceRunner
 from .socket import TTSSocketClient
@@ -65,9 +69,18 @@ class TTSPlugin(Plugin):
             self.logger.info(
                 "Starting TTS service... with command: %s", self.service_runner.command
             )
-            await self.service_runner.start()
-            await self.service_runner.wait_for_ready()
-            self.logger.info("TTS service started and ready.")
+            try:
+                await self.service_runner.start()
+                await self.service_runner.wait_for_ready()
+                self.logger.info("TTS service started and ready.")
+            except TTSRunnerTimeoutError:
+                self.logger.warning(
+                    "TTS Service timed out while starting, connecting anyway"
+                )
+
+            except TTSRunnerError as e:
+                self.logger.exception("Failed to start TTS service: %s", e)
+                raise
 
         await self.cog.socket_client.connect()
         await self.framework.bot.add_cog(self.cog)

@@ -2,15 +2,17 @@
 
 import asyncio
 from pathlib import Path
+from typing import ClassVar
 
 from .models.config import TTSPluginConfig
+from .models.exceptions import TTSRunnerError, TTSRunnerTimeoutError
 
 
 class TTSServiceRunner:
     """Runner for the Text-to-Speech service."""
 
-    READY_TIMEOUT_SECONDS = 30.0
-
+    READY_TIMEOUT_SECONDS: ClassVar[float] = 30.0
+    
     def __init__(self, config: TTSPluginConfig, default_cwd: Path):
         """Initialize the TTS service runner.
 
@@ -25,7 +27,7 @@ class TTSServiceRunner:
         """Start the TTS service."""
 
         if self.process is not None:
-            raise RuntimeError("TTS service is already running.")
+            raise TTSRunnerError("TTS service is already running.")
 
         try:
             self.process = await asyncio.create_subprocess_exec(
@@ -34,7 +36,7 @@ class TTSServiceRunner:
                 cwd=self.path,
             )
         except FileNotFoundError as e:
-            raise RuntimeError(
+            raise TTSRunnerError(
                 f"Failed to start TTS service. Command not found: {self.config.service.command} ({self.path})"
             ) from e
 
@@ -50,7 +52,7 @@ class TTSServiceRunner:
     async def wait_for_ready(self) -> None:
         """Wait for the TTS service to be ready."""
         if self.process is None:
-            raise RuntimeError("TTS service is not running.")
+            raise TTSRunnerError("TTS service is not running.")
 
         timeout = self.READY_TIMEOUT_SECONDS
         socket_path = self.path / self.config.socket_path
@@ -60,7 +62,7 @@ class TTSServiceRunner:
                 while True:
                     # The service must still be alive while we wait.
                     if self.process.returncode is not None:
-                        raise RuntimeError(
+                        raise TTSRunnerError(
                             f"TTS service exited before becoming ready (return code: {self.process.returncode})."
                         )
 
@@ -72,8 +74,8 @@ class TTSServiceRunner:
                     except OSError:
                         await asyncio.sleep(0.1)
         except TimeoutError as exc:
-            raise TimeoutError(
-                f"Timed out after {timeout:.1f}s waiting for TTS socket at '{self.path}'."
+            raise TTSRunnerTimeoutError(
+                f"Timed out after {timeout:.1f}s waiting for TTS socket at '{socket_path}'."
             ) from exc
 
     @property

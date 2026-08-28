@@ -99,6 +99,11 @@ class TTSVoiceClient:
                 pass
             self._timeout_task = None
 
+    async def skip(self):
+        """Skip the current playback"""
+        if self._voice_client and self._voice_client.is_playing():
+            self._voice_client.stop()
+
     async def _ensure_connected(
         self, channel: discord.VoiceChannel
     ) -> discord.VoiceClient:
