@@ -33,10 +33,15 @@ class TTSSocketClient:
             return
 
         if not self._socket.exists():
-            raise FileNotFoundError(f"TTS socket not found at {self._socket}")
+            raise TTSServerConnectionError(f"TTS socket not found at {self._socket}")
 
-        reader, writer = await asyncio.open_unix_connection(self._socket)
-        self._writer = writer
+        try:
+            reader, writer = await asyncio.open_unix_connection(self._socket)
+            self._writer = writer
+        except OSError as e:
+            raise TTSServerConnectionError(
+                f"Failed to connect to TTS socket: {e}"
+            ) from e
         self._is_disconnecting = False
         self._read_task = asyncio.create_task(self._read_loop(reader))
 
@@ -73,6 +78,9 @@ class TTSSocketClient:
             request (TTSRequest): The TTS request to send.
 
         """
+        if not (self.is_connected or self._is_disconnecting):
+            await self.connect()
+
         async with self._semaphore:
             future = asyncio.Future[TTSResponse]()
             self._pending[request.uuid] = future
@@ -193,4 +201,4 @@ class TTSSocketClient:
         Returns:
             bool: True if connected, False otherwise.
         """
-        return self._writer is not None
+        return (self._writer is not None) and not self._is_disconnecting
