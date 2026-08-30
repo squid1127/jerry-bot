@@ -1,7 +1,6 @@
 """Main plugin file for Commands plugin."""
 
 import asyncio
-from enum import Enum
 
 import aiohttp
 import bs4
@@ -13,6 +12,7 @@ from squid_core.framework import Framework
 
 from .at_everyone import StaticCommandAtEveryoneCog
 from .constants import *
+from .repeat import StaticCommandRepeatCog
 
 
 class StaticCommands(PluginCog):
@@ -34,11 +34,9 @@ class StaticCommands(PluginCog):
         self.cat_title = "Cat as a Service"
         
         self.random = "https://www.random.org/integers"
-        
-        self.active_loops: dict[int, tasks.Loop] = {}
-        
         self.api_command_semaphore = asyncio.Semaphore(2)  # Limit to 2 concurrent API commands
         self._http_session: aiohttp.ClientSession | None = None
+
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create a shared HTTP session."""
@@ -207,35 +205,6 @@ class StaticCommands(PluginCog):
         
         await interaction.followup.send(f"*{answer}*")
         
-    @app_commands.command(name="repeat-start", description="Repeats a message in this channel")
-    @app_commands.describe(message="Message to repeat", interval="Repetition interval (minutes)")
-    async def repeat(self, interaction: discord.Interaction, message: str, interval: float):
-        channel_id = interaction.channel.id
-
-        if channel_id in self.active_loops:
-            self.active_loops[channel_id].cancel()
-
-        @tasks.loop(interval=interval)
-        async def sender():
-            await interaction.channel.send(message)
-
-        sender.start()
-        self.active_loops[channel_id] = sender
-
-        await interaction.response.send_message(
-            f"Will send {message} every {interval} minute(s) in this channel.",
-            ephemeral=True
-        )
-
-    @app_commands.command(name="repeat-stop", description="Stop the repeating message in this channel")
-    async def stoprepeat(self, interaction: discord.Interaction):
-        channel_id = interaction.channel.id
-        loop = self.active_loops.pop(channel_id, None)
-        if loop:
-            loop.cancel()
-            await interaction.response.send_message("Repetition stopped.", ephemeral=True)
-        else:
-            await interaction.response.send_message("No repeating messages.", ephemeral=True)
             
 class CommandsPlugin(Plugin):
     """Plugin class for Commands."""
@@ -244,13 +213,16 @@ class CommandsPlugin(Plugin):
         super().__init__(framework)
         self.cog = StaticCommands(self)
         self.at_everyone_cog = StaticCommandAtEveryoneCog(self)
+        self.repeat_cog = StaticCommandRepeatCog(self)
 
     async def load(self) -> None:
         """Load the Commands plugin."""
         await self.fw.bot.add_cog(self.cog)
         await self.fw.bot.add_cog(self.at_everyone_cog)
+        await self.fw.bot.add_cog(self.repeat_cog)
 
     async def unload(self) -> None:
         """Unload the Commands plugin."""
         await self.fw.bot.remove_cog(self.cog.qualified_name)
-        await self.fw.bot.remove_cog(self.cog.qualified_name)
+        await self.fw.bot.remove_cog(self.at_everyone_cog.qualified_name)
+        await self.fw.bot.remove_cog(self.repeat.qualified_name)
