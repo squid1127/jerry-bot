@@ -27,6 +27,22 @@
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "label": "Ruff Check",
+            "type": "shell",
+            "icon": {
+                "id": "check",
+                "color": "terminal.ansiGreen"
+            },
+            "command": "poetry run ruff check . --fix --unsafe-fixes",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "test",
+                "isDefault": false
+            }
         }
     ]
 }
