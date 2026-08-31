@@ -13,7 +13,7 @@ class MusicQueue:
         self._queue = deque()
         self._lock = asyncio.Lock()  # ensures async-safe access
 
-    async def add(self, track: MusicTrack, position: int = None):
+    async def add(self, track: MusicTrack, position: int | None = None):
         """
         Add a track to the queue.
         

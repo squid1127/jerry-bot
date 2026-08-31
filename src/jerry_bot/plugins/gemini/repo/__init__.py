@@ -8,8 +8,8 @@ from .provider import ProviderRegistry
 
 __all__ = [
     "ChannelRepository",
-    "LLMProfileRepository",
     "GuildRepository",
+    "LLMProfileRepository",
     "ProviderRegistry",
     # Context
     "Repositories",

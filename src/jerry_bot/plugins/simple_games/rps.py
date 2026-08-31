@@ -67,7 +67,7 @@ class RPSGame(discord.ui.LayoutView):
 
             container.add_item(discord.ui.Separator())
             if self.choices:
-                players = ", ".join(user.display_name for user in self.choices.keys())
+                players = ", ".join(user.display_name for user in self.choices)
                 container.add_item(
                     discord.ui.TextDisplay(
                         content=f"({len(self.choices)}/{self.players_count}) {players}"

@@ -58,7 +58,7 @@ class ActivityTracker:
             )
         except Exception as e:
             if not ignore_exceptions:
-                raise e
+                raise
             self.logger.error(
                 f"Failed to save activity for user {user_id} in guild {guild_id}: {e}"
             )

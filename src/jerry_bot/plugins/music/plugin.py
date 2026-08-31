@@ -44,7 +44,7 @@ class MusicPlayerPlugin(Plugin):
 
     async def unload(self):
         """Unload the Music Player Plugin."""
-        for guild_id, player in self.players.items():
+        for player in self.players.values():
             await player.stop()
         
         if self.cog is not None:

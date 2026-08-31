@@ -14,7 +14,7 @@ class ChannelRepository:
         """
         self._cache: dict[int, Channel] = {}
         self.warm_start = warm_start
-        self._is_loaded = False if warm_start else True
+        self._is_loaded = not warm_start
 
     async def load_all(self):
         """Pre-load all channel records into the cache."""
