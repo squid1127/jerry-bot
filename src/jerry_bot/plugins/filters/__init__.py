@@ -1,4 +1,4 @@
-"""Misc. Commands for Jerry Bot."""
+"""Profanity Filter for Jerry Bot."""
 
 from .filters import (
     PATTERNS,
