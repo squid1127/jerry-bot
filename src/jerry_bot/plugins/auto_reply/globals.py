@@ -160,16 +160,16 @@ def dict_table(records: list[dict]) -> tuple[list[tuple], list[str]]:
     return rows, headers
 
 @global_method(
-    doc="Get the regex pattern for a given filter level. (str) -> re.Pattern[str]",
+    doc="Get profanity filter for a given level. (str) -> re.Pattern[str]",
 )
-def filter_regex_level(level_name: str):
+def get_filter(level_name: str):
     """Get the regex pattern for a given filter level."""
     try:
         level = FilterLevel[level_name.upper()]
     except KeyError:
         raise ValueError(f"Invalid filter level: {level_name}")
     pattern = get_filter_regex(level)
-    return pattern.pattern
+    return pattern
 
 
 # * Asteval-only functions
