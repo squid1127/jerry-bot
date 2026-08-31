@@ -37,3 +37,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.basedpyright]
 reportUnusedCallResult = false
 reportExplicitAny = false
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.16.5,<0.17.0)"
+]
