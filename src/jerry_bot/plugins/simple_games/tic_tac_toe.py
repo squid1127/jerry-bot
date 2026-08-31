@@ -63,7 +63,7 @@ class TicTacToeGame(discord.ui.LayoutView):
                 button = discord.ui.Button(
                     label=cell_value.value if cell_value else EMPTY_CELL,
                     style=discord.ButtonStyle.secondary,
-                    disabled=False if interactive else True,
+                    disabled=not interactive,
                 )
                 if interactive:
                     button.callback = lambda interaction, idx=index: self.board_move_cb(interaction, idx)

@@ -179,7 +179,7 @@ class AutoReplyCog(PluginCog):
             )
         else:
             self.plugin.logger.exception(
-                f"An uncaught error occurred in a command: {error}", exc_info=True
+                f"An uncaught error occurred in a command: {error}"
             )
 
         try:

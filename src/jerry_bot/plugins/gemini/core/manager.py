@@ -101,7 +101,7 @@ class ConversationManager:
         Args:
             drain: Whether to wait for all message queues to finish processing before tearing down sessions.
         """
-        for channel_id, session in self._sessions.items():
+        for session in self._sessions.values():
             await session.stop(drain=drain)
 
     # * Message Routing *#
