@@ -1,13 +1,10 @@
 """Provider protocol for Gemini plugin providers."""
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, TYPE_CHECKING
+from collections.abc import AsyncIterator
 
-from ..models import LLMContext, LLMProfile, LLMResponseStream, ProviderCapability
 from ..config.provider_config import ProviderConfig
-
-if TYPE_CHECKING:
-    from ..config.global_config import GlobalConfig
+from ..models import LLMContext, LLMProfile, LLMResponseStream, ProviderCapability
 
 
 class Provider(ABC):

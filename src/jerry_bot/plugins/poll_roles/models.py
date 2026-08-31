@@ -1,6 +1,7 @@
 """Models for PollRoles Plugin."""
 
-from tortoise import fields, Model
+from tortoise import Model, fields
+
 
 class Poll(Model):
     """Model for a poll.

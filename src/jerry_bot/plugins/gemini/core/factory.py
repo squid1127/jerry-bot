@@ -1,17 +1,15 @@
 """Conversation factory and context builder for the Gemini plugin."""
 
+from logging import Logger
 from uuid import uuid4
 
-from discord import TextChannel
 from discord.ext.commands import Bot
-from logging import Logger
 
 from ..dc_chat import OutputContext
-
-from .context import SessionContext
-from .session import ConversationSession
 from ..models import Channel, ConfigurationError
 from ..repo import Repositories
+from .context import SessionContext
+from .session import ConversationSession
 
 
 class ConversationFactory:

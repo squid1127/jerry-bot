@@ -1,15 +1,16 @@
 """Database Models and Types for AutoReply Plugin"""
 
 from collections.abc import Sequence
-from tortoise import fields
-from tortoise.models import Model
-from tortoise.expressions import Q
 from dataclasses import dataclass, field
-import regex as re
 from functools import cached_property
 from math import ceil
 
-from .enums import ResponseType, IgnoreType, ResponseMethod
+import regex as re
+from tortoise import fields
+from tortoise.expressions import Q
+from tortoise.models import Model
+
+from .enums import IgnoreType, ResponseMethod, ResponseType
 
 
 class AutoReplyRule(Model):

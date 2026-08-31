@@ -2,10 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+
 import aiofiles
 from aiofiles import os as aiofiles_os
-from yaml import safe_load, safe_dump
+from yaml import safe_dump, safe_load
 
 from .global_config import GlobalConfig
 
@@ -13,7 +13,7 @@ from .global_config import GlobalConfig
 class ConfigManager:
     """Manages configuration loading, validation, and reloading for the Gemini plugin."""
 
-    def __init__(self, config_path: Path, logger: Optional[logging.Logger] = None):
+    def __init__(self, config_path: Path, logger: logging.Logger | None = None):
         """
         Initialize the ConfigManager.
 
@@ -23,7 +23,7 @@ class ConfigManager:
         """
         self.config_path = config_path
         self.logger = logger or logging.getLogger(__name__)
-        self._config: Optional[GlobalConfig] = None
+        self._config: GlobalConfig | None = None
 
     @property
     def template_path(self) -> Path:
@@ -31,7 +31,7 @@ class ConfigManager:
         return Path(__file__).parent / "config.example.yaml"
 
     @property
-    def config(self) -> Optional[GlobalConfig]:
+    def config(self) -> GlobalConfig | None:
         """Get the currently loaded configuration."""
         return self._config
 
@@ -92,7 +92,7 @@ class ConfigManager:
         self.logger.info("Reloading configuration...")
         return await self.load()
 
-    async def save(self, config: Optional[GlobalConfig] = None) -> None:
+    async def save(self, config: GlobalConfig | None = None) -> None:
         """
         Save the configuration to disk.
 

@@ -1,6 +1,6 @@
 """Database models for Gemini plugin."""
 
-from tortoise import fields, Model
+from tortoise import Model, fields
 
 
 class ChannelRecord(Model):

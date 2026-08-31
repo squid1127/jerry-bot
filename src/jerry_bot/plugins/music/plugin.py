@@ -1,21 +1,19 @@
 """Main Plugin Module for Music Player."""
 
-from squid_core.plugin_base import Plugin, PluginCog
-from squid_core.framework import Framework
-from squid_core.decorators import CLICommandDec, RedisSubscribe
-from squid_core.components.cli import CLIContext, EmbedLevel
-
-import discord
-from discord import app_commands
 import asyncio
 from pathlib import Path
 
-import aiofiles
+import discord
+from squid_core.components.cli import CLIContext, EmbedLevel
+from squid_core.decorators import CLICommandDec
+from squid_core.framework import Framework
+from squid_core.plugin_base import Plugin
 
-from .imports import ImportManager
-from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
-from .player import GuildMusicPlayer
 from .cog import MusicPlayerCog
+from .imports import ImportManager
+from .models.db import MusicPlaylist, MusicPlaylistEntry
+from .player import GuildMusicPlayer
+
 
 class MusicPlayerPlugin(Plugin):
     """Music Player Plugin for Jerry Bot."""

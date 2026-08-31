@@ -1,6 +1,7 @@
 """Provider and model configuration models for Gemini plugin."""
 
-from typing import Optional, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field, model_validator
 
 from ..models.enums import ProviderType
@@ -10,25 +11,25 @@ class LLMProfileConfig(BaseModel):
     """Pydantic model for individual model configuration within a provider."""
 
     name: str = Field(..., description="The name of the model.")
-    overrides: Dict[str, Any] = Field(
+    overrides: dict[str, Any] = Field(
         default_factory=dict,
         description="Any provider-specific overrides for this model.",
     )
 
     # Generic Model parameters
-    prompt: Optional[str] = Field(
+    prompt: str | None = Field(
         None, description="An optional prompt template to use with this model."
     )
-    temperature: Optional[float] = Field(
+    temperature: float | None = Field(
         None, description="Sampling temperature for the model (0.0 - 2.0)."
     )
-    max_tokens: Optional[int] = Field(
+    max_tokens: int | None = Field(
         None, description="Maximum number of tokens to generate in the response."
     )
-    top_p: Optional[float] = Field(
+    top_p: float | None = Field(
         None, description="Nucleus sampling probability for the model (0.0 - 1.0)."
     )
-    top_k: Optional[int] = Field(
+    top_k: int | None = Field(
         None, description="Top-k sampling parameter for the model (integer)."
     )
 
@@ -37,31 +38,31 @@ class ProviderConfig(BaseModel):
     """Pydantic model for provider configuration."""
 
     type: ProviderType = Field(..., description="The type of the provider.")
-    friendly_name: Optional[str] = Field(
+    friendly_name: str | None = Field(
         None, description="A user-friendly name for the provider."
     )
     default_model: LLMProfileConfig = Field(
         ..., description="The default model configuration for this provider."
     )
 
-    global_rate_limit: Optional[int] = Field(
+    global_rate_limit: int | None = Field(
         None,
         description="An optional global rate limit for this provider (requests per minute).",
     )
-    instance_rate_limit: Optional[int] = Field(
+    instance_rate_limit: int | None = Field(
         None,
         description="An optional rate limit for individual chat instances using this provider (requests per minute).",
     )
 
-    endpoint: Optional[str] = Field(
+    endpoint: str | None = Field(
         None,
         description="Optional API endpoint for the provider (if applicable, e.g., for custom or self-hosted providers).",
     )
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         None,
         description="Optional API key or authentication token for the provider (if applicable).",
     )
-    http_referer: Optional[str] = Field(
+    http_referer: str | None = Field(
         None,
         description="Optional HTTP referer for the provider (if applicable).",
     )

@@ -1,7 +1,7 @@
 """Provider models for Gemini plugin."""
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
 
 from .enums import ProviderType
 
@@ -12,4 +12,4 @@ class ProviderModel:
 
     plugin_name: str
     provider_type: ProviderType
-    config_data: Dict[str, Any]
+    config_data: dict[str, Any]

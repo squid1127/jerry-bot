@@ -5,4 +5,5 @@ Created by Squid1127, MIT License
 """
 
 from .main import main
+
 __all__ = ["main"]

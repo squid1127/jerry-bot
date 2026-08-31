@@ -1,17 +1,14 @@
 """Ollama provider for the Gemini plugin."""
 
-from .base import Provider
-from ollama import AsyncClient
+from collections.abc import AsyncIterator
+
 import ollama
-from ..models import (
-    LLMContext,
-    LLMResponseStream,
-    ModelContextRole,
-    ProviderCapability
-)
-from ..config import ProviderConfig, GlobalConfig
-from typing import AsyncIterator
+from ollama import AsyncClient
+
+from ..config import ProviderConfig
+from ..models import LLMContext, LLMResponseStream, ModelContextRole, ProviderCapability
 from ..models.exceptions import ProviderAPIError, ProviderGenerateError
+from .base import Provider
 
 
 class OllamaProvider(Provider):

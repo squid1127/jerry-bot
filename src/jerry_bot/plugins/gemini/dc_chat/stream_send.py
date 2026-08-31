@@ -1,13 +1,13 @@
 """Stream and send model output as messages dynamically."""
 
-from typing import AsyncIterator
-
-from .input_processor import OutputContext
-from ..models import LLMResponseStream, FatalError
-import discord
 import asyncio
+from collections.abc import AsyncIterator
+
+import discord
 
 from ..constants import DEFAULT_TYPING_TIMEOUT, FORBIDDEN_ERROR_MESSAGE
+from ..models import FatalError, LLMResponseStream
+from .input_processor import OutputContext
 
 
 async def stream_and_send(
@@ -127,7 +127,7 @@ def start_typing_until_event(
                     # Wait for stop event with timeout slightly less than Discord's limit
                     await asyncio.wait_for(stop_event.wait(), timeout=timeout)
                     break  # Event was set, exit cleanly
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Typing expired, loop will restart it
                     continue
 

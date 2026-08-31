@@ -1,11 +1,12 @@
 """UI Elements for PollRoles Plugin."""
 
-from .models import Poll
-from .manager_protocol import PollRoleManager
-
-from discord import ui
-import discord
 from enum import Enum
+
+import discord
+from discord import ui
+
+from .manager_protocol import PollRoleManager
+from .models import Poll
 
 
 class MessageContainer(ui.LayoutView):

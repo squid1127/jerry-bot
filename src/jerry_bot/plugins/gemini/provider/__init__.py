@@ -5,4 +5,4 @@ from .gemini import GeminiProvider
 from .ollama import OllamaProvider
 from .openrouter import OpenRouterProvider
 
-__all__ = ["Provider", "GeminiProvider", "OllamaProvider", "OpenRouterProvider"]
+__all__ = ["GeminiProvider", "OllamaProvider", "OpenRouterProvider", "Provider"]

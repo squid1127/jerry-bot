@@ -3,12 +3,10 @@
 import discord
 from discord import ui
 
-from .state_enums import LLMProfileTab, UIState
 from ..core import UIService
-from ..constants import UI_PLUGIN_NAME
-
-from .handlers import ChannelHandler, ProfileHandler, GuildHandler
+from .handlers import ChannelHandler, GuildHandler, ProfileHandler
 from .renderers import MenuRenderer
+from .state_enums import LLMProfileTab, UIState
 
 
 class GeminiConfigMenu(ui.LayoutView):

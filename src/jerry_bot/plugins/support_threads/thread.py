@@ -1,9 +1,9 @@
 """Support Thread Instance"""
 
-from .models.db import SupportThreadConfig
-from squid_core import Plugin, Framework
-
 import discord
+from squid_core import Framework, Plugin
+
+from .models.db import SupportThreadConfig
 
 # Constants
 ERROR_TITLE = "❌ Error"

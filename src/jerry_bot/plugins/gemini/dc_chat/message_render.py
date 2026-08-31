@@ -1,16 +1,16 @@
 """Message rendering module for the Gemini plugin, responsible for converting Message objects into string formats suitable for model processing or logging."""
 
 import json
+from typing import ClassVar
 
 from ..models import (
-    Message,
-    UserMessage,
-    ModelMessage,
-    ToolResponseMessage,
-    SystemMessage,
     ExceptionMessage,
+    Message,
+    ModelMessage,
+    SystemMessage,
+    ToolResponseMessage,
+    UserMessage,
 )
-from typing import ClassVar
 
 
 class MessageRenderer:

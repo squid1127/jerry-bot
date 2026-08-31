@@ -1,18 +1,18 @@
 """Discord cog for interacting with the Music Player Plugin."""
 
-from squid_core.plugin_base import Plugin, PluginCog
-
-from .interactions import MusicSearchView
-from .player import GuildMusicPlayer
-from .models.db import MusicTrack, MusicPlaylist
-from .models.enums import PlaybackState, CommandAction
-from .models.exception import UserFacingInteractionError
-from .ui import MusicControlView
+import asyncio
+from typing import Protocol
 
 import discord
 from discord import app_commands
-import asyncio
-from typing import Protocol
+from squid_core.plugin_base import Plugin, PluginCog
+
+from .interactions import MusicSearchView
+from .models.db import MusicPlaylist, MusicTrack
+from .models.enums import CommandAction, PlaybackState
+from .models.exception import UserFacingInteractionError
+from .player import GuildMusicPlayer
+from .ui import MusicControlView
 
 MUSIC_CONTROL_TIMEOUT = 300.0  # 5 minutes
 

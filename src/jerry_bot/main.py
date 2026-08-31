@@ -1,7 +1,9 @@
 """Main runner for Jerry Bot."""
 
-from squid_core.framework import Framework
 from pathlib import Path
+
+from squid_core.framework import Framework
+
 
 def main() -> None:
     """Main function to run the bot."""

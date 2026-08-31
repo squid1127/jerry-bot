@@ -1,18 +1,18 @@
 """Main Cog for PollRoles Plugin."""
 
 import asyncio
-from typing import Protocol
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands
-from datetime import timezone, datetime, time
+from datetime import UTC, datetime, time
 
-from .models import Poll
-from .ui import MessageContainer, generic_error_view, PollManagerView
-from .manager_protocol import PollRoleManager
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
 
 # squid_core imports
-from squid_core import PluginCog, Plugin, Framework
+from squid_core import Plugin, PluginCog
+
+from .manager_protocol import PollRoleManager
+from .models import Poll
+from .ui import PollManagerView, generic_error_view
 
 VOTE_UPDATE_TIMEOUT_SECONDS = (
     15.0  # Timeout for processing vote updates to prevent hanging on locks
@@ -178,7 +178,7 @@ class PollRolesCog(PluginCog):
                     ),
                     timeout=VOTE_UPDATE_TIMEOUT_SECONDS,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.plugin.logger.warning(
                     f"Timeout while processing vote update for poll {poll.id}. This may indicate a performance issue or a deadlock."
                 )
@@ -187,10 +187,10 @@ class PollRolesCog(PluginCog):
                     f"Error processing role updates for poll {poll.id}: {e}"
                 )
 
-    @tasks.loop(time=time(hour=0, minute=0, tzinfo=timezone.utc))
+    @tasks.loop(time=time(hour=0, minute=0, tzinfo=UTC))
     async def cleanup_expired_polls(self):
         """Background task to clean up expired polls."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired_polls = await Poll.filter(active=True, expire_by__lte=now).all()
 
         for poll in expired_polls:

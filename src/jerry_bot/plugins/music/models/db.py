@@ -1,8 +1,9 @@
 """Database Models and Types for Music Player Plugin"""
 
+
 from tortoise import fields
 from tortoise.models import Model
-from dataclasses import dataclass, field
+
 
 class MusicTrack(Model):
     """Model representing a music track in the database.

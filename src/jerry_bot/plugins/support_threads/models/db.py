@@ -2,6 +2,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
+
 class SupportThreadConfig(Model):
     """
     Configuration model for support threads in a Discord guild.

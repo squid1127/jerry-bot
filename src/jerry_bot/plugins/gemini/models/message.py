@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Union
 from datetime import datetime
+from typing import Union
 
-from .enums import MessageSource, MessageDestination, ModelContextRole
+from .enums import MessageDestination, MessageSource, ModelContextRole
 from .function_call import FunctionCall
 
 
@@ -17,7 +17,7 @@ class Participant:
 
     id: int
     username: str
-    display_name: Optional[str] = None
+    display_name: str | None = None
 
     @property
     def name(self) -> str:
@@ -36,18 +36,18 @@ class Attachment:
 
     filename: str
     content: bytes
-    mime_type: Optional[str] = None  # e.g., "image/png", "application/pdf", etc.
+    mime_type: str | None = None  # e.g., "image/png", "application/pdf", etc.
 
 
 @dataclass(frozen=True, slots=True)
 class Embed:
     """Dataclass for a chat embed."""
 
-    title: Optional[str] = None
-    description: Optional[str] = None
-    author: Optional[str] = None
-    fields: Optional[dict[str, str]] = None  # e.g., {"Field Name": "Field Value"}
-    footer: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    author: str | None = None
+    fields: dict[str, str] | None = None  # e.g., {"Field Name": "Field Value"}
+    footer: str | None = None
 
     def as_string(self) -> str:
         """Convert the embed to a string representation for model processing."""
@@ -78,13 +78,11 @@ class BaseMessage(ABC):
     @abstractmethod
     def source(self) -> MessageSource:
         """Get the message source."""
-        pass
 
     @property
     @abstractmethod
     def destination(self) -> MessageDestination:
         """Get the message destination."""
-        pass
 
     @property
     def context_role(self) -> ModelContextRole:
@@ -99,9 +97,9 @@ class UserMessage(BaseMessage):
     """Chat message from a user to the model."""
 
     user: Participant
-    content: Optional[str] = None
-    attachments: Optional[list[Attachment]] = None
-    embeds: Optional[list[Embed]] = None
+    content: str | None = None
+    attachments: list[Attachment] | None = None
+    embeds: list[Embed] | None = None
     sent_at: datetime = field(default_factory=datetime.now)
 
     @property
@@ -117,8 +115,8 @@ class UserMessage(BaseMessage):
 class ModelMessage(BaseMessage):
     """Chat message from the model to the user."""
 
-    content: Optional[str] = None
-    function_call: Optional[FunctionCall] = None
+    content: str | None = None
+    function_call: FunctionCall | None = None
     sent_at: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
@@ -188,7 +186,7 @@ class ExceptionMessage(BaseMessage):
 
     error: Exception
     fatal: bool = False  # Indicates if this error should halt the conversation
-    message: Optional[Message] = (
+    message: Message | None = (
         None  # The message being processed when the error occurred
     )
     sent_at: datetime = field(default_factory=datetime.now)

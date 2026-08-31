@@ -1,15 +1,14 @@
 """Model definitions for the Gemini plugin, including model context generation and message models."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..config.provider_config import LLMProfileConfig
 
-from .message import Message, Participant
+from .database import LLMProfileRecord
 from .enums import ModelContextRole
 from .function_call import FunctionCall
-from .database import LLMProfileRecord
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,16 +17,16 @@ class LLMProfile:
 
     model_name: str
     provider_name: str
-    overrides: Dict[str, Any] = field(default_factory=dict)
-    failover_options: Dict[str, Any] = field(default_factory=dict)
-    id: Optional[int] = None  # Optional ID field for database records
+    overrides: dict[str, Any] = field(default_factory=dict)
+    failover_options: dict[str, Any] = field(default_factory=dict)
+    id: int | None = None  # Optional ID field for database records
 
     # Generic Model parameters
-    prompt: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    top_k: Optional[int] = None
+    prompt: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+    top_k: int | None = None
 
     @classmethod
     def from_config(
@@ -92,7 +91,7 @@ class LLMContextMessage:
 
     role: ModelContextRole
     content: str
-    attachment: Optional[Any] = None
+    attachment: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +101,6 @@ class LLMResponseStream:
     This can contain either content or a function call, and an optional start flag to indicate the beginning of a chunk
     """
 
-    content: Optional[str] = None
-    function_call: Optional[FunctionCall] = None
+    content: str | None = None
+    function_call: FunctionCall | None = None
     start: bool = False

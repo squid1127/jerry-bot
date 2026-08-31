@@ -1,7 +1,7 @@
 """Completely unrelated file that makes output that completely breaks the tts system."""
 
-import random
 import argparse
+import random
 
 chars = r"""{}|?,.[]();:"'"""
 

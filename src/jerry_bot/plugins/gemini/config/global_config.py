@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional, Dict
 from pydantic import BaseModel, Field
 
-from .provider_config import ProviderConfig, LLMProfileConfig
 from ..constants import GLOBAL_PROMPT
+from .provider_config import LLMProfileConfig, ProviderConfig
 
 
 class GlobalConfig(BaseModel):
@@ -17,18 +16,18 @@ class GlobalConfig(BaseModel):
         description="The default provider to use for Gemini instances.",
         examples=["gemini", "custom-ollama"],
     )
-    providers: Dict[str, ProviderConfig] = Field(
+    providers: dict[str, ProviderConfig] = Field(
         ...,
         description="A dictionary of provider configurations, keyed by name.",
     )
 
-    friendly_name: Optional[str] = Field(
+    friendly_name: str | None = Field(
         None,
         description="A user-friendly name for the plugin instance.",
         examples=["Jerry", "AI Assistant"],
     )
 
-    global_prompt: Optional[str] = Field(
+    global_prompt: str | None = Field(
         GLOBAL_PROMPT,
         description="A global prompt to prepend to all conversations, containing guidelines and instructions. Defaults to a playful octopus persona named Jerry if not set.",
     )
@@ -61,7 +60,7 @@ class EphemeralConfig(BaseModel):
         ...,
         description="The model configuration to use for ephemeral conversations. This allows you to specify a different model or provider for ephemeral interactions compared to regular conversations.",
     )
-    provider: Optional[str] = Field(
+    provider: str | None = Field(
         None,
         description="The name of the provider to use for ephemeral conversations. If not set, the default provider will be used.",
         examples=["gemini", "custom-ollama"],

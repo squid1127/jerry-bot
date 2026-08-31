@@ -2,14 +2,15 @@
 
 import asyncio
 import logging
+import time
 from typing import ClassVar, Protocol
+
 from ..models import Message
 from ..models.exceptions import (
+    ConversationInactivityTimeoutError,
     FatalError,
     ProviderError,
-    ConversationInactivityTimeoutError,
 )
-import time
 
 
 class TurnHandler(Protocol):

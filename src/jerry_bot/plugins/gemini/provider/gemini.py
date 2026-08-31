@@ -1,20 +1,20 @@
 """Gemini provider for the Gemini plugin."""
 
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from google.genai import Client, types
 from google.genai.errors import ClientError
 
-from .base import Provider
+from ..config import ProviderConfig
 from ..models import (
     FunctionCall,
     LLMContext,
-    ModelContextRole,
     LLMResponseStream,
-    ProviderCapability
+    ModelContextRole,
+    ProviderCapability,
 )
-from ..config import ProviderConfig
 from ..models.exceptions import ProviderAPIError
+from .base import Provider
 
 
 class GeminiProvider(Provider):

@@ -1,8 +1,10 @@
 """Tic Tac Toe game implementation for Jerry Bot."""
 
-from enum import Enum, IntEnum, auto
-import discord
 import uuid
+from enum import Enum, IntEnum, auto
+
+import discord
+
 
 class Player(Enum):
     P1 = "❌"

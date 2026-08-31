@@ -1,13 +1,14 @@
 """UI rendering logic for Gemini configuration menu"""
 
+from typing import TYPE_CHECKING
+
 import discord
 from discord import ui
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..core import UIService
     from .menu import GeminiConfigMenu
-from .state_enums import LLMProfileTab, UIState
+from .state_enums import LLMProfileTab
 
 
 class MenuRenderer:

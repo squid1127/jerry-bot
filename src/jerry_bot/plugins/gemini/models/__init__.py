@@ -1,42 +1,48 @@
 """Data models for the Gemini plugin."""
 
-from .enums import MessageSource, MessageDestination, ProviderType, ModelContextRole, ProviderCapability
-from .message import (
-    Participant,
-    Attachment,
-    Embed,
-    BaseMessage,
-    UserMessage,
-    ModelMessage,
-    ToolResponseMessage,
-    SystemMessage,
-    ExceptionMessage,
-    Message,
-)
-from .database import ChannelRecord, GuildRecord, LLMProfileRecord
-from .function_call import FunctionCall
-from .provider import ProviderModel
-from .llm import LLMProfile, LLMContext, LLMContextMessage, LLMResponseStream
 from .channel import Channel
+from .database import ChannelRecord, GuildRecord, LLMProfileRecord
+from .enums import (
+    MessageDestination,
+    MessageSource,
+    ModelContextRole,
+    ProviderCapability,
+    ProviderType,
+)
 from .exceptions import (
-    GeminiError,
-    FatalError,
-    ConfigurationError,
+    ChannelAlreadyRegisteredError,
     ChannelError,
     ChannelNotRegisteredError,
-    ChannelAlreadyRegisteredError,
+    ConfigurationError,
+    ContextGenerationError,
     ConversationError,
-    MessageProcessingError,
     ConversationInactivityTimeoutError,
+    FatalError,
+    FunctionCallError,
+    GeminiError,
+    MessageProcessingError,
+    ProviderAPIError,
+    ProviderAPIRateLimitError,
     ProviderError,
     ProviderGenerateError,
     ProviderRateLimitError,
-    ProviderAPIError,
-    ProviderAPIRateLimitError,
     ProviderTimeoutError,
-    FunctionCallError,
-    ContextGenerationError,
 )
+from .function_call import FunctionCall
+from .llm import LLMContext, LLMContextMessage, LLMProfile, LLMResponseStream
+from .message import (
+    Attachment,
+    BaseMessage,
+    Embed,
+    ExceptionMessage,
+    Message,
+    ModelMessage,
+    Participant,
+    SystemMessage,
+    ToolResponseMessage,
+    UserMessage,
+)
+from .provider import ProviderModel
 
 __all__ = [
     # Enums

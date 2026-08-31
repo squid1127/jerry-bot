@@ -1,12 +1,14 @@
 """Activity tracking for Activity Roles plugin."""
 
-from redis.asyncio import Redis
-import squid_core
-from datetime import datetime, timedelta, timezone
 import asyncio
+from datetime import UTC, datetime, timedelta
 
-from .models.db import ActivityRoleEntry, ActivityRoleConfig
+import squid_core
+from redis.asyncio import Redis
+
 from .models.dataclasses import ActivityRoleUpdate
+from .models.db import ActivityRoleConfig, ActivityRoleEntry
+
 
 class ActivityTracker:
     """Class to track user activity within guilds."""
@@ -113,7 +115,7 @@ class ActivityTracker:
                 last_active_timestamp = await self.redis.get(key)
                 if last_active_timestamp is None:
                     continue
-                last_active = datetime.fromtimestamp(int(last_active_timestamp), tz=timezone.utc)
+                last_active = datetime.fromtimestamp(int(last_active_timestamp), tz=UTC)
                 redis_data.append((guild_id, user_id, last_active))
                 redis_keys.append(key)
                 
@@ -252,7 +254,7 @@ class ActivityTracker:
         
         # Set last_active to a time that's definitely beyond the threshold (making them inactive)
         # Using current time minus (threshold + 1 day) to ensure they're marked as inactive
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         inactive_timestamp = now - config.activity_threshold - timedelta(days=1)
         
         # Create new entries for missing members

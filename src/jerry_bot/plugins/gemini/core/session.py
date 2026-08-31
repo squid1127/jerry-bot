@@ -1,15 +1,12 @@
 """Individual, channel-scoped conversations within the Gemini plugin."""
 
 from logging import Logger
-from typing import TYPE_CHECKING, Optional
 
-from ..dc_chat import OutputContext
-
+from ..dc_chat import LLMContextGenerator
+from ..models import Message
 from .context import SessionContext
-from ..models import ChannelRecord, GuildRecord, Message, LLMProfile
 from .message_queue import MessageQueue
 from .turn_engine import TurnEngine
-from ..dc_chat import LLMContextGenerator
 
 
 class ConversationSession:

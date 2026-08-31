@@ -1,10 +1,10 @@
 """Input processor for converting Discord messages into Gemini Message objects for processing by the conversation engine."""
 
 from dataclasses import dataclass
-from typing import Optional
+
 import discord
 
-from ..models import Message, UserMessage, Participant, Attachment, Embed
+from ..models import Attachment, Embed, Participant, UserMessage
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +18,7 @@ class OutputContext:
 class InputProcessor:
     """Processor for converting Discord messages into Gemini Message objects."""
 
-    async def process(self, message: discord.Message) -> Optional[UserMessage]:
+    async def process(self, message: discord.Message) -> UserMessage | None:
         """Convert a Discord message into a UserMessage."""
         if message.guild is None or not isinstance(
             message.channel, discord.TextChannel

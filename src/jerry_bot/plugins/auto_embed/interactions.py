@@ -28,8 +28,7 @@ def parse_color(color_input: str) -> int | None:
     color_input = color_input.strip().lower()
     
     # Try hex code
-    if color_input.startswith("#"):
-        color_input = color_input[1:]
+    color_input = color_input.removeprefix("#")
     if len(color_input) == 6 and all(c in "0123456789abcdef" for c in color_input):
         try:
             return int(color_input, 16)
@@ -193,7 +192,6 @@ class AutoEmbedInputForm(discord.ui.Modal):
         # Modal timeout means the user didn't submit in time.
         # We can't send a response since the interaction has expired.
         # Just silently timeout to avoid "interaction failed" errors.
-        pass
 
 
 class AutoEmbedPreviewView(discord.ui.View):
@@ -240,10 +238,10 @@ class AutoEmbedPreviewView(discord.ui.View):
         try:
             # Send using an interaction followup
             await interaction.response.send_message(content=self.message, embed=self.embed)
-        except Exception as e:
+        except Exception:
             await interaction.response.send_message(
                 embed=discord.Embed(
-                    description=f"Uh oh! I tried to send something but it blew up: :(",
+                    description="Uh oh! I tried to send something but it blew up: :(",
                     color=discord.Color.red(),
                 ),
                 ephemeral=True,
@@ -267,10 +265,10 @@ class AutoEmbedPreviewView(discord.ui.View):
                 ephemeral=True,
             )
             return
-        except Exception as e:
+        except Exception:
             await interaction.response.send_message(
                 embed=discord.Embed(
-                    description=f"Uh oh! I tried to send something but it blew up: :(",
+                    description="Uh oh! I tried to send something but it blew up: :(",
                     color=discord.Color.red(),
                 ),
                 ephemeral=True,

@@ -1,11 +1,12 @@
 """Globals for jinja2 and asteval."""
 
 import json
-import yaml
-from typing import Any
 import random
 import time
+from typing import Any
+
 import regex as re
+import yaml
 from tabulate import tabulate
 
 GLOBALS: dict[str, Any] = {}

@@ -2,11 +2,12 @@
 
 # squid_core imports
 import discord
-from squid_core import Plugin, PluginCog, Framework
+from squid_core import Framework, Plugin
+
+from .cog import PollRolesCog
 
 # local imports
 from .models import Poll
-from .cog import PollRolesCog
 
 
 class PollRoles(Plugin):

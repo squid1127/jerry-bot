@@ -24,8 +24,7 @@ Inheritance tree
     └── ContextGenerationError         # Error building model context
 """
 
-from typing import Any, Optional
-
+from typing import Any
 
 # ── Base ──────────────────────────────────────────────────────────────────
 
@@ -102,8 +101,8 @@ class ConversationInactivityTimeoutError(ConversationError):
         self,
         message: str = "Conversation timed out due to inactivity.",
         *args: Any,
-        timeout_seconds: Optional[float] = None,
-        channel_id: Optional[int] = None,
+        timeout_seconds: float | None = None,
+        channel_id: int | None = None,
         **kwargs: Any,
     ):
         self.timeout_seconds = timeout_seconds
@@ -129,7 +128,7 @@ class ProviderError(GeminiError):
         self,
         message: str = "",
         *args: Any,
-        provider_name: Optional[str] = None,
+        provider_name: str | None = None,
         **kwargs: Any,
     ):
         self.provider_name = provider_name
@@ -152,7 +151,7 @@ class ProviderRateLimitError(ProviderError):
         self,
         message: str = "Internal rate limit exceeded",
         *args: Any,
-        retry_after: Optional[float] = None,
+        retry_after: float | None = None,
         **kwargs: Any,
     ):
         self.retry_after = retry_after
@@ -166,7 +165,7 @@ class ProviderAPIError(ProviderError):
         self,
         message: str = "",
         *args: Any,
-        status_code: Optional[int] = None,
+        status_code: int | None = None,
         **kwargs: Any,
     ):
         self.status_code = status_code
@@ -181,7 +180,7 @@ class ProviderAPIRateLimitError(ProviderAPIError):
         self,
         message: str = "API rate limit exceeded",
         *args: Any,
-        retry_after: Optional[float] = None,
+        retry_after: float | None = None,
         **kwargs: Any,
     ):
         self.retry_after = retry_after
@@ -202,7 +201,7 @@ class FunctionCallError(GeminiError):
         self,
         message: str = "",
         *args: Any,
-        function_name: Optional[str] = None,
+        function_name: str | None = None,
         **kwargs: Any,
     ):
         self.function_name = function_name

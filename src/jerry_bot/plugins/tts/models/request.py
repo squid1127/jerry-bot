@@ -1,9 +1,11 @@
 """IO Models for the text-to-speech plugin."""
 
-from pydantic import BaseModel, Field, ValidationError
 from uuid import uuid4
 
+from pydantic import BaseModel, Field, ValidationError
+
 from .config import TTSVoiceConfig
+
 
 class TTSRequest(BaseModel):
     """TTS request model"""

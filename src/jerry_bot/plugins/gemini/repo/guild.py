@@ -2,6 +2,7 @@
 
 from ..models import GuildRecord
 
+
 class GuildRepository:
     """Repository for managing guild records."""
 

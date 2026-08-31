@@ -1,18 +1,16 @@
 """Main plugin file for SupportThreads plugin."""
 
-import asyncio
-from squid_core import Plugin as PluginBase, PluginCog, Framework
-
-from .models.db import SupportThreadConfig
-from .thread import SupportThreadInstance
-from .constants import (
-    SUPPORT_THREAD_ERROR_TITLE,
-)
-
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ext import tasks
+from squid_core import Framework, PluginCog
+from squid_core import Plugin as PluginBase
+
+from .constants import (
+    SUPPORT_THREAD_ERROR_TITLE,
+)
+from .models.db import SupportThreadConfig
+from .thread import SupportThreadInstance
 
 
 class SupportThreadsPlugin(PluginBase):

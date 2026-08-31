@@ -1,7 +1,7 @@
 """Dataclasses for the music plugin."""
 
 from dataclasses import dataclass
-from pathlib import Path
+
 
 @dataclass
 class TrackMetadata:

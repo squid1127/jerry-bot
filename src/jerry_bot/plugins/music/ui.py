@@ -1,12 +1,10 @@
 """Discord UI components for the music plugin."""
 
-import asyncio
-from discord import ui
 import discord
+from discord import ui
 
-from .player import GuildMusicPlayer
 from .models.enums import PlaybackState
-from .models.db import MusicTrack
+from .player import GuildMusicPlayer
 
 LISTEN_EVENTS = {"add_track", "add_playlist", "track_start", "stop", "pause", "resume"}
 

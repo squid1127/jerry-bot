@@ -1,12 +1,13 @@
 """OpenRouter provider for the Gemini plugin."""
 
-from .base import Provider
-from ..models import LLMContext, LLMResponseStream, ModelContextRole, ProviderCapability
-from ..config import ProviderConfig, GlobalConfig
-from typing import AsyncIterator
-from ..models.exceptions import ProviderAPIError
+from collections.abc import AsyncIterator
+
 from openrouter import OpenRouter
 
+from ..config import ProviderConfig
+from ..models import LLMContext, LLMResponseStream, ModelContextRole, ProviderCapability
+from ..models.exceptions import ProviderAPIError
+from .base import Provider
 
 
 class OpenRouterProvider(Provider):

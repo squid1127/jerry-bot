@@ -1,12 +1,13 @@
 """Discord Modal for Gemini Channel Configuration"""
 
+from collections.abc import Callable, Coroutine
+from enum import Enum
+
 import discord
 from discord import ui
-from enum import Enum
-from typing import Coroutine, Callable
 
-from ..core import UIService
 from ..constants import UI_PLUGIN_NAME
+from ..core import UIService
 
 
 class GeminiConfigModal(ui.Modal):

@@ -1,9 +1,11 @@
 """Simple queue system for music tracks."""
 
-from .models.db import MusicTrack
-from collections import deque
 import asyncio
 import random
+from collections import deque
+
+from .models.db import MusicTrack
+
 
 class MusicQueue:
     """A simple async-safe queue for music tracks."""

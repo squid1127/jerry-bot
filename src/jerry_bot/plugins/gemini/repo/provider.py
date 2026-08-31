@@ -1,16 +1,14 @@
 """Manager for LLM providers in the Gemini plugin."""
 
-from typing import ClassVar, Dict, Type
 
-from ..provider.base import Provider
 from ..config import GlobalConfig
 from ..models.enums import ProviderType
-
-from ..provider.ollama import OllamaProvider
+from ..provider.base import Provider
 from ..provider.gemini import GeminiProvider
+from ..provider.ollama import OllamaProvider
 from ..provider.openrouter import OpenRouterProvider
 
-PROVIDER_CLASSES: Dict[ProviderType, Type[Provider]] = {
+PROVIDER_CLASSES: dict[ProviderType, type[Provider]] = {
     ProviderType.OLLAMA: OllamaProvider,
     ProviderType.GEMINI: GeminiProvider,
     ProviderType.OPENROUTER: OpenRouterProvider,
@@ -22,7 +20,7 @@ class ProviderRegistry:
     def __init__(self, global_config: GlobalConfig):
         """Initialize the ProviderRegistry   with the given global configuration."""
         self.global_config = global_config
-        self._providers: Dict[str, Provider] = {}
+        self._providers: dict[str, Provider] = {}
 
         self._initialize_providers()
 
@@ -65,6 +63,6 @@ class ProviderRegistry:
         return self.get_provider(self.global_config.default_provider)
 
     @property
-    def providers(self) -> Dict[str, Provider]:
+    def providers(self) -> dict[str, Provider]:
         """Get all initialized providers."""
         return self._providers
