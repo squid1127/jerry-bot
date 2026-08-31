@@ -1,16 +1,17 @@
 """Guild-based playback system for Jerry Bot."""
 
-from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
+import asyncio
+import inspect
+import logging
+import weakref
+from pathlib import Path
+
+import discord
+
+from .models.db import MusicPlaylist, MusicPlaylistEntry, MusicTrack
 from .models.enums import PlaybackState
 from .queue import MusicQueue
 
-from pathlib import Path
-
-import logging
-import discord
-import asyncio
-import weakref
-import inspect
 
 class GuildMusicPlayer:
     """Manages music playback for a specific guild."""
@@ -95,7 +96,7 @@ class GuildMusicPlayer:
                 try:
                     # Use timeout to prevent hanging during shutdown
                     await asyncio.wait_for(self.connection.disconnect(), timeout=2.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.logger.warning(f"Disconnect timed out for guild {self.guild.id}, forcing cleanup")
                     self.connection.cleanup()
                 self.logger.info(f"Disconnected from voice channel in guild {self.guild.id}")
@@ -174,7 +175,7 @@ class GuildMusicPlayer:
                 try:
                     # Use timeout to prevent hanging during shutdown
                     await asyncio.wait_for(self.connection.disconnect(), timeout=2.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.logger.warning(f"Disconnect timed out for guild {self.guild.id}, forcing cleanup")
                     self.connection.cleanup()
                 self.logger.info(f"Disconnected from voice channel in guild {self.guild.id}")

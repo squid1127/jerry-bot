@@ -1,29 +1,29 @@
 """Main Module for AutoReply"""
 
 # squid_core imports
-from squid_core.plugin_base import Plugin
-from squid_core.framework import Framework
-from squid_core.decorators import DiscordEventListener, CLICommandDec, RedisSubscribe
-from squid_core.components.cli import CLIContext, EmbedLevel
+from typing import TYPE_CHECKING
 
 # other imports
 import discord
-from typing import Optional, TYPE_CHECKING
+from squid_core.components.cli import CLIContext
+from squid_core.decorators import CLICommandDec, DiscordEventListener, RedisSubscribe
+from squid_core.framework import Framework
+from squid_core.plugin_base import Plugin
 
 # plugin integration imports
 if TYPE_CHECKING:
     from ..gemini import Gemini as GeminiPlugin
     from ..gemini.models import (
         Channel as GeminiChannel,
-        GuildRecord as GeminiGuild,
     )
 
 # local imports
-from .models.db import AutoReplyIgnore
-from .models.enums import IgnoreType
-from .cog import AutoReplyCog
 from .ar import AutoReply
 from .cli_handler import handle_cli
+from .cog import AutoReplyCog
+from .models.db import AutoReplyIgnore
+from .models.enums import IgnoreType
+
 
 class AutoReplyPlugin(Plugin):
     """AutoReply Plugin."""

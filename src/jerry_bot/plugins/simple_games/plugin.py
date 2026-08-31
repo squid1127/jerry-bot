@@ -1,14 +1,13 @@
 """Main Module for SimpleGames"""
 
 # squid_core imports
-from squid_core import Plugin, PluginCog, Framework
-
 import discord
-from discord.ext import commands
 from discord import app_commands
+from squid_core import Framework, Plugin, PluginCog
 
 from .rps import RPSGame
 from .tic_tac_toe import TicTacToeGame
+
 
 class SimpleGames(Plugin):
     """SimpleGames Plugin."""

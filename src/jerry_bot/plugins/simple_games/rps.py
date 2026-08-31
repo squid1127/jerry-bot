@@ -1,6 +1,7 @@
 """Simplified 2P Rock Paper Scissors game"""
 
 from enum import Enum, IntEnum, auto
+
 import discord
 
 

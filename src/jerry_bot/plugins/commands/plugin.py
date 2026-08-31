@@ -6,7 +6,6 @@ import aiohttp
 import bs4
 import discord
 from discord import app_commands
-from discord.ext import tasks
 from squid_core import Plugin, PluginCog
 from squid_core.framework import Framework
 

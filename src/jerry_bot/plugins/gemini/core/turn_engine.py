@@ -1,35 +1,33 @@
 """Turn engine for orchestrating one conversation turn at a time."""
 
-import asyncio
-from dataclasses import dataclass
 import logging
 import traceback
-from typing import TYPE_CHECKING, AsyncIterator
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
-from .context import SessionContext
-
-from ..dc_chat import LLMContextGenerator, OutputContext
-from ..models import (
-    ExceptionMessage,
-    FunctionCall,
-    ToolResponseMessage,
-    Message,
-    LLMContext,
-    ModelMessage,
-    LLMResponseStream,
-    SystemMessage,
-    UserMessage,
-)
-from ..models.exceptions import FatalError, FunctionCallError, ProviderError
 from ..dc_chat import (
+    LLMContextGenerator,
     buffered_cooldown,
-    live_character_buffer,
     filter_profanity,
+    live_character_buffer,
     send_error_message,
     split_paragraphs,
     start_typing_until_event,
     stream_and_edit,
 )
+from ..models import (
+    ExceptionMessage,
+    FunctionCall,
+    LLMContext,
+    LLMResponseStream,
+    Message,
+    ModelMessage,
+    SystemMessage,
+    ToolResponseMessage,
+    UserMessage,
+)
+from ..models.exceptions import FatalError, FunctionCallError, ProviderError
+from .context import SessionContext
 
 
 @dataclass(slots=True)

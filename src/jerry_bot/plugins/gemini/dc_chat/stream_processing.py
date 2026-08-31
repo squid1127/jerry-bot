@@ -1,11 +1,15 @@
 """Various async iterators for processing model response streams, such as splitting by paragraphs or extracting content."""
 
-from typing import AsyncIterator
-from ..models import LLMResponseStream
 import asyncio
 import re
+from collections.abc import AsyncIterator
 
-from ..constants import DEFAULT_MAX_CHUNK_SIZE, FILTER_PROFANITY_PATTERN, FILTER_PROFANITY_REPLACEMENT
+from ..constants import (
+    DEFAULT_MAX_CHUNK_SIZE,
+    FILTER_PROFANITY_PATTERN,
+    FILTER_PROFANITY_REPLACEMENT,
+)
+from ..models import LLMResponseStream
 
 FILTER_PROFANITY_REGEX = re.compile(FILTER_PROFANITY_PATTERN, re.IGNORECASE)
 
@@ -148,7 +152,7 @@ async def buffered_cooldown(
                         asyncio.shield(pending_get), timeout=remaining
                     )
                     pending_get = None
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Window expired; pending_get survives and becomes the first
                     # item of the next window.
                     break

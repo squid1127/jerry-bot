@@ -2,6 +2,7 @@
 
 from enum import Enum
 
+
 class PlaybackState(Enum):
     """Enumeration for playback states."""
     

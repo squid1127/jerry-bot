@@ -1,21 +1,13 @@
 """Model context generator for Gemini."""
 
-from typing import TYPE_CHECKING, Optional
-
-from ..models import (
-    Message,
-    LLMContext,
-    LLMContextMessage,
-    LLMProfile,
-    GuildRecord,
-    ChannelRecord,
-)
-
-if TYPE_CHECKING:
-    from ..config.global_config import GlobalConfig
-from .message_render import MessageRenderer
 
 from ..core.context import SessionContext
+from ..models import (
+    LLMContext,
+    LLMContextMessage,
+    Message,
+)
+from .message_render import MessageRenderer
 
 
 class LLMContextGenerator:

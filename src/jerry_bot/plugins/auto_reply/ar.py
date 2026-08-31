@@ -6,8 +6,8 @@ from squid_core import Framework, Plugin
 from .jinja_manager import JinjaManager
 from .models.db import (
     AutoReplyIgnore,
-    AutoReplyRule,
     AutoReplyIgnoreData,
+    AutoReplyRule,
     AutoReplyRuleData,
 )
 from .models.enums import IgnoreType

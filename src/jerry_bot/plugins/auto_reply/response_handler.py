@@ -1,10 +1,11 @@
 """Response handler for auto-reply rules."""
 
 import random
-import regex as re
-from typing import Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import discord
+import regex as re
 import yaml
 from squid_core import Plugin
 from squid_core.components.cli import CLIManager, EmbedLevel

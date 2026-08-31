@@ -1,14 +1,14 @@
 """Editor modal for the Auto Reply plugin."""
 
+
 import discord
-from typing import Callable, Optional
 import regex as re
 
 from ..ar import AutoReply
-from .constants import RULE_TYPE_MAPPING, RESPONSE_METHOD_MAPPING
 from ..models.db import AutoReplyRule
-from ..models.enums import ResponseType, ResponseMethod
+from ..models.enums import ResponseMethod, ResponseType
 from .common import send_error
+from .constants import RESPONSE_METHOD_MAPPING, RULE_TYPE_MAPPING
 
 
 class AutoReplyRuleModal(discord.ui.Modal):
@@ -119,7 +119,7 @@ class AutoReplyRuleModal(discord.ui.Modal):
                 await interaction.response.send_message(
                     embed=discord.Embed(
                         title="Invalid Trigger",
-                        description=f"The regex pattern is invalid: {str(e)}",
+                        description=f"The regex pattern is invalid: {e!s}",
                         color=discord.Color.red(),
                     ),
                     ephemeral=True,

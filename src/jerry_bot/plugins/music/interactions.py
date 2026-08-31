@@ -1,9 +1,10 @@
 """Discord interactions and UI for the Music Player Plugin."""
 
-from .player import GuildMusicPlayer
-from .models.enums import PlaybackState, CommandAction
-from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
 import discord
+
+from .models.db import MusicPlaylist, MusicTrack
+from .player import GuildMusicPlayer
+
 
 class MusicSearchView(discord.ui.View):
     """View for music search results."""

@@ -1,14 +1,16 @@
 """Track import and cataloging for the music plugin."""
 
 import asyncio
+import hashlib
 import logging
 from pathlib import Path
-import aiofiles, hashlib
+
+import aiofiles
 import aiofiles.os as aios
 import mutagen
 
-from .models.db import MusicTrack, MusicPlaylist, MusicPlaylistEntry
 from .models.dataclasses import TrackMetadata
+from .models.db import MusicPlaylist, MusicPlaylistEntry, MusicTrack
 
 
 class ImportManager:

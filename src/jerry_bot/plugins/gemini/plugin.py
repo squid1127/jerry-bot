@@ -1,26 +1,25 @@
 """Main Module for Gemini"""
 
-from typing import Optional
-import discord
 from pathlib import Path
 
+import discord
+
 # squid_core imports
-from squid_core import Plugin, Framework
+from squid_core import Framework, Plugin
 from squid_core.decorators import DiscordEventListener
 
 # Plugin imports
 from .config import ConfigManager, GlobalConfig
 from .core import ConversationManager, UIService
 from .dc_chat import InputProcessor, OutputContext
-
 from .dc_config.cog import GeminiCog
 from .models import Channel
 from .repo import (
-    Repositories,
     ChannelRepository,
     GuildRepository,
     LLMProfileRepository,
     ProviderRegistry,
+    Repositories,
 )
 
 
@@ -29,11 +28,11 @@ class Gemini(Plugin):
 
     def __init__(self, framework: Framework):
         super().__init__(framework)
-        self.cog: Optional[GeminiCog] = None
-        self.ui_service: Optional[UIService] = None
-        self.config_manager: Optional[ConfigManager] = None
-        self.conversation_manager: Optional[ConversationManager] = None
-        self.repos: Optional[Repositories] = None
+        self.cog: GeminiCog | None = None
+        self.ui_service: UIService | None = None
+        self.config_manager: ConfigManager | None = None
+        self.conversation_manager: ConversationManager | None = None
+        self.repos: Repositories | None = None
         self.input_processor = InputProcessor()
 
     async def preload(self):
@@ -135,7 +134,7 @@ class Gemini(Plugin):
         return self.fw.path / "plugins" / self.name / "config.yaml"
 
     @property
-    def config(self) -> Optional[GlobalConfig]:
+    def config(self) -> GlobalConfig | None:
         """Get the current configuration."""
         return self.config_manager.config if self.config_manager else None
 

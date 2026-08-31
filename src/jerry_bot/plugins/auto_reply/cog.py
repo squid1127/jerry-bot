@@ -2,16 +2,12 @@
 
 import discord
 from discord import app_commands as cmds
-from discord.ext import commands
-from squid_core import Framework
 from squid_core.components.perms import PermissionLevel
 from squid_core.plugin_base import Plugin, PluginCog
 
 from .ar import AutoReply
 from .models.db import AutoReplyIgnore
 from .models.enums import IgnoreType
-
-
 
 
 class AutoReplyCog(PluginCog):

@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 
-from .guild import GuildRepository
+from ..config import GlobalConfig
 from .channel import ChannelRepository
+from .guild import GuildRepository
 from .llm_profile import LLMProfileRepository
 from .provider import ProviderRegistry
-from ..config import GlobalConfig
 
 
 @dataclass(frozen=True, slots=True)

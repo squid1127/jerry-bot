@@ -1,9 +1,9 @@
 """Abstraction layer for configuration UI, allowing for Discord UI to interface with core logic"""
 
+from ..models import Channel, ChannelRecord, GuildRecord, LLMProfile, LLMProfileRecord
+from ..provider import Provider
 from ..repo import Repositories
 from .manager import ConversationManager
-from ..models import ChannelRecord, Channel, GuildRecord, LLMProfile, LLMProfileRecord
-from ..provider import Provider
 
 
 class UIService:

@@ -1,9 +1,9 @@
 """Dataclasses for activity roles plugin."""
 
 from dataclasses import dataclass
-from datetime import timedelta
 
 from .db import ActivityRoleEntry
+
 
 @dataclass
 class ActivityRoleUpdate:

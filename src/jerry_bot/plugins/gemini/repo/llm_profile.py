@@ -1,7 +1,5 @@
 """ "LLM profile repository and related data models for the Gemini plugin."""
 
-from ..models import channel
-from ..models.database import ChannelRecord
 
 from ..models import LLMProfile, LLMProfileRecord
 

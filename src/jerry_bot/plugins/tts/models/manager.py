@@ -2,10 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+
 import aiofiles
 from aiofiles import os as aiofiles_os
-from yaml import safe_load, safe_dump
+from yaml import safe_dump, safe_load
 
 from .config import TTSPluginConfig
 
@@ -13,7 +13,7 @@ from .config import TTSPluginConfig
 class ConfigManager:
     """Manages configuration loading, validation, and reloading."""
 
-    def __init__(self, config_path: Path, logger: Optional[logging.Logger] = None):
+    def __init__(self, config_path: Path, logger: logging.Logger | None = None):
         """
         Initialize the ConfigManager.
 
@@ -23,7 +23,7 @@ class ConfigManager:
         """
         self.config_path = config_path
         self.logger = logger or logging.getLogger(__name__)
-        self._config: Optional[TTSPluginConfig] = None
+        self._config: TTSPluginConfig | None = None
 
     @property
     def template_path(self) -> Path:
@@ -31,7 +31,7 @@ class ConfigManager:
         return Path(__file__).parent / "config.example.yaml"
 
     @property
-    def config(self) -> Optional[TTSPluginConfig]:
+    def config(self) -> TTSPluginConfig | None:
         """Get the currently loaded configuration."""
         return self._config
 
@@ -92,7 +92,7 @@ class ConfigManager:
         self.logger.info("Reloading configuration...")
         return await self.load()
 
-    async def save(self, config: Optional[TTSPluginConfig] = None) -> None:
+    async def save(self, config: TTSPluginConfig | None = None) -> None:
         """
         Save the configuration to disk.
 

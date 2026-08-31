@@ -1,13 +1,14 @@
 """Conversation session manager for Gemini plugin."""
 
-from ..repo import Repositories
-from ..models import ConfigurationError, Message
-from ..dc_chat import OutputContext
-from .factory import ConversationFactory
-from .session import ConversationSession
+from logging import Logger
 
 from discord.ext.commands import Bot
-from logging import Logger
+
+from ..dc_chat import OutputContext
+from ..models import Message
+from ..repo import Repositories
+from .factory import ConversationFactory
+from .session import ConversationSession
 
 
 class ConversationManager:

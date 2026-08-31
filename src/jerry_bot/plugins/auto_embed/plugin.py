@@ -1,12 +1,13 @@
 """Main plugin file for AutoEmbed plugin."""
 
-from squid_core import Plugin as PluginBase, PluginCog
-from squid_core.framework import Framework
-
 import discord
 from discord import app_commands
+from squid_core import Plugin as PluginBase
+from squid_core import PluginCog
+from squid_core.framework import Framework
 
 from .interactions import AutoEmbedInputForm
+
 
 class AutoEmbedPlugin(PluginBase):
     """Plugin class for AutoEmbed."""

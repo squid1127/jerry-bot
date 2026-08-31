@@ -1,6 +1,6 @@
 """ "Channel record repository and related data models for the Gemini plugin."""
 
-from ..models import ChannelRecord, Channel
+from ..models import Channel, ChannelRecord
 
 
 class ChannelRepository:

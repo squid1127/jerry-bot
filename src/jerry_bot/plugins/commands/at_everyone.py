@@ -1,10 +1,11 @@
 """At everyone command logic"""
 
 from enum import Enum
+
 import discord
-from discord import app_commands
-from squid_core import PluginCog, Plugin
 import regex as re
+from discord import app_commands
+from squid_core import PluginCog
 
 MENTION_TOKENIZER = re.compile(r"\(|\)|[^\s()]+")
 IS_DISCORD_MENTION = re.compile(r"<@(\d+)>|<@&(\d+)>")

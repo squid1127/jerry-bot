@@ -1,13 +1,14 @@
+import typing
+
 import discord
 from squid_core.components.cli import CLIContext, EmbedLevel
-import typing
 
 if typing.TYPE_CHECKING:
     from .plugin import AutoReplyPlugin
 
-from .ui import AutoReplyMainUI, AutoReplySearchUI, AutoReplyCLIHelpUI
 from .models.db import AutoReplyRule
 from .models.enums import ResponseMethod, ResponseType
+from .ui import AutoReplyCLIHelpUI, AutoReplyMainUI, AutoReplySearchUI
 
 
 async def handle_cli(plugin: "AutoReplyPlugin", ctx: CLIContext):

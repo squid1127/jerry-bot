@@ -1,9 +1,11 @@
 """Protocol for managing poll roles."""
 
 from typing import Protocol
+
 import discord
 
 from .models import Poll
+
 
 class PollRoleManager(Protocol):
     """Protocol for managing poll roles."""

@@ -1,21 +1,21 @@
 """Main plugin file for ActivityRoles plugin."""
 
 import asyncio
-from squid_core import Plugin as PluginBase, PluginCog
-from squid_core.framework import Framework
-from squid_core.decorators import CLICommandDec
+from datetime import UTC, datetime, timedelta
+
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
+from pytimeparse.timeparse import timeparse
+from squid_core import Plugin as PluginBase
+from squid_core import PluginCog
 from squid_core.components.cli import CLIContext, EmbedLevel
+from squid_core.decorators import CLICommandDec
+from squid_core.framework import Framework
 
 from .activity import ActivityTracker
 from .models.db import ActivityRoleConfig
 
-import discord
-from discord import app_commands
-from discord.ext import commands
-from discord.ext import tasks
-
-from datetime import datetime, timedelta, timezone
-from pytimeparse.timeparse import timeparse
 
 def parse_timedelta(time_str: str) -> timedelta:
     """Parse a time string into a timedelta object."""
@@ -177,7 +177,7 @@ class ActivityRolesPlugin(PluginBase):
                     description = ""
                     for key in keys:
                         timestamp = await self.fw.redis.client.get(key)
-                        last_active = datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+                        last_active = datetime.fromtimestamp(int(timestamp), tz=UTC)
                         guild_id = int(key.decode().split(":")[-2])
                         guild = self.fw.bot.get_guild(guild_id)
                         guild_name = guild.name if guild else f"Unknown Guild ({guild_id})"

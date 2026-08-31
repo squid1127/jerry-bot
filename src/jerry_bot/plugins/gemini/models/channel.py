@@ -1,7 +1,6 @@
 """Conversation context models for Gemini plugin."""
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Union
 
 from .database import ChannelRecord
 
@@ -13,7 +12,7 @@ class Channel:
     channel_id: int
     guild_id: int
 
-    prompt: Optional[str] = None
+    prompt: str | None = None
     is_ephemeral: bool = False
     override_system_prompt: bool = False
     mention_mode: bool = False

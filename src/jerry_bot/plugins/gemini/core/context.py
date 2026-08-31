@@ -1,13 +1,11 @@
 """Conversation session-scoped context object"""
 
 from dataclasses import dataclass, field
-from typing import Optional
 
-from ..dc_chat.input_processor import OutputContext
-
-from ..models import Channel, LLMProfile, GuildRecord
-from ..provider import Provider
 from ..config import GlobalConfig
+from ..dc_chat.input_processor import OutputContext
+from ..models import Channel, GuildRecord, LLMProfile
+from ..provider import Provider
 
 
 @dataclass(slots=True, frozen=False)
@@ -26,7 +24,7 @@ class SessionContext:
 
     _current_profile: LLMProfile | None = field(init=False, repr=False)
 
-    def provider_for_profile(self, profile: LLMProfile) -> Optional[Provider]:
+    def provider_for_profile(self, profile: LLMProfile) -> Provider | None:
         """Get the provider instance associated with a given LLM profile."""
         return self.providers.get(profile.provider_name)
 

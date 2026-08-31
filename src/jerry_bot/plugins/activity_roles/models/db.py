@@ -2,6 +2,7 @@
 from tortoise import fields
 from tortoise.models import Model
 
+
 class ActivityRoleConfig(Model):
     """
     Database model for activity roles configuration.

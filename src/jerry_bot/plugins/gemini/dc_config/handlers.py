@@ -1,8 +1,10 @@
 """Event handlers for Gemini configuration menu flows"""
 
-import discord
-from .state_enums import UIState, LLMProfileTab
 from typing import TYPE_CHECKING
+
+import discord
+
+from .state_enums import LLMProfileTab
 
 if TYPE_CHECKING:
     from .menu import GeminiConfigMenu
@@ -27,7 +29,7 @@ class ChannelHandler:
         try:
             await self.menu.service.set_channel(self.menu.channel_id, active=True)
         except Exception as e:
-            await self.menu._handle_error(f"Failed to activate Gemini: {str(e)}")
+            await self.menu._handle_error(f"Failed to activate Gemini: {e!s}")
         await self.menu.render()
 
     async def edit_show(self, interaction: discord.Interaction):
@@ -52,7 +54,7 @@ class ChannelHandler:
                 **commit_data,
             )
         except Exception as e:
-            await self.menu._handle_error(f"Failed to activate Gemini: {str(e)}")
+            await self.menu._handle_error(f"Failed to activate Gemini: {e!s}")
             return
 
         await self.menu.render()
@@ -63,7 +65,7 @@ class ChannelHandler:
         try:
             await self.menu.service.set_channel(self.menu.channel_id, active=False)
         except Exception as e:
-            await self.menu._handle_error(f"Failed to deactivate Gemini: {str(e)}")
+            await self.menu._handle_error(f"Failed to deactivate Gemini: {e!s}")
         await self.menu.render()
 
 
@@ -144,7 +146,7 @@ class ProfileHandler:
                 **commit_data,
             )
         except Exception as e:
-            await self.menu._handle_error(f"Failed to create LLM profile: {str(e)}")
+            await self.menu._handle_error(f"Failed to create LLM profile: {e!s}")
             return
 
         await self.menu.render()
@@ -177,7 +179,7 @@ class ProfileHandler:
                 channel_id=self.menu.channel_id, profile_id=profile_id
             )
         except Exception as e:
-            await self.menu._handle_error(f"Failed to delete LLM profile: {str(e)}")
+            await self.menu._handle_error(f"Failed to delete LLM profile: {e!s}")
             return
 
         await self.toggle_tab(interaction, defer=False)  # Switch back to PROFILE tab after deletion
@@ -200,7 +202,7 @@ class GuildHandler:
                 prompt=None,
             )
         except Exception as e:
-            await self.menu._handle_error(f"Failed to create guild record: {str(e)}")
+            await self.menu._handle_error(f"Failed to create guild record: {e!s}")
             return
         await self.menu.render()
 
@@ -219,6 +221,6 @@ class GuildHandler:
                 )
         except Exception as e:
             await self.menu._handle_error(
-                f"Failed to update guild trust status: {str(e)}"
+                f"Failed to update guild trust status: {e!s}"
             )
         await self.menu.render()

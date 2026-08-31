@@ -1,16 +1,14 @@
 """Interaction handlers for the Gemini plugin."""
 
-from typing import ClassVar
 
-from squid_core import PluginCog, Plugin
-from squid_core.components.perms import PermissionLevel
 import discord
 from discord import app_commands
-from discord.ext import commands
+from squid_core import Plugin, PluginCog
+from squid_core.components.perms import PermissionLevel
 
 from ..core import UIService
-from .utils import create_error_embed, send_ephemeral_response
 from .menu import GeminiConfigMenu
+from .utils import create_error_embed, send_ephemeral_response
 
 
 class GeminiCog(PluginCog):
