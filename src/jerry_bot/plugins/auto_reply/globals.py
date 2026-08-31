@@ -9,6 +9,8 @@ import regex as re
 import yaml
 from tabulate import tabulate
 
+from ..filters import FilterLevel, get_filter_regex
+
 GLOBALS: dict[str, Any] = {}
 GLOBALS_ASTEVAL: dict[str, Any] = {}
 
@@ -143,19 +145,31 @@ def code_block(content: str, language: str | None = None) -> str:
 
 
 @global_method(
-    doc="Create a table from a list of lists. (list[list], list[str], str | None) -> str"
+    doc="Create a table from list[list]. (list[list], list[str], str | None) -> str"
 )
 def table(data: list[list], headers: list[str], tablefmt: str | None = None) -> str:
     return tabulate(data, headers=headers, tablefmt=tablefmt or "pipe")
 
 
 @global_method(
-    doc="Convert a list of dictionaries to a table format, which can be passed into the `table` function. (list[dict]) -> tuple[list[tuple], list[str]]"
+    doc="Convert list[dict] to a table format. (list[dict]) -> tuple[list[tuple], list[str]]"
 )
 def dict_table(records: list[dict]) -> tuple[list[tuple], list[str]]:
     headers = list(dict.fromkeys(k for r in records for k in r))
     rows = [tuple(r.get(h, "") for h in headers) for r in records]
     return rows, headers
+
+@global_method(
+    doc="Get the regex pattern for a given filter level. (str) -> re.Pattern[str]",
+)
+def filter_regex_level(level_name: str):
+    """Get the regex pattern for a given filter level."""
+    try:
+        level = FilterLevel[level_name.upper()]
+    except KeyError:
+        raise ValueError(f"Invalid filter level: {level_name}")
+    pattern = get_filter_regex(level)
+    return pattern.pattern
 
 
 # * Asteval-only functions
