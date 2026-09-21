@@ -1,6 +1,10 @@
 """At everyone command logic"""
 
+from collections.abc import Sequence
+from datetime import datetime
 from enum import Enum
+from random import shuffle
+from typing import cast
 
 import discord
 import regex as re
@@ -14,6 +18,15 @@ class MentionMode(Enum):
     Interaction = "Interaction (Followup)"
     Message = "Message (Send as bot)"
     Ephemeral = "Ephemeral (Copyable)"
+    
+class SortMode(Enum):
+    AlphabeticalUsername = "Alphabetical (Username)"
+    AlphabeticalDisplayName = "Alphabetical (Display Name)"
+    Random = "Random"
+    ByID = "By User ID"
+    ByRole = "By Role"
+    NewestInServer = "Newest in Server"
+    OldestInServer = "Oldest in Server"
 
 
 def tokenize(query: str) -> list[str]:
@@ -93,6 +106,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
         yes: bool = False,
         maximum: int = 0,
         mode: MentionMode = MentionMode.Ephemeral,
+        sort_mode: SortMode = SortMode.AlphabeticalUsername
     ):
         """
         Mention users in the server, user by user, with smart filtering.
@@ -106,7 +120,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
             thinking=True, ephemeral=mode != MentionMode.Interaction
         )
 
-        members = await self._scan_members(interaction.guild, mention, maximum)
+        members = await self._scan_members(interaction.guild, mention, maximum, sort_mode)
         
         try:
             await self._send_mentions(interaction, members, mode)
@@ -126,7 +140,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
                     title="HTTP Error",
                     description=f"An error occurred while sending messages: {e}",
                     color=discord.Color.red(),
-                ),
+                ),ServerJoinDate
                 ephemeral=True,
             )
             return
@@ -220,7 +234,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
         return True
 
     async def _scan_members(
-        self, guild: discord.Guild, mention: str, maximum: int
+        self, guild: discord.Guild, mention: str, maximum: int, sort_mode: SortMode
     ) -> list[discord.Member]:
         """
         Scan the members of the server and return a list of members that match the mention filter.
@@ -232,8 +246,10 @@ class StaticCommandAtEveryoneCog(PluginCog):
             members = guild.members
         else:
             members = await guild.chunk(cache=True)
+            
+        sorted_members = self._sort_members(members, sort_mode)
 
-        for member in members:
+        for member in sorted_members:
             tags = self._tags_for_member(member)
 
             if match_query(mention, tags):
@@ -243,6 +259,31 @@ class StaticCommandAtEveryoneCog(PluginCog):
                 break
 
         return matched_members
+    
+    def _sort_members(self, members: list[discord.Member] | Sequence[discord.Member], sort_mode: SortMode) -> list[discord.Member]:
+        """
+        Sort the members based on the sort mode.
+        """
+        if sort_mode == SortMode.AlphabeticalUsername:
+            return sorted(members, key=lambda m: m.name.lower())
+        elif sort_mode == SortMode.AlphabeticalDisplayName:
+            return sorted(members, key=lambda m: m.display_name.lower())
+        elif sort_mode == SortMode.Random:
+            shuffled_members =list(members)
+            shuffle(shuffled_members)
+            return shuffled_members
+        elif sort_mode == SortMode.ByID:
+            return sorted(members, key=lambda m: m.id)
+        elif sort_mode == SortMode.ByRole:
+            return sorted(members, key=lambda m: (m.top_role.position, m.id), reverse=True)
+        elif sort_mode == SortMode.NewestInServer:
+            members_with_joined_at = [m for m in members if m.joined_at is not None]
+            return sorted(members_with_joined_at, key=lambda m: cast(datetime, m.joined_at), reverse=True)
+        elif sort_mode == SortMode.OldestInServer:
+            members_with_joined_at = [m for m in members if m.joined_at is not None]ServerJoinDate
+            return sorted(members_with_joined_at, key=lambda m: cast(datetime, m.joined_at))
+        else:
+            return members  # Default to no sorting if unknown mode
 
     def _tags_for_member(self, member: discord.Member) -> list[str]:
         """
