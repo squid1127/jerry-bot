@@ -140,7 +140,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
                     title="HTTP Error",
                     description=f"An error occurred while sending messages: {e}",
                     color=discord.Color.red(),
-                ),ServerJoinDate
+                ),
                 ephemeral=True,
             )
             return
