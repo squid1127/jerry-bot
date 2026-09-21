@@ -280,7 +280,7 @@ class StaticCommandAtEveryoneCog(PluginCog):
             members_with_joined_at = [m for m in members if m.joined_at is not None]
             return sorted(members_with_joined_at, key=lambda m: cast(datetime, m.joined_at), reverse=True)
         elif sort_mode == SortMode.OldestInServer:
-            members_with_joined_at = [m for m in members if m.joined_at is not None]ServerJoinDate
+            members_with_joined_at = [m for m in members if m.joined_at is not None]
             return sorted(members_with_joined_at, key=lambda m: cast(datetime, m.joined_at))
         else:
             return members  # Default to no sorting if unknown mode
