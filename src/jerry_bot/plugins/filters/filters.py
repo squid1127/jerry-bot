@@ -110,6 +110,7 @@ g[a@]ngb[a@]ng[e3]d
 [s\$][l1]u[t\+][s\$]?
 [s\$]mu[t\+][s\$]?
 j[a@](c|k|ck|q)\-?[o0](ph|f)(ph|f)?
+v[a@]g[i1][n1][a@]
 
 """.strip(),
     FilterLevel.SLURS: r"""
