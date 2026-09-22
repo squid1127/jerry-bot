@@ -57,6 +57,14 @@ class TTSPluginConfig(BaseModel):
     output_dir: Path = Field(
         ..., description="The directory where generated audio files will be saved."
     )
+    output_dir_relative_to_plugin: bool = Field(
+        default=True,
+        description="Whether the output_dir is relative to the plugin's directory (True) or the cwd (False).",
+    )
+    clean_output_dir: bool = Field(
+        default=True,
+        description="Whether to clean the output_dir on startup. If True, all files in the output_dir will be deleted when the plugin starts.",
+    )
     max_concurrent_requests: int = Field(
         default=5,
         description="The maximum number of concurrent TTS requests allowed (defaults to 5).",

@@ -96,6 +96,27 @@ class TTSPlugin(Plugin):
             await self.socket_client.disconnect()
         if self.service_runner:
             await self.service_runner.stop()
+            
+    async def clean_output_dir(self):
+        """Clean the output directory by removing all files."""
+        if self.config is None:
+            raise RuntimeError(
+                "Configuration not loaded. Please run the preload method first."
+            )
+        output_dir = (
+            self.path / self.config.output_dir
+            if self.config.output_dir_relative_to_plugin
+            else self.config.output_dir
+        )
+        if output_dir.exists() and output_dir.is_dir():
+            for file in output_dir.iterdir():
+                if file.is_file():
+                    file.unlink()
+            self.logger.info("Output directory cleaned: %s", output_dir)
+        else:
+            self.logger.warning(
+                "Output directory does not exist or is not a directory: %s", output_dir
+            )
 
     @property
     def config(self):

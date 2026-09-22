@@ -285,6 +285,7 @@ class TTSCog(PluginCog):
                 socket_client=self.socket_client,
                 voice_client=self.get_or_create_voice_client(member.guild),
                 logger=self.plugin.logger,
+                base_path=self.plugin.get_working_directory(),
             )
             self.listeners[(member.guild.id, member.id)] = listener
 

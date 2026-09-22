@@ -1,11 +1,11 @@
 """Listener and user input management for the TTS plugin."""
 
 from logging import Logger
-
+from pathlib import Path
 import discord
 
 from .models.config import TTSPluginConfig, TTSVoiceConfig
-from .models.exceptions import TTSError
+from .models.exceptions import TTSError, TTSGenerationError
 from .models.request import TTSRequest
 from .socket import TTSSocketClient
 from .voice import TTSVoiceClient
@@ -31,6 +31,7 @@ class TTSListener:
         voice_client: TTSVoiceClient,
         socket_client: TTSSocketClient,
         logger: Logger,
+        base_path: Path,
     ):
         """
         Initialize the TTSListener.
@@ -43,6 +44,7 @@ class TTSListener:
             voice_client (TTSVoiceClient): The voice client used for TTS playback.
             socket_client (TTSSocketClient): The socket client used for TTS requests.
             logger (Logger): The logger for logging events and errors.
+            base_path (Path): The base path compared to the path in the config if output_dir_relative_to_plugin is True, otherwise the base path is the cwd.
         """
         self.member = member
         self.voice_config = voice_config
@@ -51,7 +53,8 @@ class TTSListener:
         self.socket_client = socket_client
         self.config = config
         self.logger = logger
-
+        self.base_path = base_path
+        
     async def handle_message(self, message: discord.Message):
         """
         Handle incoming messages and enqueue TTS requests if applicable.
@@ -86,19 +89,24 @@ class TTSListener:
             )
 
             if response.filename:
-                if not (self.config.output_dir / response.filename).exists():
-                    raise FileNotFoundError(
-                        f"Generated audio file not found: {response.filename}"
-                    )
+                if not (self.path / response.filename).exists():
+                    raise TTSGenerationError(
+                        "Generated audio file not found."
+                        )
                 # Enqueue the generated audio file for playback
                 self.voice_client.enqueue(
-                    self.member, self.config.output_dir / response.filename
+                    self.member, self.path / response.filename
                 )
             else:
                 raise ValueError("TTS response failed")
 
-        except TTSError as e:
-            self.logger.error(
-                f"Error generating TTS for message '{message.content}': {e}"
+        except TTSError:
+            self.logger.exception(
+                f"Error generating TTS for message '{message.content}'"
             )
             await reaction(message, "❌")  # Indicate failure with a reaction
+
+    @property
+    def path(self) -> Path:
+        """Get the base path for the TTS plugin."""
+        return self.base_path / self.config.output_dir if self.config.output_dir_relative_to_plugin else self.config.output_dir
