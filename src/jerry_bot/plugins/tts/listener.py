@@ -2,12 +2,14 @@
 
 from logging import Logger
 from pathlib import Path
+
 import discord
 
 from .models.config import TTSPluginConfig, TTSVoiceConfig
 from .models.exceptions import TTSError, TTSGenerationError
 from .models.request import TTSRequest
 from .socket import TTSSocketClient
+from .text_processor import TextProcessor
 from .voice import TTSVoiceClient
 
 
@@ -54,6 +56,7 @@ class TTSListener:
         self.config = config
         self.logger = logger
         self.base_path = base_path
+        self.text_processor = TextProcessor(config)
         
     async def handle_message(self, message: discord.Message):
         """
@@ -80,11 +83,14 @@ class TTSListener:
         Args:
             message (discord.Message): The incoming Discord message.
         """
+        text = self.text_processor.normalize(message.content)
+        await message.reply(text)
+
         try:
             # Generate TTS audio file using the socket client
             response = await self.socket_client.generate_tts(
                 TTSRequest.from_voice_config(
-                    text=message.content, voice_config=self.voice_config
+                    text=text, voice_config=self.voice_config
                 )
             )
 

@@ -78,8 +78,8 @@ class TTSPlugin(Plugin):
                     "TTS Service timed out while starting, connecting anyway"
                 )
 
-            except TTSRunnerError as e:
-                self.logger.exception("Failed to start TTS service: %s", e)
+            except TTSRunnerError:
+                self.logger.exception("Failed to start TTS service")
                 raise
 
         await self.cog.socket_client.connect()

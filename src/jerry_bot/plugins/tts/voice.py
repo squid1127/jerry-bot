@@ -130,7 +130,7 @@ class TTSVoiceClient:
             )
         except discord.HTTPException as e:
             raise TTSVoiceConnectionError(
-                f"Failed to connect to voice channel {user_channel}: {e}"
+                f"Failed to connect to voice channel {channel}: {e}"
             )
 
         return self._voice_client

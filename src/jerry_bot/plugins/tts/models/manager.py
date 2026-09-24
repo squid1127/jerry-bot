@@ -5,7 +5,8 @@ from pathlib import Path
 
 import aiofiles
 from aiofiles import os as aiofiles_os
-from yaml import safe_dump, safe_load
+from pydantic import ValidationError
+from yaml import YAMLError, safe_dump, safe_load
 
 from .config import TTSPluginConfig
 
@@ -145,7 +146,7 @@ class ConfigManager:
             self.logger.info(
                 f"Copied example config from {self.template_path} to {self.config_path}"
             )
-        except Exception as e:
+        except (YAMLError, ValidationError) as e:
             self.logger.warning(f"Failed to copy template config: {e}")
 
     async def create_example_config(self) -> None:
@@ -186,6 +187,6 @@ class ConfigManager:
             self.logger.info("Configuration validation passed")
             return True
 
-        except Exception as e:
+        except (YAMLError, ValidationError) as e:
             self.logger.error(f"Configuration validation failed: {e}")
             return False

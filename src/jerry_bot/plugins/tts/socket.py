@@ -128,7 +128,7 @@ class TTSSocketClient:
                     )
         except asyncio.CancelledError:
             raise
-        except Exception as e:
+        except (OSError, ConnectionError) as e:
             self._logger.error(f"Error in TTS socket read loop: {e}")
         finally:
             self._logger.warning("TTS socket connection closed.")
@@ -165,7 +165,7 @@ class TTSSocketClient:
                 await self.connect()
                 self._logger.info("Successfully reconnected to TTS socket.")
                 break
-            except Exception as e:
+            except TTSServerConnectionError as e:
                 self._logger.warning(
                     f"Reconnection attempt failed: {e}. Retrying in {delay:.1f} seconds..."
                 )

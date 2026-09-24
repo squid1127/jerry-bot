@@ -44,6 +44,34 @@ class TTSVoiceConfig(BaseModel):
         default=False, description="Whether this voice configuration is the default."
     )
 
+class TTSNormalizeRuleConfig(BaseModel):
+    """Configuration model for the text-to-speech normalization rules."""
+
+    pattern: str = Field(
+        ..., description="The regex pattern to match in the input text."
+    )
+    replacement: str = Field(
+        ..., description="The replacement string for the matched pattern."
+    )
+    case_sensitive: bool = Field(
+        default=False,
+        description="Whether the regex pattern matching should be case-sensitive.",
+    )
+    
+class TTSControlRuleConfig(BaseModel):
+    """Configuration model for the text-to-speech control rules."""
+
+    pattern: str = Field(
+        ..., description="The regex pattern to match in the input text."
+    )
+    directive: PrefixControlDirective = Field(
+        ..., description="The control directive to apply when the pattern is matched."
+    )
+    case_sensitive: bool = Field(
+        default=False,
+        description="Whether the regex pattern matching should be case-sensitive.",
+    )
+
 class TTSPluginConfig(BaseModel):
     """Configuration model for the text-to-speech plugin."""
 
@@ -83,13 +111,13 @@ class TTSPluginConfig(BaseModel):
         description="A list of available voice configurations for text-to-speech synthesis.",
     )
 
-    normalize_rules: dict[str, str] = Field(
-        default_factory=dict,
-        description="A dict of input rules where keyss are regex patterns and values are replacement strings.",
+    normalize_rules: list[TTSNormalizeRuleConfig] = Field(
+        default_factory=list,
+        description="A list of normalization rules for processing input text.",
     )
-    control_rules: dict[str, PrefixControlDirective] = Field(
-        default_factory=dict,
-        description="A dict of control rules where keys are regex patterns and values are control directives.",
+    control_rules: list[TTSControlRuleConfig] = Field(
+        default_factory=list,
+        description="A list of control rules where keys are regex patterns and values are control directives.",
     )
 
 
