@@ -93,6 +93,7 @@ class TTSPlugin(Plugin):
             await self.cog.stop()
             await self.framework.bot.remove_cog(self.cog.qualified_name)
         if self.socket_client:
+            self.logger.info("Disconnecting TTS socket client...")
             await self.socket_client.disconnect()
         if self.service_runner:
             await self.service_runner.stop()

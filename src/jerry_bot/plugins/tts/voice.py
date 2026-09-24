@@ -1,8 +1,11 @@
 """Voice chat handler for TTS"""
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from logging import Logger
 from pathlib import Path
+from typing import Any
 
 import discord
 
@@ -22,15 +25,17 @@ class TTSVoiceQueueItem:
 
     user: discord.Member
     file: Path
+    on_error: Callable[[TTSVoiceError], Awaitable[None | Any]] | None = None
 
 
 class TTSVoiceClient:
     """Represents a voice client connected for tts in a guild."""
 
-    def __init__(self, guild: discord.Guild, timeout: float = 600.0):
+    def __init__(self, logger: Logger, guild: discord.Guild, timeout: float = 600.0):
         """Initialize TTSVoiceChannel
 
         Args:
+            logger (Logger): The logger to use
             guild (Guild): The guild that client corresponds too
             timeout (float): Seconds after the last request before the request times out (defaults to 600)
         """
@@ -42,8 +47,9 @@ class TTSVoiceClient:
         self._rate_limiter: RateLimiter = RateLimiter(max_calls=10, period=30.0)
         self._timeout_task: asyncio.Task[None] | None = None
         self._voice_client: discord.VoiceClient | None = None
+        self._logger: Logger = logger
 
-    def enqueue(self, user: discord.Member, file: Path):
+    def enqueue(self, user: discord.Member, file: Path, on_error: Callable[[TTSVoiceError], Awaitable[None| Any]] | None = None):
         """
         Enqueue a file to the playback queue
 
@@ -52,7 +58,7 @@ class TTSVoiceClient:
             file (Path): Path to the file to be played
         """
 
-        item = TTSVoiceQueueItem(user=user, file=file)
+        item = TTSVoiceQueueItem(user=user, file=file, on_error=on_error)
         self._playback_queue.put_nowait(item)
         self._ensure_running()
 
@@ -69,8 +75,11 @@ class TTSVoiceClient:
                 await self._rate_limiter.acquire()
                 await self._reset_timeout()
                 await self._play_file(item)
-            except Exception as e:
-                raise TTSVoiceError(f"Error playing {item}: {e}") from e
+            except TTSVoiceError as e:
+                if item.on_error:
+                    await item.on_error(e)
+                else:
+                    self._logger.error(f"Error playing TTS file: {e}")
             finally:
                 self._playback_queue.task_done()
 

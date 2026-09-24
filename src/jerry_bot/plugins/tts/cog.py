@@ -258,6 +258,7 @@ class TTSCog(PluginCog):
         """Get or create a TTSVoiceClient for a guild."""
         if guild.id not in self.voice_clients:
             self.voice_clients[guild.id] = TTSVoiceClient(
+                self.plugin.logger,
                 guild, timeout=self.config.user_timeout
             )
         return self.voice_clients[guild.id]

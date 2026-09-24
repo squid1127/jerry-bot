@@ -57,7 +57,7 @@ class TTSListener:
         self.logger = logger
         self.base_path = base_path
         self.text_processor = TextProcessor(config)
-        
+
     async def handle_message(self, message: discord.Message):
         """
         Handle incoming messages and enqueue TTS requests if applicable.
@@ -89,19 +89,17 @@ class TTSListener:
         try:
             # Generate TTS audio file using the socket client
             response = await self.socket_client.generate_tts(
-                TTSRequest.from_voice_config(
-                    text=text, voice_config=self.voice_config
-                )
+                TTSRequest.from_voice_config(text=text, voice_config=self.voice_config)
             )
 
             if response.filename:
                 if not (self.path / response.filename).exists():
-                    raise TTSGenerationError(
-                        "Generated audio file not found."
-                        )
+                    raise TTSGenerationError("Generated audio file not found.")
                 # Enqueue the generated audio file for playback
                 self.voice_client.enqueue(
-                    self.member, self.path / response.filename
+                    self.member,
+                    self.path / response.filename,
+                    lambda e: reaction(message, "❓"),
                 )
             else:
                 raise ValueError("TTS response failed")
@@ -115,4 +113,8 @@ class TTSListener:
     @property
     def path(self) -> Path:
         """Get the base path for the TTS plugin."""
-        return self.base_path / self.config.output_dir if self.config.output_dir_relative_to_plugin else self.config.output_dir
+        return (
+            self.base_path / self.config.output_dir
+            if self.config.output_dir_relative_to_plugin
+            else self.config.output_dir
+        )
