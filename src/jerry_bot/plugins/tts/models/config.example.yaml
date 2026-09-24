@@ -2,6 +2,68 @@
 
 enabled: false # set to true to enable the TTS plugin
 
+#* Processing Configuration
+normalize_rules:
+  # Missing apostrophes
+  - pattern: >-
+      \bi['"]*m\b
+    replacement: "I am"
+  - pattern: >-
+      \bi['"]*ve\b
+    replacement: "I've"
+  - pattern: >-
+      \bi['"]*ll\b
+    replacement: "I'll"
+  - pattern: >-
+      \bi['"]*d\b
+    replacement: "I'd"
+  - pattern: >-
+      \bi*m+a\b
+    replacement: "I'm gonna"
+
+  # Common abbreviations
+  - pattern: >-
+      \blol\b
+    replacement: "LOL"
+  - pattern: >-
+      \blmao\b
+    replacement: "LMAO"
+  - pattern: >-
+      \bfuck?\Wyo?u\b
+    replacement: "I love you! Heart emoji. Heart emoji."
+  - pattern: >-
+      \br\s?u\b
+    replacement: "are you"
+  - pattern: >-
+      \bruok\b
+    replacement: "are you okay"
+  - pattern: >-
+      \bthx\b
+    replacement: "thanks"
+  - pattern: >-
+      \bty\b
+    replacement: "thank you"
+  - pattern: >-
+      \bpl[sz]\b
+    replacement: "please"
+  - pattern: >-
+      \bbrb\b
+    replacement: "BRB"
+  - pattern: >-
+      \bgtg\b
+    replacement: "gots to go"
+
+  # Discord Objects
+  - pattern: >-
+      <@!?(\d+)>
+    replacement: "at mention"
+  - pattern: >-
+      <@&(\d+)>
+    replacement: "at role"
+  - pattern: >-
+      <#(\d+)>
+    replacement: "hashtag channel"
+
 #* TTS Service
 # This plugin requires https://github.com/squid1127/jerry-bot-tts to function properly. Please make sure to set up the TTS service and provide the correct URL below.
 service:
