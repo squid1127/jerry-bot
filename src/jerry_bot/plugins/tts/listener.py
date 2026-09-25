@@ -26,7 +26,8 @@ class TTSListener:
 
     def __init__(
         self,
-        member: discord.Member,
+        owner: discord.Member,
+        target: discord.Member,
         listen_channel: discord.TextChannel,
         voice_config: TTSVoiceConfig,
         config: TTSPluginConfig,
@@ -39,7 +40,8 @@ class TTSListener:
         Initialize the TTSListener.
 
         Args:
-            member (discord.Member): The Discord member who is listening.
+            owner (discord.Member): The owner of the listener, who can manage it.
+            target (discord.Member): The Discord member who is listening.
             listen_channel (discord.TextChannel): The channel where the listener is active.
             voice_config (TTSVoiceConfig): The voice configuration for the TTS.
             config (TTSPluginConfig): The plugin configuration.
@@ -48,9 +50,10 @@ class TTSListener:
             logger (Logger): The logger for logging events and errors.
             base_path (Path): The base path compared to the path in the config if output_dir_relative_to_plugin is True, otherwise the base path is the cwd.
         """
-        self.member = member
+        self._target = target
+        self._owner = owner
         self.voice_config = voice_config
-        self.listen_channel = listen_channel
+        self._listen_channel = listen_channel
         self.voice_client = voice_client
         self.socket_client = socket_client
         self.config = config
@@ -65,14 +68,17 @@ class TTSListener:
         Args:
             message (discord.Message): The incoming Discord message.
         """
-        if message.channel != self.listen_channel:
+        if message.channel != self._listen_channel:
             return  # Ignore messages from other channels
 
-        if message.author != self.member:
+        if message.author != self._target:
             return  # Ignore messages from other users
 
         if not message.content.strip():
             return  # Ignore empty messages
+
+        if self._owner.voice is None or self._owner.voice.channel is None:
+            return  # Ignore if the owner is not in a voice channel
 
         await self._generate_for_message(message)
 
@@ -97,9 +103,9 @@ class TTSListener:
                     raise TTSGenerationError("Generated audio file not found.")
                 # Enqueue the generated audio file for playback
                 self.voice_client.enqueue(
-                    self.member,
+                    self._owner,
                     self.path / response.filename,
-                    lambda e: reaction(message, "❓"),
+                    lambda e: self._handle_generation_error(message, e),
                 )
             else:
                 raise ValueError("TTS response failed")
@@ -110,6 +116,24 @@ class TTSListener:
             )
             await reaction(message, "❌")  # Indicate failure with a reaction
 
+    async def _handle_generation_error(
+        self, message: discord.Message, error: Exception
+    ):
+        """
+        Handle errors that occur during TTS generation.
+
+        Args:
+            message (discord.Message): The original Discord message.
+            error (Exception): The exception that occurred.
+        """
+        self.logger.exception(
+            f"Error generating TTS for message '{message.content}': {error}"
+        )
+        await reaction(message, "❌")  # Indicate failure with a reaction
+        
+    def update_listen_channel(self, channel: discord.TextChannel):
+        self._listen_channel = channel
+
     @property
     def path(self) -> Path:
         """Get the base path for the TTS plugin."""
@@ -118,3 +142,23 @@ class TTSListener:
             if self.config.output_dir_relative_to_plugin
             else self.config.output_dir
         )
+
+    @property
+    def owner(self) -> discord.Member:
+        """Returns the owner of this listener"""
+        return self._owner
+
+    @property
+    def target(self) -> discord.Member:
+        """Returns the member who this listener is listening to"""
+        return self._target
+
+    @property
+    def guild(self) -> discord.Guild:
+        """Returns the guild this listener is in"""
+        return self._listen_channel.guild
+
+    @property
+    def listen_channel(self) -> discord.TextChannel:
+        """Returns the channel this listener is in"""
+        return self._listen_channel

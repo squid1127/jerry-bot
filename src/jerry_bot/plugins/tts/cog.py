@@ -33,6 +33,14 @@ async def message(interaction: discord.Interaction, message: str, error: bool = 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+def guild_command(func):
+    """Decorator to make an app command guild-only"""
+
+    app_commands.allowed_installs(guilds=True, users=False)(func)
+    app_commands.allowed_contexts(guilds=True, dms=False)(func)
+    return func
+
+
 class TTSCog(PluginCog):
     """Cog for the Text-to-Speech plugin."""
 
@@ -49,16 +57,12 @@ class TTSCog(PluginCog):
         self._lock: asyncio.Lock = asyncio.Lock()
         self.config: TTSPluginConfig = config
 
-        self.listeners: dict[tuple[int, int], TTSListener] = (
-            {}
-        )  # Key: (guild_id, user_id), Value: TTSListener
-        self.voice_clients: dict[int, TTSVoiceClient] = (
-            {}
-        )  # Key: guild_id, Value: TTSVoiceClient
+        self.listeners: list[TTSListener] = []
+        self.voice_clients: dict[int, TTSVoiceClient] = {}
 
         generate_command = app_commands.Command(
             name="tts-generate",
-            description="[TTS] Generate TTS audio from text.",
+            description="[TTS] Generate TTS from text.",
             callback=self.tts_generate_command,
             allowed_contexts=app_commands.AppCommandContext(
                 guild=True,
@@ -77,19 +81,19 @@ class TTSCog(PluginCog):
 
         listen_command = app_commands.Command(
             name="tts-listen",
-            description="[TTS] Listen to a user's messages and convert them to speech.",
+            description="[TTS] Speak the messages sent by you (in this channel) in the voice channel you are in.",
             callback=self.tts_listen_command,
             allowed_contexts=app_commands.AppCommandContext(
                 guild=True,
                 dm_channel=False,
             ),
         )
-        app_commands.describe(voice="The voice to use for TTS.")(listen_command)
+        app_commands.describe(voice="The TTS voice to use.")(listen_command)
         app_commands.choices(voice=choices)(listen_command)
 
         listen_for_command = app_commands.Command(
             name="tts-listen-for",
-            description="[TTS] Listen to another user's messages and convert them to speech.",
+            description="[TTS] Speak the messages sent by another user (in this channel) in the voice channel you are in",
             callback=self.tts_listen_for_command,
             allowed_contexts=app_commands.AppCommandContext(
                 guild=True,
@@ -97,11 +101,11 @@ class TTSCog(PluginCog):
             ),
         )
         app_commands.describe(
-            member="The user whose messages should be converted to speech.",
-            voice="The voice to use for TTS.",
+            member="User whose messages should be read",
+            voice="The TTS voice.",
         )(listen_for_command)
         app_commands.choices(voice=choices)(listen_for_command)
-        app_commands.default_permissions(administrator=True)(listen_for_command)
+        # app_commands.default_permissions(administrator=True)(listen_for_command)
 
         self.fw.bot.tree.add_command(generate_command)
         self.fw.bot.tree.add_command(listen_command)
@@ -131,7 +135,9 @@ class TTSCog(PluginCog):
                 request = TTSRequest.from_voice_config(text, voice_object)
                 response = await self.socket_client.generate_tts(request)
             except TTSServerConnectionError:
-                self.plugin.logger.exception("TTS service connection error running /tts-generate")
+                self.plugin.logger.exception(
+                    "TTS service connection error running /tts-generate"
+                )
                 await message(interaction, message="TTS service failed.")
                 return
 
@@ -139,7 +145,7 @@ class TTSCog(PluginCog):
                 await interaction.followup.send(
                     file=discord.File(
                         fp=self.output_dir / response.filename,
-                        filename=f"tts{(self.output_dir / response.filename).suffix}",
+                        filename=f"tts{Path(response.filename).suffix}",
                     )
                 )
             else:
@@ -165,7 +171,7 @@ class TTSCog(PluginCog):
             return
 
         try:
-            self.create_or_update_listener(member, voice, interaction.channel)
+            self.create_or_update_listener(member, member, voice, interaction.channel)
             await message(
                 interaction,
                 f"Now listening in {interaction.channel.mention} with voice '{voice}'.",
@@ -190,9 +196,17 @@ class TTSCog(PluginCog):
                 error=True,
             )
             return
+        if (
+            not isinstance(interaction.user, discord.Member)
+            or interaction.guild is None
+        ):
+            await message(interaction, GUILD_ONLY_MESSAGE, error=True)
+            return
 
         try:
-            self.create_or_update_listener(member, voice, interaction.channel)
+            self.create_or_update_listener(
+                interaction.user, member, voice, interaction.channel
+            )
             await message(
                 interaction,
                 f"Now listening to {member.mention} in {interaction.channel.mention} with voice '{voice}'.",
@@ -201,94 +215,115 @@ class TTSCog(PluginCog):
             await message(interaction, str(e), error=True)
 
     @app_commands.command(
-        name="tts-stop-for",
-        description="[TTS] Stop listening to another user's messages",
+        name="tts", description="[TTS] See who's using Jerry TTS."
     )
-    @app_commands.guild_only()
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(
-        member="The user whose messages should be converted to speech.",
-    )
-    async def tts_stop_for_command(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member,
-    ):
-        """Stop listening to another user's messages on their behalf."""
-        await interaction.response.defer(thinking=True)
+    @guild_command
+    async def tts_info_command(self, interaction: discord.Interaction):
+        """Slash command to get information about the TTS plugin."""
 
         if interaction.guild is None:
             await message(interaction, GUILD_ONLY_MESSAGE, error=True)
             return
 
-        listener = self.listeners.pop((interaction.guild.id, member.id), None)
-        if listener:
-            await message(interaction, f"Stopped listening to {member.mention}.")
+        owners: dict[discord.Member, list[TTSListener]] = {}
+        for context in self.listeners:
+            if context.guild == interaction.guild:
+                owners.setdefault(context.owner, []).append(context)
+
+        if not owners:
+            content = "-# No listeners are active here."
         else:
-            await message(
-                interaction,
-                f"No active listener found for {member.mention}.",
-                error=True,
-            )
+            content = "-# Active instances:"
+            for owner, listeners in owners.items():
+                content += f"\n- {owner.mention}:"
+                for listener in listeners:
+                    if listener.target == owner:
+                        content += f"\n  - Listening to themselves - {listener.listen_channel.mention}"
+                    else:
+                        content += f"\n  - {listener.target.mention} - {listener.listen_channel.mention}"
+
+        if len(content) > 4096:
+            content = content[:4093] + "..."
+
+        embed = discord.Embed(
+            title="Jerry TTS",
+            description=content,
+            color=discord.Color.blue(),
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=False)
 
     @app_commands.command(
         name="tts-stop", description="[TTS] Stop listening to a user's messages."
     )
+    @guild_command
     async def tts_stop_command(self, interaction: discord.Interaction):
         """Slash command to stop listening to a user's messages."""
         await interaction.response.defer(thinking=True)
 
-        if interaction.guild is None:
+        if interaction.guild is None or not isinstance(
+            interaction.user, discord.Member
+        ):
             await message(interaction, GUILD_ONLY_MESSAGE, error=True)
             return
 
-        listener = self.listeners.pop((interaction.guild.id, interaction.user.id), None)
-        if listener:
-            await message(
-                interaction, f"Stopped listening to {interaction.user.mention}."
+        to_pop = self._get_listeners(interaction.guild, owner=interaction.user)
+        if not to_pop:
+            await message(interaction, "No active listeners", error=True)
+        targets = []
+        for listener in to_pop:
+            self.listeners.remove(listener)
+            self.plugin.logger.info(
+                f"Removed TTS listener(s) for {interaction.user}({listener.owner}) in guild {interaction.guild.name} because they left the voice channel."
             )
-        else:
-            await message(
-                interaction,
-                f"No active listener found for {interaction.user.mention}.",
-                error=True,
-            )
+            targets.append(listener.target)
+
+        await message(
+            interaction,
+            f"Stopped listening to {', '.join(['you' if t == interaction.user else t.mention for t in targets])}",
+        )
 
     def get_or_create_voice_client(self, guild: discord.Guild) -> TTSVoiceClient:
         """Get or create a TTSVoiceClient for a guild."""
         if guild.id not in self.voice_clients:
             self.voice_clients[guild.id] = TTSVoiceClient(
-                self.plugin.logger,
-                guild, timeout=self.config.user_timeout
+                self.plugin.logger, guild, timeout=self.config.user_timeout
             )
         return self.voice_clients[guild.id]
 
     def create_or_update_listener(
-        self, member: discord.Member, voice: str, listen_channel: discord.TextChannel
+        self,
+        owner: discord.Member,
+        target: discord.Member,
+        voice: str,
+        listen_channel: discord.TextChannel,
     ):
         """Create or update a TTSListener for a user in a guild."""
         voice_object = next((v for v in self.config.voices if v.name == voice), None)
         if voice_object is None:
             raise ValueError(f"Voice configuration '{voice}' not found.")
 
-        listener = self.listeners.get((member.guild.id, member.id))
-        if listener:
+        listeners = self._get_listeners(
+            listen_channel.guild, owner=owner, target=target
+        )
+        if listeners:
             # Update existing listener
+            listener = listeners[0]
             listener.voice_config = voice_object
-            listener.listen_channel = listen_channel
+            listener.update_listen_channel(listen_channel)
         else:
             # Create a new listener
             listener = TTSListener(
-                member=member,
+                owner=owner,
+                target=target,
                 config=self.config,
                 voice_config=voice_object,
                 listen_channel=listen_channel,
                 socket_client=self.socket_client,
-                voice_client=self.get_or_create_voice_client(member.guild),
+                voice_client=self.get_or_create_voice_client(target.guild),
                 logger=self.plugin.logger,
                 base_path=self.plugin.get_working_directory(),
             )
-            self.listeners[(member.guild.id, member.id)] = listener
+            self.listeners.append(listener)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -296,11 +331,8 @@ class TTSCog(PluginCog):
         if message.guild is None:
             return  # Ignore messages from DMs
 
-        listener = self.listeners.get((message.guild.id, message.author.id))
-        if listener:
-            self.plugin.logger.info(
-                f"Handling message from {message.author} in guild {message.guild.name}"
-            )
+        for listener in self.listeners:
+            # The listener already checks if the message applies to its context
             await listener.handle_message(message)
 
     @commands.Cog.listener()
@@ -312,15 +344,13 @@ class TTSCog(PluginCog):
     ):
         """Handle voice state updates to manage TTS listeners and voice clients."""
 
-        guild_id = member.guild.id
-        user_id = member.id
-
         # If the user leaves the voice channel, remove their listener
         if before.channel is not None and after.channel is None:
-            listener = self.listeners.pop((guild_id, user_id), None)
-            if listener:
+            to_pop = self._get_listeners(before.channel.guild, owner=member)
+            for listener in to_pop:
+                self.listeners.remove(listener)
                 self.plugin.logger.info(
-                    f"Removed TTS listener for {member} in guild {member.guild.name}"
+                    f"Removed TTS listener(s) for {member}({listener.owner}) in guild {member.guild.name} because they left the voice channel."
                 )
 
     async def stop(self):
@@ -328,3 +358,18 @@ class TTSCog(PluginCog):
         for voice_client in self.voice_clients.values():
             await voice_client.stop(from_timeout=False)
         self.voice_clients.clear()
+
+    def _get_listeners(
+        self,
+        guild: discord.Guild,
+        owner: discord.Member | None = None,
+        target: discord.Member | None = None,
+    ) -> list[TTSListener]:
+        """Get the listener that matches the given id(s)"""
+        return [
+            l
+            for l in self.listeners
+            if l.guild == guild
+            and (owner is None or l.owner == owner)
+            and (target is None or l.target == target)
+        ]
