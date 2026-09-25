@@ -17,7 +17,8 @@ from .models.exceptions import (
 from .models.ratelimit import RateLimiter
 
 VOICE_DISCONNECT_TIMEOUT = 2.0
-
+VOICE_AUDIO_PADDING = 0.2
+VOICE_FFMPEG_OPTIONS = f" -af \"adelay={int(VOICE_AUDIO_PADDING * 1000)},apad=pad_dur={VOICE_AUDIO_PADDING}\" " 
 
 @dataclass(frozen=True, slots=True, order=True)
 class TTSVoiceQueueItem:
@@ -162,7 +163,7 @@ class TTSVoiceClient:
             raise TTSVoiceConnectionError("Voice client is not connected")
 
         # Play the file
-        source = discord.FFmpegPCMAudio(str(item.file))
+        source = discord.FFmpegPCMAudio(str(item.file), options=VOICE_FFMPEG_OPTIONS)
         loop = asyncio.get_running_loop()
         playback_finished = asyncio.Event()
         playback_error: list[Exception] = []
