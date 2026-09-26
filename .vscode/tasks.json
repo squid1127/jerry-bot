@@ -43,6 +43,18 @@
                 "kind": "test",
                 "isDefault": false
             }
-        }
+        },
+        {
+            "label": "Reset Bot Commands",
+            "type": "shell",
+            "icon": {
+                "id": "refresh",
+                "color": "terminal.ansiGreen"
+            },
+            "command": "poetry run python scripts/reset.py",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
     ]
 }
