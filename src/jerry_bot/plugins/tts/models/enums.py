@@ -3,9 +3,9 @@
 from enum import Enum
 
 
-class PrefixControlDirective(Enum):
+class TTSControlSignal(Enum):
     """
-    Enum for prefix control directives.
+    Enum for available TTS Control Signals.
 
     Attributes:
         STOP (str): Directive to clear playback queue

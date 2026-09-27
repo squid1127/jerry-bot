@@ -45,17 +45,21 @@ class TTSPlugin(Plugin):
         if not self.config.enabled:
             self.logger.info("Text-to-Speech plugin is disabled in the configuration.")
             return
+        
+        if self.config.path.clean_audio_dir:
+            await self.clean_audio_path()
+        
 
         cwd = self.config.service.cwd if self.config.service.cwd else self.path
         socket_path = (
-            self.config.socket_path
-            if self.config.socket_path.is_absolute()
-            else cwd / self.config.socket_path
+            self.path / self.config.path.socket
+            if self.config.path.relative_to_plugin
+            else self.config.path.socket
         )
-        output_dir = (
-            self.config.output_dir
-            if self.config.output_dir.is_absolute()
-            else cwd / self.config.output_dir
+        audio_path = (
+            self.path / self.config.path.audio
+            if self.config.path.relative_to_plugin
+            else self.config.path.audio
         )
 
         self.socket_client = TTSSocketClient(
@@ -63,7 +67,7 @@ class TTSPlugin(Plugin):
             self.logger,
             max_concurrent_requests=self.config.max_concurrent_requests,
         )
-        self.cog = TTSCog(self, self.socket_client, output_dir, self.config)
+        self.cog = TTSCog(self, self.socket_client, audio_path, self.config)
         if self.config.service.use:
             self.service_runner = TTSServiceRunner(self.config, cwd)
             self.logger.info(
@@ -97,26 +101,26 @@ class TTSPlugin(Plugin):
             await self.socket_client.disconnect()
         if self.service_runner:
             await self.service_runner.stop()
-            
-    async def clean_output_dir(self):
+
+    async def clean_audio_path(self):
         """Clean the output directory by removing all files."""
         if self.config is None:
             raise RuntimeError(
                 "Configuration not loaded. Please run the preload method first."
             )
-        output_dir = (
-            self.path / self.config.output_dir
-            if self.config.output_dir_relative_to_plugin
-            else self.config.output_dir
+        audio_path = (
+            self.path / self.config.path.audio
+            if self.config.path.relative_to_plugin
+            else self.config.path.audio
         )
-        if output_dir.exists() and output_dir.is_dir():
-            for file in output_dir.iterdir():
+        if audio_path.exists() and audio_path.is_dir():
+            for file in audio_path.iterdir():
                 if file.is_file():
                     file.unlink()
-            self.logger.info("Output directory cleaned: %s", output_dir)
+            self.logger.info("Output directory cleaned: %s", audio_path)
         else:
             self.logger.warning(
-                "Output directory does not exist or is not a directory: %s", output_dir
+                "Output directory does not exist or is not a directory: %s", audio_path
             )
 
     @property

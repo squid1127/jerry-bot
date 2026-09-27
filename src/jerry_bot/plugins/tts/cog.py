@@ -53,7 +53,7 @@ class TTSCog(PluginCog):
     ):
         super().__init__(plugin)
         self.socket_client: TTSSocketClient = client
-        self.output_dir: Path = output_dir
+        self.audio_path: Path = output_dir
         self._lock: asyncio.Lock = asyncio.Lock()
         self.config: TTSPluginConfig = config
 
@@ -141,10 +141,10 @@ class TTSCog(PluginCog):
                 await message(interaction, message="TTS service failed.")
                 return
 
-            if response.filename and (self.output_dir / response.filename).exists():
+            if response.filename and (self.audio_path / response.filename).exists():
                 await interaction.followup.send(
                     file=discord.File(
-                        fp=self.output_dir / response.filename,
+                        fp=self.audio_path / response.filename,
                         filename=f"tts{Path(response.filename).suffix}",
                     )
                 )

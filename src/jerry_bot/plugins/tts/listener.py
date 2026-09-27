@@ -5,8 +5,14 @@ from pathlib import Path
 
 import discord
 
-from .models.config import TTSPluginConfig, TTSVoiceConfig
-from .models.exceptions import TTSError, TTSGenerationError
+from .models.config import (
+    TTSControlSignalRule,
+    TTSPluginConfig,
+    TTSSoundboardRule,
+    TTSVoiceConfig,
+)
+from .models.enums import TTSControlSignal
+from .models.exceptions import TTSError, TTSGenerationError, TTSVoiceError
 from .models.request import TTSRequest
 from .socket import TTSSocketClient
 from .text_processor import TextProcessor
@@ -89,32 +95,81 @@ class TTSListener:
         Args:
             message (discord.Message): The incoming Discord message.
         """
-        text = self.text_processor.normalize(message.content)
-        await message.reply(text)
+        raw_text = message.content
+        text = self.text_processor.normalize(raw_text)
+        tokenized = self.text_processor.tokenize(text)
+
+        next_is_fast = False
+        next_is_raw = False
+        for token in tokenized:
+            if self.config.text.debug and (str(token)):
+                await message.reply(str(token))
+            
+            if isinstance(token, str):
+                if not token.strip():
+                    continue
+                
+                await self._handle_generate_tts(
+                    raw_text if next_is_raw else token, message, int(next_is_fast) + 1
+                )
+                next_is_fast = False
+                next_is_raw = False
+
+            elif isinstance(token, TTSSoundboardRule):
+                if self.soundboard_path is None:
+                    continue
+                try:
+                    self._add_playback(self.soundboard_path / token.path, message)
+                except TTSVoiceError:
+                    self.logger.exception(
+                        f"Error playing soundboard for message id {message.id}"
+                    )
+                    await reaction(message, "❌")  # Indicate failure with a reaction
+
+            elif isinstance(token, TTSControlSignalRule):
+                if token.signal == TTSControlSignal.FAST:
+                    next_is_fast = True
+                elif token.signal == TTSControlSignal.RAW:
+                    next_is_raw = True
+                elif token.signal == TTSControlSignal.STOP:
+                    await self.voice_client.stop()
+                elif token.signal == TTSControlSignal.SKIP:
+                    await self.voice_client.skip()
+
+    async def _handle_generate_tts(
+        self, text: str, message: discord.Message, speed_multiplier: float
+    ):
 
         try:
             # Generate TTS audio file using the socket client
             response = await self.socket_client.generate_tts(
-                TTSRequest.from_voice_config(text=text, voice_config=self.voice_config)
+                TTSRequest.from_voice_config(
+                    text=text,
+                    voice_config=self.voice_config,
+                    speed_multiplier=speed_multiplier,
+                )
             )
 
             if response.filename:
-                if not (self.path / response.filename).exists():
-                    raise TTSGenerationError("Generated audio file not found.")
-                # Enqueue the generated audio file for playback
-                self.voice_client.enqueue(
-                    self._owner,
-                    self.path / response.filename,
-                    lambda e: self._handle_generation_error(message, e),
-                )
+
+                self._add_playback(self.path / response.filename, message)
             else:
-                raise ValueError("TTS response failed")
+                raise TTSGenerationError("TTS response failed")
 
         except TTSError:
             self.logger.exception(
-                f"Error generating TTS for message '{message.content}'"
+                f"Error generating TTS for message id {message.id}"
             )
             await reaction(message, "❌")  # Indicate failure with a reaction
+
+    def _add_playback(self, path: Path, message: discord.Message):
+        if not path.exists():
+            raise TTSVoiceError(f"File to play does not exist: {path}")
+        self.voice_client.enqueue(
+            self._owner,
+            path,
+            lambda e: self._handle_generation_error(message, e),
+        )
 
     async def _handle_generation_error(
         self, message: discord.Message, error: Exception
@@ -130,18 +185,28 @@ class TTSListener:
             f"Error generating TTS for message '{message.content}': {error}"
         )
         await reaction(message, "❌")  # Indicate failure with a reaction
-        
+
     def update_listen_channel(self, channel: discord.TextChannel):
         self._listen_channel = channel
 
     @property
     def path(self) -> Path:
-        """Get the base path for the TTS plugin."""
+        """Get the audio path."""
         return (
-            self.base_path / self.config.output_dir
-            if self.config.output_dir_relative_to_plugin
-            else self.config.output_dir
+            self.base_path / self.config.path.audio
+            if self.config.path.relative_to_plugin
+            else self.config.path.audio
         )
+
+    @property
+    def soundboard_path(self) -> Path | None:
+        """Get the soundboard audio path."""
+        if self.config.path.soundboard is None:
+            return
+        elif self.config.path.relative_to_plugin:
+            return self.base_path / self.config.path.soundboard
+        else:
+            return self.config.path.soundboard
 
     @property
     def owner(self) -> discord.Member:

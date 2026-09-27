@@ -63,7 +63,7 @@ class TTSRequest(BaseModel):
         return self.model_dump_json().encode()
     
     @classmethod
-    def from_voice_config(cls, text: str, voice_config: TTSVoiceConfig) -> "TTSRequest":
+    def from_voice_config(cls, text: str, voice_config: TTSVoiceConfig, speed_multiplier:float = 1.0) -> "TTSRequest":
         """Create a TTSRequest instance from a TTSVoiceConfig.
 
         Args:
@@ -77,7 +77,7 @@ class TTSRequest(BaseModel):
             uuid=str(uuid4()),
             text=text,
             voice=voice_config.voice,
-            speed=voice_config.speed,
+            speed=voice_config.speed * speed_multiplier,
             sample_rate=voice_config.sample_rate,
             lang_code=voice_config.lang_code,
         )

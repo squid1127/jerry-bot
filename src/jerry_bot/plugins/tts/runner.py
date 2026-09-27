@@ -55,7 +55,7 @@ class TTSServiceRunner:
             raise TTSRunnerError("TTS service is not running.")
 
         timeout = self.READY_TIMEOUT_SECONDS
-        socket_path = self.path / self.config.socket_path
+        socket_path = self.path / self.config.path.socket
 
         try:
             async with asyncio.timeout(timeout):

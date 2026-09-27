@@ -18,7 +18,7 @@ from .models.ratelimit import RateLimiter
 
 VOICE_DISCONNECT_TIMEOUT = 2.0
 VOICE_AUDIO_PADDING = 0.2
-VOICE_FFMPEG_OPTIONS = f" -af \"adelay={int(VOICE_AUDIO_PADDING * 1000)},apad=pad_dur={VOICE_AUDIO_PADDING}\" " 
+VOICE_FFMPEG_OPTIONS = f" -af \"adelay={int(VOICE_AUDIO_PADDING * 1000)}|{int(VOICE_AUDIO_PADDING * 1000)},apad=pad_dur={VOICE_AUDIO_PADDING}\" " 
 
 @dataclass(frozen=True, slots=True, order=True)
 class TTSVoiceQueueItem:

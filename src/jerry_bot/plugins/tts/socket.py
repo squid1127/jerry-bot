@@ -78,6 +78,7 @@ class TTSSocketClient:
             request (TTSRequest): The TTS request to send.
 
         """
+
         if not (self.is_connected or self._is_disconnecting):
             await self.connect()
 
