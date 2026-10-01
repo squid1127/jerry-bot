@@ -9,7 +9,6 @@ from ..ar import AutoReply
 from ..models.db import AutoReplyRule
 from .common import send_error
 from .constants import (
-    MENTION_REPLACE,
     MENTION_TRIGGER,
     RESPONSE_METHOD_MAPPING,
     RULE_TYPE_MAPPING,
@@ -182,12 +181,12 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         if self.rules and len(self.rules) == 1:
             rule = self.rules[0]
             body += f"\n**ID:** {rule.id}"
-            body += f"\n**Trigger:** || {self._sanitize_trigger(rule.trigger)} ||"
+            body += f"\n**Trigger:** ```regex\n {rule.trigger} ```"
             body += f"\n**Response:** {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
             body += f"\n**Active:** {'✅' if rule.is_active else '❌'}"
         else:
             for rule in self.rules:
-                body += f"\n**{rule.id}** - {self._sanitize_trigger(rule.name)} ▶︎ || {self._sanitize_trigger(rule.trigger)} || ▶︎ {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
+                body += f"\n**{rule.id}** - {self._sanitize_trigger(rule.name)} ```regex\n {rule.trigger} ``` ▶︎ {RULE_TYPE_MAPPING.get(rule.response_type, {}).get('emoji', '❔')} {RESPONSE_METHOD_MAPPING.get(rule.response_method, {}).get('emoji', '❔')}"
                 if not rule.is_active:
                     body += " [Inactive]"
 
@@ -295,12 +294,11 @@ class AutoReplySearchUI(discord.ui.LayoutView):
         btn.callback = callback
         return btn
 
-
     def _sanitize_trigger(self, trigger: str) -> str:
         """Sanitize the trigger by escaping markdown, removing mentions, and stripping whitespace."""
         trigger = trigger.strip()
         trigger = discord.utils.escape_markdown(trigger)
-        trigger = MENTION_TRIGGER.sub(MENTION_REPLACE, trigger)
+        trigger = MENTION_TRIGGER.sub(f"`{trigger}`", trigger)
         return trigger
 
 

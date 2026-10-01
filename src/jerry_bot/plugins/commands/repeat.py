@@ -35,6 +35,7 @@ DISCORD_COLORS: dict[str, discord.Colour] = {
     "yellow": discord.Colour.yellow(),
 }
 
+
 async def color_autocomplete(
     _interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
@@ -57,15 +58,27 @@ class StaticCommandRepeatCog(PluginCog):
         self.bot = plugin.fw.bot
         self.logger = plugin.logger
         self.perms = plugin.fw.perms
-        
+
         self.active_loops: dict[int, tasks.Loop] = {}
 
-    @app_commands.command(name="repeat-start", description="Repeats a message in this channel")
-    @app_commands.describe(message="Message to repeat", interval="Repetition interval (minutes)", color="Color of embed")
+    @app_commands.command(
+        name="repeat-start", description="Repeats a message in this channel"
+    )
+    @app_commands.describe(
+        message="Message to repeat",
+        interval="Repetition interval (minutes)",
+        color="Color of embed",
+    )
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_channels=True)
     @app_commands.autocomplete(color=color_autocomplete)
-    async def repeat(self, interaction: discord.Interaction, message: str, interval: int, color: str = "blurple"):
+    async def repeat(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+        interval: int,
+        color: str = "blurple",
+    ):
         if not await self.check_permissions(interaction):
             return
 
@@ -76,7 +89,7 @@ class StaticCommandRepeatCog(PluginCog):
             )
         if interval <= 0:
             return await interaction.response.send_message(
-                "Interval must be positive and nonzero.", ephemeral=True
+                "Interval must be positive.", ephemeral=True
             )
 
         channel_id = interaction.channel.id
@@ -87,12 +100,15 @@ class StaticCommandRepeatCog(PluginCog):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         try:
+
             @tasks.loop(minutes=interval)
             async def sender():
                 view = RepeatLayout(message, resolved_color)
                 await interaction.channel.send(
                     view=view,
-                    allowed_mentions=discord.AllowedMentions(users=True, roles=True, everyone=False),
+                    allowed_mentions=discord.AllowedMentions(
+                        users=True, roles=True, everyone=False
+                    ),
                 )
 
             @sender.error
@@ -136,7 +152,9 @@ class StaticCommandRepeatCog(PluginCog):
 
         return True
 
-    @app_commands.command(name="repeat-stop", description="Stop the repeating message in this channel")
+    @app_commands.command(
+        name="repeat-stop", description="Stop the repeating message in this channel"
+    )
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_channels=True)
     async def stoprepeat(self, interaction: discord.Interaction):
@@ -144,6 +162,10 @@ class StaticCommandRepeatCog(PluginCog):
         loop = self.active_loops.pop(channel_id, None)
         if loop:
             loop.cancel()
-            await interaction.response.send_message("Repetition stopped.", ephemeral=True)
+            await interaction.response.send_message(
+                "Repetition stopped.", ephemeral=True
+            )
         else:
-            await interaction.response.send_message("No repeating messages.", ephemeral=True)
+            await interaction.response.send_message(
+                "No repeating messages.", ephemeral=True
+            )

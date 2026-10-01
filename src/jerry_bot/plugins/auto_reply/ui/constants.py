@@ -129,5 +129,4 @@ For `query`, specify a keyword to search or use `id=<rule_id>` to search by rule
 """
 
 SEARCH_RESULT_LIMIT = 20
-MENTION_TRIGGER = compile(r"<@\d{17,19}>")
-MENTION_REPLACE = "__<@Mention>__"
+MENTION_TRIGGER = compile(r"<(@\$?|#!?)\d{17,19}>")
