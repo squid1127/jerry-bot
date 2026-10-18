@@ -9,6 +9,7 @@ user_timeout: 300.0 # seconds after the last request before the listener and voi
 # This plugin requires https://github.com/squid1127/jerry-bot-tts to function properly.
 # It generates TTS via Kokoro, using a unix socket to communicate with this plugin, and a directory to store the actual audio
 # This section will run the service as a child process while the plugin is loaded
+# This should not be used if the service is run as a docker container or similarly
 service:
   use: false # set to true to run the tts service via the below command automatically
   command: "jerry-bot-tts"
@@ -168,3 +169,6 @@ text:
     - pattern: >-
         <#(\d+)>
       replacement: "hashtag channel"
+    - pattern: >-
+        https?://[^\s<>"'?#]+
+      replacement: "some link"
