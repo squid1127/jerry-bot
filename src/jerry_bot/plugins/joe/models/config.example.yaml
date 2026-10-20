@@ -2,8 +2,8 @@
 enabled: false
 
 # Each entry associates one user in one guild with the channel names to use.
-# format: dict[user, dict[channel, name]]
-entries: []
+# format: mapping[user, mapping[channel, name]]
+entries: {}
 # Example:
 # entries:
 #   234567890123456789: # user id
