@@ -1,0 +1,13 @@
+# Enable the Joe plugin to activate channel renaming.
+enabled: false
+
+# Each entry associates one user in one guild with the channel names to use.
+# format: dict[user, dict[channel, name]]
+entries: []
+# Example:
+# entries:
+#   234567890123456789: # user id
+#       123456789012345678: "joe" # channel id : desired name
+
+# The time between messages to ignore incoming messages in the event of a permissions error
+retry_period: 86400

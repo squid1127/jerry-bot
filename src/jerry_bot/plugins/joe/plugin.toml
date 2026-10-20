@@ -1,0 +1,7 @@
+[plugin]
+name = "joe"
+description = "Renames a channel when a user speaks"
+class = "JoePlugin"
+
+# [db]
+# models = ["models.db"]
