@@ -26,11 +26,12 @@ Rather than having formal releases, Jerry-bot uses a `stable` branch to provide 
 - **support-threads** - Automatically create private threads using a dedicated channel with an interactive button.
 - **activity-roles** - Automatically assign roles to users based on the frequency of their activity in the server.
 - **simple-games** - Multiplayer, interaction-based games. (Currently only tic-tac-toe & rock-paper-scissors)
+- **tts** - A text-to-speech system that allows users to generate speech in voice calls. Relies on a [separate project](https://github.com/squid1127/jerry-bot-tts)
+- **joe** - Joke/joe feature that renames a channel whenever a specific user sends a message in it
 
 ### Incomplete/Need Reworking
 
 - **gemini** - (r4) Sophisticated AI chatbot system leveraging Google Gemini, OpenRouter, or Ollama. Currently partially implemented, but missing core features.
-- **tts** - A text-to-speech system that allows users to generate speech in voice calls. Currently partially implemented
 
 ### Not Implemented (Yet)
 
